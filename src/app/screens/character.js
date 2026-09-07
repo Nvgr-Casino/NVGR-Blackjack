@@ -17,7 +17,7 @@ export function renderCharacter() {
     </button>`).join('');
 
   return `
-    <div class="brand-hero compact">${brandMark('lobby')}</div>
+    <div class="brand-hero compact tight">${brandMark('lobby')}</div>
     <p class="subtitle">Choose your character</p>
     <p class="hint" style="margin-bottom:18px;">
       This is who takes your seat at the table.${hasPortraits() ? '' : ' Loading portraits…'}

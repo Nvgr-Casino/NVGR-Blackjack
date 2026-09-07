@@ -137,6 +137,11 @@ label { display: block; font-size: 12px; color: var(--cream-dim); margin-bottom:
 }
 
 .brand-hero.compact { margin-bottom: 2px; }
+/* The picker's whole point is the grid underneath it, and the full lobby
+   mark is tall enough to push all eight characters below the fold on a
+   laptop. Same logo, just sized so you can see what you're choosing. */
+.brand-hero.tight { margin-bottom: 0; }
+.brand-hero.tight .brand-mark.lobby { width: min(180px, 42vw); }
 .brand-mark.lobby { width: min(300px, 62vw); height: auto; filter: drop-shadow(0 4px 16px rgba(234, 195, 94, 0.2)); }
 .brand-mark.loading { width: min(260px, 60vw); height: auto; margin-top: 40px; animation: brandBreathe 5.5s ease-in-out infinite; }
 .brand-mark.topbar { width: 104px; height: auto; flex-shrink: 0; }

@@ -194,10 +194,12 @@ export function buildCharacterPortraits(size = 192) {
         box.getSize(s);
         const cx = (box.min.x + box.max.x) / 2;
         const cz = (box.min.z + box.max.z) / 2;
-        const headY = box.max.y - s.y * 0.09;
-        // Framed on the head, pulled back enough to catch the shoulders.
-        camera.position.set(cx, headY, cz + s.y * 0.42);
-        camera.lookAt(cx, headY - s.y * 0.045, cz);
+        const headY = box.max.y - s.y * 0.11;
+        // Framed on the head, pulled back enough to catch the shoulders —
+        // and far enough that tall hair (the punk's mohawk, the hood) isn't
+        // clipped at the crown.
+        camera.position.set(cx, headY, cz + s.y * 0.55);
+        camera.lookAt(cx, headY - s.y * 0.03, cz);
         renderer.render(scene, camera);
         portraits.set(c.id, renderer.domElement.toDataURL());
         scene.remove(model);
