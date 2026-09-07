@@ -5,7 +5,7 @@
 // markup the 3D scene now draws instead.
 import { createTableDriver } from '../ui/gameController.js';
 import {
-  MAX_PUBLIC_SEATS, MAX_TIMEOUTS, DECKS_IN_SHOE, rankOf, suitOf, handValue,
+  MAX_PUBLIC_SEATS, MAX_TIMEOUTS, DECKS_IN_SHOE, rankOf, suitOf, handValueLabel,
   avatarColor, initials, chipLadderForTable, stakesFor, stakesLabel, safeKey, seatOf,
 } from './roomLogic.js';
 import { chipButtonDataURL } from '../scene/chip.js';
@@ -199,7 +199,7 @@ export function syncRoomToScene(room, myKey) {
     if (!p) return;
     if (p.hands && p.hands.length && room.phase !== 'betting' && room.phase !== 'lobby') {
       p.hands.forEach((hand, handIndex) => {
-        driver.setSeatBadge(seatIndex, handIndex, p.hands.length, String(handValue(hand.cards)));
+        driver.setSeatBadge(seatIndex, handIndex, p.hands.length, handValueLabel(hand.cards));
       });
     } else {
       driver.hideSeatBadges(seatIndex);
@@ -207,7 +207,7 @@ export function syncRoomToScene(room, myKey) {
   });
 
   if (room.phase === 'insurance' || room.phase === 'playing' || room.phase === 'dealer' || room.phase === 'results') {
-    driver.setDealerBadge(String(handValue(room.dealer.hand.slice(0, room.dealer.hiddenRevealed ? room.dealer.hand.length : 1))));
+    driver.setDealerBadge(handValueLabel(room.dealer.hand.slice(0, room.dealer.hiddenRevealed ? room.dealer.hand.length : 1)));
   } else {
     driver.hideDealerBadge();
   }

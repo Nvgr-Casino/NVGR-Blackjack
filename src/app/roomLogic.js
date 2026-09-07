@@ -75,7 +75,9 @@ export function cardValue(rank) {
   if (['J', 'Q', 'K'].includes(rank)) return 10;
   return Number(rank);
 }
-export function handValue(cards) {
+// Totals a hand, and says whether an ace in it is still counting as 11 —
+// a "soft" hand, which can take a card without ever busting.
+export function handTotals(cards) {
   let sum = 0, aces = 0;
   for (const c of cards) {
     const v = cardValue(rankOf(c));
@@ -83,7 +85,20 @@ export function handValue(cards) {
     if (v === 11) aces++;
   }
   while (sum > 21 && aces > 0) { sum -= 10; aces--; }
-  return sum;
+  return { total: sum, soft: aces > 0 && sum <= 21 };
+}
+
+export function handValue(cards) {
+  return handTotals(cards).total;
+}
+
+// What to print on the hand marker. A soft hand has two totals and a player
+// deciding whether to hit soft 17 needs both — a bare "17" hides that the
+// ace is protecting them. Shown the way a real table does it: "7/17".
+// A soft 21 is just 21; nobody is choosing between 11 and 21.
+export function handValueLabel(cards) {
+  const { total, soft } = handTotals(cards);
+  return soft && total < 21 ? (total - 10) + '/' + total : String(total);
 }
 export function isBlackjack(cards) { return cards.length === 2 && handValue(cards) === 21; }
 export function genCode() {
