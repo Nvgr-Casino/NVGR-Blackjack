@@ -58,10 +58,26 @@ async function loadAccount(uid) {
   const snap = await get(ref(db, 'accounts/' + safeKey(uid)));
   return snap.exists() ? snap.val() : null;
 }
+// Play money: nobody is ever left unable to sit down. A public table
+// already re-stakes a broke player when a round starts — but only one who
+// is still sitting at it, and running out of chips is exactly what gets you
+// removed. A balance under the table minimum means you cannot place a bet,
+// three missed betting windows in a row removes you, and from that moment
+// the room's top-up can never reach you: you are out of playerOrder, your
+// zero has already been written to your account, and every later load reads
+// it straight back. That is how a balance reached nought and stayed there.
+// So the re-stake lives on the account too, which is the one place a player
+// always passes through.
+function stakedBalance(chips) {
+  return typeof chips === 'number' && chips > 0 ? chips : STARTING_CHIPS;
+}
+
 async function ensureAccount(uid, name) {
   const existing = await loadAccount(uid);
   if (existing) {
-    return { chips: existing.chips, character: existing.character || defaultCharacterFor(safeKey(uid)) };
+    const chips = stakedBalance(existing.chips);
+    if (chips !== existing.chips) await saveAccountChips(uid, name, chips);
+    return { chips, character: existing.character || defaultCharacterFor(safeKey(uid)) };
   }
   const character = defaultCharacterFor(safeKey(uid));
   await set(ref(db, 'accounts/' + safeKey(uid)), { name, chips: STARTING_CHIPS, character, updatedAt: Date.now() });
@@ -205,12 +221,25 @@ export function enterTable(code) {
   render();
 }
 
+// Re-stakes a busted player the moment they land back in the lobby, rather
+// than leaving them looking at a zero until their next sign-in.
+function restakeIfBroke() {
+  const chips = stakedBalance(session.chips);
+  if (chips === session.chips) return false;
+  session.chips = chips;
+  lastSavedChips = chips;
+  saveAccountChips(session.uid, session.name, chips).catch(() => {});
+  return true;
+}
+
 function handleRemovedFromTable() {
   if (roomUnsub) { roomUnsub(); roomUnsub = null; }
   clearTick();
   setCurrentRoom(session.uid, null).catch(() => {});
   session.code = null; session.room = null; session.screen = 'home';
-  formNotice = 'You were removed from the table after missing too many bets in a row.';
+  formNotice = restakeIfBroke()
+    ? 'You were removed from the table after missing too many bets in a row — and you were out of chips, so the house has staked you again.'
+    : 'You were removed from the table after missing too many bets in a row.';
   updateHash(); render();
   loadLobby();
 }
@@ -442,6 +471,9 @@ export async function leaveTable() {
   if (roomUnsub) { roomUnsub(); roomUnsub = null; }
   clearTick();
   session.code = null; session.room = null; session.screen = 'home';
+  // Walking away from a table broke is the other way to end up stranded at
+  // zero, since the room's own top-up only reaches players still sitting.
+  if (restakeIfBroke()) formNotice = 'You were out of chips, so the house has staked you again.';
   updateHash(); render();
   loadLobby();
 }
