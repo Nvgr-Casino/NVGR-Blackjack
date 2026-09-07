@@ -40,10 +40,12 @@ let localPendingSeats = {};
 let lastPhase = null;
 
 let setFeltTheme = () => {};
+let setDealerModel = () => {};
 
 export function mountTable3D(sceneHandles) {
   driver = createTableDriver(sceneHandles);
   setFeltTheme = sceneHandles.setFeltTheme || (() => {});
+  setDealerModel = sceneHandles.setDealerModel || (() => {});
   return driver;
 }
 
@@ -86,6 +88,7 @@ export function syncRoomToScene(room, myKey) {
   if (!driver || !room) return;
 
   setFeltTheme(room.felt);
+  setDealerModel(room.dealerType);
 
   if (room.round !== lastRound) {
     lastRound = room.round;

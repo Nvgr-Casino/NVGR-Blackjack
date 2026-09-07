@@ -1,25 +1,32 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 
-// Seated player figures, built from primitives like everything else on this
-// table (chairs, chips, the felt). Nothing here is downloaded — a preset is
-// just a palette plus a silhouette, so adding a candidate is one entry in
-// the list below rather than a new model to source and rig.
+// Player characters: real rigged models from Quaternius' Ultimate Modular
+// Men and Women packs (CC0, same source and skeleton as the dealer), so one
+// seated pose works for every one of them. Four men, four women.
+//
+// Skinned meshes can't be cloned with .clone() — the copy would keep
+// pointing at the original's skeleton and every instance would move
+// together — hence SkeletonUtils.clone for each seat.
 
-const SEAT_TOP_Y = -0.51; // matches createChair()'s cushion surface
-const FLOOR_Y = -0.91;
+const SEAT_TOP_Y = -0.51;   // createChair()'s cushion surface
+// The dealer is deliberately oversized so its arms can reach across the
+// felt; a player only has to fit their own chair, so they are scaled to
+// something closer to life against the table.
+const TARGET_HEIGHT = 2.9;
+const HIP_ANGLE = -Math.PI / 2;
+const KNEE_ANGLE = Math.PI / 2;
 
-// Hair shapes are what carry most of the silhouette at table distance, so
-// the presets lean on them (and shoulder width) more than on facial detail,
-// which is invisible from across the felt anyway.
 export const CHARACTERS = [
-  { id: 'ace', name: 'Ace', skin: 0xe8b98f, hair: 0x2b1b12, hairStyle: 'short', outfit: 0x1e3a5f, accent: 0xd9d3c7, build: 'broad' },
-  { id: 'duchess', name: 'Duchess', skin: 0xf0c9a6, hair: 0x8a5a2b, hairStyle: 'long', outfit: 0x6d1f3f, accent: 0xeac35e, build: 'slim' },
-  { id: 'bishop', name: 'Bishop', skin: 0x8d5a3c, hair: 0x14100e, hairStyle: 'bald', outfit: 0x23252b, accent: 0xc0392b, build: 'broad' },
-  { id: 'scarlett', name: 'Scarlett', skin: 0xecc0a2, hair: 0x9c2116, hairStyle: 'bob', outfit: 0x7d1420, accent: 0xf6ecd9, build: 'slim' },
-  { id: 'jade', name: 'Jade', skin: 0xd9a173, hair: 0x1a1a1f, hairStyle: 'bun', outfit: 0x14513f, accent: 0xeac35e, build: 'slim' },
-  { id: 'baron', name: 'Baron', skin: 0xf2d3b3, hair: 0xb9b4ad, hairStyle: 'short', outfit: 0x3b2a4d, accent: 0xd4af52, build: 'broad' },
-  { id: 'marlowe', name: 'Marlowe', skin: 0x6f4630, hair: 0x1b1512, hairStyle: 'fade', outfit: 0x2f4f4f, accent: 0xf6ecd9, build: 'broad' },
-  { id: 'vega', name: 'Vega', skin: 0xe3b083, hair: 0x2d2136, hairStyle: 'long', outfit: 0x402a5e, accent: 0xa8c6ff, build: 'slim' },
+  { id: 'sterling', name: 'Sterling', sex: 'm', file: 'm_businessman.glb', tone: '#1e3a5f' },
+  { id: 'baron', name: 'The Baron', sex: 'm', file: 'm_king.glb', tone: '#d4af52' },
+  { id: 'rook', name: 'Rook', sex: 'm', file: 'm_hoodie.glb', tone: '#5b3a8a' },
+  { id: 'marlowe', name: 'Marlowe', sex: 'm', file: 'm_adventurer.glb', tone: '#2f4f4f' },
+  { id: 'jade', name: 'Jade', sex: 'f', file: 'f_casual.glb', tone: '#14513f' },
+  { id: 'scarlett', name: 'Scarlett', sex: 'f', file: 'f_punk.glb', tone: '#7d1420' },
+  { id: 'vega', name: 'Vega', sex: 'f', file: 'f_adventurer.glb', tone: '#3b6ea5' },
+  { id: 'duchess', name: 'Duchess', sex: 'f', file: 'f_hooded.glb', tone: '#6d1f3f' },
 ];
 
 export const DEFAULT_CHARACTER = CHARACTERS[0].id;
@@ -28,8 +35,8 @@ export function characterById(id) {
   return CHARACTERS.find((c) => c.id === id) || CHARACTERS[0];
 }
 
-// Everyone would otherwise open the game as the same person, so a player
-// with no choice saved yet gets one picked from their id.
+// Everyone would otherwise sit down as the same person, so a player with no
+// choice saved yet gets one derived from their id.
 export function defaultCharacterFor(key) {
   if (!key) return DEFAULT_CHARACTER;
   let h = 0;
@@ -37,170 +44,167 @@ export function defaultCharacterFor(key) {
   return CHARACTERS[h % CHARACTERS.length].id;
 }
 
-function addHair(group, c, headY, headR) {
-  const mat = new THREE.MeshLambertMaterial({ color: c.hair });
-  if (c.hairStyle === 'bald') return;
-
-  if (c.hairStyle === 'fade') {
-    const cap = new THREE.Mesh(new THREE.SphereGeometry(headR * 1.02, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.42), mat);
-    cap.position.set(0, headY + 0.005, 0);
-    group.add(cap);
-    return;
-  }
-
-  const cap = new THREE.Mesh(new THREE.SphereGeometry(headR * 1.06, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.58), mat);
-  cap.position.set(0, headY + 0.01, 0);
-  group.add(cap);
-
-  if (c.hairStyle === 'long') {
-    const fall = new THREE.Mesh(new THREE.BoxGeometry(headR * 1.9, headR * 2.4, headR * 0.7), mat);
-    fall.position.set(0, headY - headR * 0.9, -headR * 0.72);
-    group.add(fall);
-  } else if (c.hairStyle === 'bob') {
-    const fall = new THREE.Mesh(new THREE.BoxGeometry(headR * 2.0, headR * 1.2, headR * 1.4), mat);
-    fall.position.set(0, headY - headR * 0.5, -headR * 0.25);
-    group.add(fall);
-  } else if (c.hairStyle === 'bun') {
-    const bun = new THREE.Mesh(new THREE.SphereGeometry(headR * 0.5, 10, 8), mat);
-    bun.position.set(0, headY + headR * 0.5, -headR * 0.95);
-    group.add(bun);
-  }
+function modelUrl(file) {
+  return import.meta.env.BASE_URL + 'models/characters/' + file;
 }
 
-// A seated figure facing local +Z — the same direction seats.js's
-// facingAngle turns a chair to face the table.
+const loaders = new Map();
+function loadModel(file) {
+  if (!loaders.has(file)) {
+    loaders.set(file, new Promise((resolve, reject) => {
+      new GLTFLoader().load(modelUrl(file), resolve, undefined, reject);
+    }));
+  }
+  return loaders.get(file);
+}
+
+// Same technique the dealer uses: a bone's local rotation offset is derived
+// from its actual world orientation, because the local axes depend on
+// whatever bone roll the rig was authored with and can't be guessed.
+function hingeDelta(bone, worldAngle) {
+  const currentWorld = new THREE.Quaternion();
+  bone.getWorldQuaternion(currentWorld);
+  const desiredWorld = new THREE.Quaternion()
+    .setFromAxisAngle(new THREE.Vector3(1, 0, 0), worldAngle)
+    .multiply(currentWorld);
+  const parentWorld = new THREE.Quaternion();
+  bone.parent.getWorldQuaternion(parentWorld);
+  const desiredLocal = parentWorld.invert().multiply(desiredWorld);
+  return desiredLocal.multiply(bone.quaternion.clone().invert());
+}
+
+function sitDown(model) {
+  const bones = {
+    hips: model.getObjectByName('Hips'),
+    upperLegL: model.getObjectByName('UpperLegL'),
+    upperLegR: model.getObjectByName('UpperLegR'),
+    lowerLegL: model.getObjectByName('LowerLegL'),
+    lowerLegR: model.getObjectByName('LowerLegR'),
+  };
+  if (!bones.hips || !bones.upperLegL || !bones.lowerLegL) return false;
+
+  // Matrices first: the box is meaningless until the model's own transforms
+  // are applied. The .glb dealers carry a scaled root node, so measuring
+  // before this reads the raw authored geometry (tens of units tall) and
+  // shrinks the figure to a speck.
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  if (size.y > 0) model.scale.setScalar(TARGET_HEIGHT / size.y);
+  model.updateMatrixWorld(true);
+
+  // Thighs forward first, then knees bent back so the shins hang straight
+  // down again — the knee angle is measured after the hip has moved.
+  const hipL = hingeDelta(bones.upperLegL, HIP_ANGLE);
+  const hipR = hingeDelta(bones.upperLegR, HIP_ANGLE);
+  bones.upperLegL.quaternion.premultiply(hipL);
+  bones.upperLegR.quaternion.premultiply(hipR);
+  model.updateMatrixWorld(true);
+  bones.lowerLegL.quaternion.premultiply(hingeDelta(bones.lowerLegL, KNEE_ANGLE));
+  bones.lowerLegR.quaternion.premultiply(hingeDelta(bones.lowerLegR, KNEE_ANGLE));
+  model.updateMatrixWorld(true);
+
+  // Drop the figure so its hips land on the cushion, then centre it over
+  // the chair rather than over wherever the rig's origin happens to be.
+  // By the hips, not the bounding box: Box3 reads skinned meshes in their
+  // bind pose and each model carries a different root transform, so
+  // box-centring puts every character in a different spot on its chair.
+  const hipWorld = new THREE.Vector3();
+  bones.hips.getWorldPosition(hipWorld);
+  model.position.y += SEAT_TOP_Y + 0.05 - hipWorld.y;
+  model.updateMatrixWorld(true);
+
+  bones.hips.getWorldPosition(hipWorld);
+  model.position.x -= hipWorld.x;
+  model.position.z -= hipWorld.z;
+  return true;
+}
+
+// Returns a group straight away and fills it in once the model arrives, so
+// the scene code can stay synchronous.
 export function createCharacter(id) {
   const c = characterById(id);
   const group = new THREE.Group();
-
-  const skinMat = new THREE.MeshLambertMaterial({ color: c.skin });
-  const outfitMat = new THREE.MeshLambertMaterial({ color: c.outfit });
-  const accentMat = new THREE.MeshLambertMaterial({ color: c.accent });
-
-  const broad = c.build === 'broad';
-  const shoulderW = broad ? 0.42 : 0.34;
-  const torsoW = broad ? 0.34 : 0.29;
-  const torsoH = 0.5;
-  const hipY = SEAT_TOP_Y + 0.09;
-  const torsoY = hipY + torsoH / 2;
-
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(torsoW, torsoH, 0.22), outfitMat);
-  torso.position.set(0, torsoY, -0.02);
-  torso.castShadow = true;
-  group.add(torso);
-
-  // Shoulder bar reads as a jacket line and widens the silhouette.
-  const shoulders = new THREE.Mesh(new THREE.BoxGeometry(shoulderW, 0.12, 0.24), outfitMat);
-  shoulders.position.set(0, torsoY + torsoH / 2 - 0.03, -0.02);
-  shoulders.castShadow = true;
-  group.add(shoulders);
-
-  // Collar/lapel flash in the accent colour, the one bit of the outfit
-  // that reads as individual from across the table.
-  const collar = new THREE.Mesh(new THREE.BoxGeometry(torsoW * 0.34, 0.18, 0.06), accentMat);
-  collar.position.set(0, torsoY + torsoH / 2 - 0.11, 0.1);
-  group.add(collar);
-
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.055, 0.08, 10), skinMat);
-  neck.position.set(0, torsoY + torsoH / 2 + 0.03, -0.02);
-  group.add(neck);
-
-  const headR = 0.13;
-  const headY = torsoY + torsoH / 2 + 0.14;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(headR, 16, 12), skinMat);
-  head.position.set(0, headY, -0.02);
-  head.castShadow = true;
-  group.add(head);
-  addHair(group, c, headY, headR);
-
-  // Arms angle down and forward so the hands finish near the felt, where a
-  // seated player's would be.
-  [-1, 1].forEach((side) => {
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.34, 0.1), outfitMat);
-    arm.position.set(side * (shoulderW / 2 - 0.03), torsoY + 0.06, 0.02);
-    arm.rotation.x = -0.5;
-    arm.castShadow = true;
-    group.add(arm);
-
-    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.052, 10, 8), skinMat);
-    hand.position.set(side * (shoulderW / 2 - 0.03), torsoY - 0.11, 0.19);
-    group.add(hand);
-  });
-
-  // Thighs forward, shins down — the shape that makes it read as sitting
-  // rather than standing behind the chair.
-  [-1, 1].forEach((side) => {
-    const thigh = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.13, 0.34), outfitMat);
-    thigh.position.set(side * 0.1, hipY - 0.03, 0.14);
-    thigh.castShadow = true;
-    group.add(thigh);
-
-    const shinH = SEAT_TOP_Y + 0.04 - FLOOR_Y;
-    const shin = new THREE.Mesh(new THREE.BoxGeometry(0.12, shinH, 0.13), outfitMat);
-    shin.position.set(side * 0.1, FLOOR_Y + shinH / 2, 0.28);
-    group.add(shin);
-
-    const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.06, 0.2), accentMat);
-    shoe.position.set(side * 0.1, FLOOR_Y + 0.03, 0.34);
-    group.add(shoe);
-  });
-
+  loadModel(c.file).then((gltf) => {
+    const model = cloneSkinned(gltf.scene);
+    model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    sitDown(model);
+    group.add(model);
+  }).catch(() => { /* a missing model just leaves an empty chair */ });
   return group;
 }
 
-// The same character drawn flat, for the HTML side (seat pills, friends
-// list, the picker) so a player looks the same in the lists as at the felt.
-const portraitCache = new Map();
-export function characterPortraitDataURL(id, size = 96) {
-  const key = id + ':' + size;
-  if (portraitCache.has(key)) return portraitCache.get(key);
+// ---------- portraits for the HTML side ----------
+// One small offscreen renderer draws every character once; the results are
+// cached as data URLs and reused by the picker, seat pills and lobby.
+const portraits = new Map();
+let thumbJob = null;
+
+function fallbackPortrait(id, size) {
   const c = characterById(id);
   const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
+  canvas.width = size; canvas.height = size;
   const ctx = canvas.getContext('2d');
-  const hex = (n) => '#' + n.toString(16).padStart(6, '0');
-  const cx = size / 2;
-
-  ctx.fillStyle = hex(c.outfit);
+  ctx.fillStyle = c.tone;
   ctx.beginPath();
-  ctx.arc(cx, cx, size / 2, 0, Math.PI * 2);
+  ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
   ctx.fill();
+  ctx.fillStyle = 'rgba(246,236,217,0.9)';
+  ctx.font = `700 ${size * 0.4}px Georgia, serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(c.name[0], size / 2, size / 2 + size * 0.02);
+  return canvas.toDataURL();
+}
 
-  // Shoulders
-  ctx.fillStyle = hex(c.accent);
-  ctx.beginPath();
-  ctx.ellipse(cx, size * 0.98, size * 0.34, size * 0.26, 0, 0, Math.PI * 2);
-  ctx.fill();
+export function characterPortraitDataURL(id, size = 96) {
+  const key = characterById(id).id;
+  return portraits.get(key) || fallbackPortrait(key, size);
+}
 
-  const headR = size * 0.22;
-  const headY = size * 0.47;
+export function hasPortraits() { return portraits.size >= CHARACTERS.length; }
 
-  if (c.hairStyle === 'long' || c.hairStyle === 'bob') {
-    ctx.fillStyle = hex(c.hair);
-    ctx.beginPath();
-    ctx.ellipse(cx, headY + headR * 0.35, headR * 1.32, headR * (c.hairStyle === 'long' ? 1.6 : 1.25), 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
+// Renders a head-and-shoulders shot of each character. Called once when the
+// picker opens; every later render just reads the cache.
+export function buildCharacterPortraits(size = 192) {
+  if (thumbJob) return thumbJob;
+  thumbJob = (async () => {
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(size, size);
+    renderer.setClearColor(0x000000, 0);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-  ctx.fillStyle = hex(c.skin);
-  ctx.beginPath();
-  ctx.arc(cx, headY, headR, 0, Math.PI * 2);
-  ctx.fill();
+    const scene = new THREE.Scene();
+    scene.add(new THREE.AmbientLight(0xffffff, 2.4));
+    const key = new THREE.DirectionalLight(0xfff0d0, 2.6);
+    key.position.set(1.2, 2.2, 2.4);
+    scene.add(key);
+    const camera = new THREE.PerspectiveCamera(28, 1, 0.01, 200);
 
-  if (c.hairStyle !== 'bald') {
-    ctx.fillStyle = hex(c.hair);
-    ctx.beginPath();
-    ctx.arc(cx, headY, headR * (c.hairStyle === 'fade' ? 1.0 : 1.05), Math.PI, 0);
-    ctx.fill();
-    if (c.hairStyle === 'bun') {
-      ctx.beginPath();
-      ctx.arc(cx, headY - headR * 1.1, headR * 0.42, 0, Math.PI * 2);
-      ctx.fill();
+    for (const c of CHARACTERS) {
+      try {
+        const gltf = await loadModel(c.file);
+        const model = cloneSkinned(gltf.scene);
+        scene.add(model);
+        model.updateMatrixWorld(true);
+
+        const box = new THREE.Box3().setFromObject(model);
+        const s = new THREE.Vector3();
+        box.getSize(s);
+        const cx = (box.min.x + box.max.x) / 2;
+        const cz = (box.min.z + box.max.z) / 2;
+        const headY = box.max.y - s.y * 0.09;
+        // Framed on the head, pulled back enough to catch the shoulders.
+        camera.position.set(cx, headY, cz + s.y * 0.42);
+        camera.lookAt(cx, headY - s.y * 0.045, cz);
+        renderer.render(scene, camera);
+        portraits.set(c.id, renderer.domElement.toDataURL());
+        scene.remove(model);
+      } catch (e) { /* keep the fallback disc for this one */ }
     }
-  }
-
-  const texture = canvas.toDataURL();
-  portraitCache.set(key, texture);
-  return texture;
+    renderer.dispose();
+    return true;
+  })();
+  return thumbJob;
 }

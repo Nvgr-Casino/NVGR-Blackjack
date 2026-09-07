@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { DEALER } from './seats.js';
 
 // A real rigged human model (CC0, Quaternius "Ultimate Modular Men Pack" —
@@ -10,8 +11,18 @@ import { DEALER } from './seats.js';
 // Served straight out of public/, so the URL has to be built from Vite's
 // base — hardcoding a leading "/" would look for the model at the domain
 // root and 404 on GitHub Pages, where the site lives under /NVGR-Blackjack/.
-const MODEL_URL = import.meta.env.BASE_URL + 'models/dealer.gltf';
-const TARGET_HEIGHT = 4.2; // standing height used to scale the model — big enough that the (now longer) arms can actually reach toward each seat, not just gesture vaguely forward
+// Two dealers, same rig and animation set, so a table can run either.
+export const DEALER_MODELS = { male: 'dealer.gltf', female: 'dealer_female.glb' };
+export const DEALER_KEYS = Object.keys(DEALER_MODELS);
+const modelUrl = (file) => import.meta.env.BASE_URL + 'models/' + file;
+// Standing height used to scale the model. Bigger than a player (2.9) so
+// the arms still carry a reach toward each seat rather than gesturing
+// vaguely forward — but not the 4.2 this used to be: at that size the
+// seated thigh is thick enough that its top surface breached the felt
+// (hips land at -0.46, the felt is at +0.01), so a bare leg drew straight
+// across the table, and the dealer towered over the newly right-sized
+// players.
+const TARGET_HEIGHT = 3.4;
 const FLOOR_Y = -0.91; // matches table.js's floor mesh
 const SEAT_TOP_Y = FLOOR_Y + 0.4; // matches avatar.js's createChair() seat-cushion height
 
@@ -61,14 +72,14 @@ function computeSeatBend(bones) {
   return { upperLegL: hipL, upperLegR: hipR, lowerLegL: kneeL, lowerLegR: kneeR };
 }
 
-let modelPromise = null;
-function loadModel() {
-  if (!modelPromise) {
-    modelPromise = new Promise((resolve, reject) => {
-      new GLTFLoader().load(MODEL_URL, resolve, undefined, reject);
-    });
+const modelPromises = new Map();
+function loadModel(file) {
+  if (!modelPromises.has(file)) {
+    modelPromises.set(file, new Promise((resolve, reject) => {
+      new GLTFLoader().load(modelUrl(file), resolve, undefined, reject);
+    }));
   }
-  return modelPromise;
+  return modelPromises.get(file);
 }
 
 // Scales the model to a known standing height (the source file's own unit
@@ -77,6 +88,11 @@ function loadModel() {
 // is layered on every frame — the hips land on the sofa's own seat height
 // instead of the floor.
 function fitSeatedModel(model, bones) {
+  // Matrices first: the box is meaningless until the model's own transforms
+  // are applied. The .glb dealers carry a scaled root node, so measuring
+  // before this reads the raw authored geometry (tens of units tall) and
+  // shrinks the figure to a speck.
+  model.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(model);
   const size = new THREE.Vector3();
   box.getSize(size);
@@ -86,16 +102,19 @@ function fitSeatedModel(model, bones) {
   const deltas = computeSeatBend(bones);
   model.updateMatrixWorld(true);
 
+  // Placed by the hips bone rather than the bounding box. Box3 measures
+  // skinned meshes from their bind pose and every model carries its own
+  // root transform, so box-centring lands each character somewhere
+  // different — the female dealer ended up several units off the table.
+  // The hips are the same landmark in every rig.
   const hipWorld = new THREE.Vector3();
   bones.hips.getWorldPosition(hipWorld);
   model.position.y += SEAT_TOP_Y + 0.05 - hipWorld.y;
-
   model.updateMatrixWorld(true);
-  const placed = new THREE.Box3().setFromObject(model);
-  const center = new THREE.Vector3();
-  placed.getCenter(center);
-  model.position.x -= center.x;
-  model.position.z -= center.z;
+
+  bones.hips.getWorldPosition(hipWorld);
+  model.position.x -= hipWorld.x;
+  model.position.z -= hipWorld.z;
 
   return deltas;
 }
@@ -217,12 +236,36 @@ function updateReach(record) {
   if (t >= 1) record.reach = null;
 }
 
-export function createDealerFigure() {
+export function createDealerFigure(key = 'male') {
   const group = new THREE.Group();
+  group.userData.ready = false;
+  group.userData.idleActive = false;
+  populateDealer(group, key);
+  return group;
+}
 
-  loadModel()
+// Swaps which dealer is standing at the table without replacing the group
+// itself — every other module holds a reference to that group (the card
+// dealing animations aim at it), so it has to survive the change.
+export function setDealerModel(group, key) {
+  const file = DEALER_MODELS[key] || DEALER_MODELS.male;
+  if (group.userData.file === file) return;
+  populateDealer(group, key);
+}
+
+function populateDealer(group, key) {
+  const file = DEALER_MODELS[key] || DEALER_MODELS.male;
+  group.userData.file = file;
+
+  if (group.userData.model) group.remove(group.userData.model);
+  if (group.userData.record) activeDealers.delete(group.userData.record);
+  group.userData.ready = false;
+
+  loadModel(file)
     .then((gltf) => {
-      const model = gltf.scene;
+      // Cloned, not used directly: the seated bend mutates bone rotations,
+      // and the cached gltf is shared with any later swap back.
+      const model = cloneSkinned(gltf.scene);
 
       // GLTFLoader strips "." from node names (the source file names joints
       // "UpperLeg.L" etc., following Blender's left/right suffix convention).
@@ -275,10 +318,6 @@ export function createDealerFigure() {
     .catch((err) => {
       console.error('Failed to load dealer model:', err);
     });
-
-  group.userData.ready = false;
-  group.userData.idleActive = false;
-  return group;
 }
 
 // Idle is just whatever's already looping once the model loads — kept as a

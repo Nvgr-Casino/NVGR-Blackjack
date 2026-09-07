@@ -5,7 +5,7 @@ import { createTable } from './table.js';
 import { createChipStack } from './chip.js';
 import { createDeckStack } from './deal.js';
 import { createChair } from './avatar.js';
-import { createDealerFigure, startDealerIdle, updateDealerAnimations } from './dealer.js';
+import { createDealerFigure, setDealerModel, startDealerIdle, updateDealerAnimations } from './dealer.js';
 import { createBetRing, createCardShoe, createChipTray } from './props.js';
 import { TABLE_BACK_Z } from './table.js';
 import { SEATS, DEALER, cameraPositionForSeat, CAMERA_LOOK_AT } from './seats.js';
@@ -173,9 +173,13 @@ export function initScene(canvas) {
   }
   animate();
 
+  // Dev-only handle for poking at the scene from the console.
+  if (import.meta.env.DEV) window.__nvgr = { scene, camera, dealer };
+
   return {
     scene, camera, renderer, controls, dealer, chairsBySeat,
     setFeltTheme: table.userData.setFeltTheme,
+    setDealerModel: (key) => setDealerModel(dealer, key),
   };
 }
 

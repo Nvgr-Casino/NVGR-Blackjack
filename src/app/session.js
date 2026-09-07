@@ -11,6 +11,7 @@ import {
 import { ref, get, set, update, onValue, runTransaction } from 'firebase/database';
 import { auth, db } from '../firebase/config.js';
 import { FELT_THEME_KEYS } from '../scene/table.js';
+import { DEALER_KEYS } from '../scene/dealer.js';
 import { defaultCharacterFor } from '../scene/character.js';
 // Circular by design: social.js reads session state and calls refresh().
 // Both sides only touch each other inside functions, never at module load,
@@ -299,6 +300,7 @@ export async function createRoom() {
   const room = {
     code, adminId: safeKey(session.uid), isPublic: false,
     minBet: TABLE_STAKES[1].min, maxBet: TABLE_STAKES[1].max,
+    dealerType: DEALER_KEYS[Math.floor(Math.random() * DEALER_KEYS.length)],
     players: {}, playerOrder: [],
     dealer: { hand: [], hiddenRevealed: false },
     deck: [], phase: 'lobby', turnOrder: [], currentTurnIndex: 0, dealtIn: [], round: 0, bettingDeadline: null,
@@ -379,6 +381,7 @@ async function createPublicTable(chips, key) {
   const room = {
     code, adminId: key, isPublic: true,
     minBet: TABLE_STAKES[1].min, maxBet: TABLE_STAKES[1].max,
+    dealerType: DEALER_KEYS[Math.floor(Math.random() * DEALER_KEYS.length)],
     players: {}, playerOrder: [],
     dealer: { hand: [], hiddenRevealed: false }, deck: [],
     phase: 'betting', turnOrder: [], currentTurnIndex: 0, dealtIn: [], round: 1,
@@ -454,6 +457,7 @@ function emptyPublicRoom(stakes, felt) {
     code: genCode(), isPublic: true,
     minBet: tier.min, maxBet: tier.max,
     felt: felt || FELT_THEME_KEYS[Math.floor(Math.random() * FELT_THEME_KEYS.length)],
+    dealerType: DEALER_KEYS[Math.floor(Math.random() * DEALER_KEYS.length)],
     players: {}, playerOrder: [],
     dealer: { hand: [], hiddenRevealed: false }, deck: [],
     phase: 'betting', turnOrder: [], currentTurnIndex: 0, dealtIn: [], round: 1,
@@ -508,6 +512,10 @@ export async function loadLobby() {
       if (!r.felt) {
         r.felt = FELT_THEME_KEYS[tables.length % FELT_THEME_KEYS.length];
         await set(ref(db, 'rooms/' + code + '/felt'), r.felt);
+      }
+      if (!r.dealerType) {
+        r.dealerType = DEALER_KEYS[tables.length % DEALER_KEYS.length];
+        await set(ref(db, 'rooms/' + code + '/dealerType'), r.dealerType);
       }
       const { min, max } = stakesFor(r);
       tables.push({ code, count: seats.length, seats, phase: r.phase, minBet: min, maxBet: max, felt: r.felt });
