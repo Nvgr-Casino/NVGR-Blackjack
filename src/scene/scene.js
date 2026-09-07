@@ -7,6 +7,7 @@ import { createDeckStack } from './deal.js';
 import { createChair } from './avatar.js';
 import { createDealerFigure, setDealerModel, startDealerIdle, updateDealerAnimations } from './dealer.js';
 import { createBetRing, createCardShoe, createChipTray } from './props.js';
+import { createRoom, ROOM_HALF } from './room.js';
 import { TABLE_BACK_Z } from './table.js';
 import { SEATS, DEALER, cameraPositionForSeat, CAMERA_LOOK_AT } from './seats.js';
 import { tickAnimations } from './animator.js';
@@ -18,8 +19,11 @@ import { cameraOverride } from './cameraFocus.js';
 // which seat is yours at runtime, and only that seat's chair gets hidden.
 export function initScene(canvas) {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x1a0508);
-  scene.fog = new THREE.Fog(0x1a0508, 9, 20);
+  scene.background = new THREE.Color(0x140407);
+  // Fog now only has to soften the far corners of a real room, not stand in
+  // for a horizon — pulled back from 9–20, which at these distances would
+  // have greyed the far wall (and the house sign on it) into nothing.
+  scene.fog = new THREE.Fog(0x140407, 16, 44);
 
   const camera = new THREE.PerspectiveCamera(
     54,
@@ -52,8 +56,14 @@ export function initScene(canvas) {
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.maxPolarAngle = Math.PI / 2.15;
+  // Now that the table is inside a room, the orbit has to stay inside it
+  // too: pulling back past the walls, or rising above the ceiling, would
+  // put the camera outside a box whose faces are all pointing inward — you
+  // would look straight through the back of a wall into the void. These two
+  // limits keep the camera in the room at every distance it can reach.
+  controls.minPolarAngle = Math.PI / 3;
   controls.minDistance = 3;
-  controls.maxDistance = 14;
+  controls.maxDistance = ROOM_HALF - 2;
   controls.target.copy(CAMERA_LOOK_AT);
 
   const ambient = new THREE.AmbientLight(0xfff2d0, 0.4);
@@ -80,14 +90,9 @@ export function initScene(canvas) {
   const pendant = createPendantLamp();
   scene.add(pendant);
 
-  const floor = new THREE.Mesh(
-    new THREE.CircleGeometry(16, 48),
-    new THREE.MeshStandardMaterial({ color: 0x0c0304, roughness: 0.9 })
-  );
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.y = -0.91;
-  floor.receiveShadow = true;
-  scene.add(floor);
+  // The room the table stands in — carpet, panelled walls, ceiling and the
+  // house signage. Static, so it is built once and never touched again.
+  scene.add(createRoom());
 
   const table = createTable();
   scene.add(table);

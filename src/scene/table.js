@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { drawCasinoCrest } from './crest.js';
 
 // A real casino "D" table: a semicircular front for the players plus a pair
 // of straight parallel sides running back to a flat rear edge for the
@@ -136,61 +137,10 @@ function createFeltTexture(themeKey) {
   );
 
   // The NVGR Casino house crest, inked into the felt the way a real house
-  // mark is — the same crown/wordmark/rule/CASINO lockup drawn in the UI
-  // (see casinoMark in src/app/uiHelpers.js), kept to the same geometry so
-  // the table and the site read as one brand. Drawn in the crest's own SVG
-  // coordinates and scaled into place, so the two stay easy to keep in sync.
-  function drawCasinoCrest(cx, cy, targetW, alpha) {
-    const CREST_W = 328; // rule-to-rule width in the crest's own units
-    // The felt is read at a shallow angle, which squashes everything
-    // vertically — a stacked lockup like this collapses into itself (the
-    // crown lands in the middle of the wordmark). Pre-stretching the
-    // vertical axis cancels that out, so it reads square on the table.
-    const FORESHORTEN = 1.65;
-    const s = targetW / CREST_W;
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.scale(s, s * FORESHORTEN);
-    ctx.translate(-280, -111); // crest centre → origin
-    ctx.fillStyle = `rgba(255,236,176,${alpha})`;
-
-    ctx.save();
-    ctx.translate(280, 2);
-    ctx.scale(1.16, 1.16);
-    ctx.beginPath();
-    ctx.moveTo(-47, 50); ctx.lineTo(-47, 15); ctx.lineTo(-23, 37); ctx.lineTo(0, 5);
-    ctx.lineTo(23, 37); ctx.lineTo(47, 15); ctx.lineTo(47, 50); ctx.closePath();
-    ctx.fill();
-    ctx.beginPath(); ctx.roundRect(-52, 53, 104, 13, 4); ctx.fill();
-    [[-47, 11, 5.5], [0, 1, 6.5], [47, 11, 5.5]].forEach(([jx, jy, jr]) => {
-      ctx.beginPath(); ctx.arc(jx, jy, jr, 0, Math.PI * 2); ctx.fill();
-    });
-    [-24, 24].forEach((dx) => {
-      ctx.beginPath();
-      ctx.moveTo(dx, 57); ctx.lineTo(dx + 5, 62); ctx.lineTo(dx, 67); ctx.lineTo(dx - 5, 62);
-      ctx.closePath(); ctx.fill();
-    });
-    ctx.restore();
-
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
-    ctx.letterSpacing = '6px';
-    ctx.font = FELT_FONT(88, 700);
-    ctx.fillText('NVGR', 283, 152);
-
-    ctx.fillRect(116, 174, 134, 2.2);
-    ctx.fillRect(310, 174, 134, 2.2);
-    ctx.beginPath();
-    ctx.moveTo(280, 167); ctx.lineTo(288, 175); ctx.lineTo(280, 183); ctx.lineTo(272, 175);
-    ctx.closePath(); ctx.fill();
-
-    ctx.letterSpacing = '18px';
-    ctx.font = FELT_FONT(29, 600);
-    ctx.fillText('CASINO', 289, 213);
-    ctx.letterSpacing = '0px';
-    ctx.restore();
-  }
-
+  // mark is. Drawn from src/scene/crest.js so the felt, the room's walls and
+  // the site all paint the same lockup — the felt only differs in asking for
+  // the foreshortening that its shallow viewing angle needs.
+  const FELT_FORESHORTEN = 1.65;
   const crestSpots = [
     { x: 0.5, y: 0.55, rot: 0, scale: 1.15, alpha: 0.92 },
     { x: 0.23, y: 0.63, rot: -0.3, scale: 0.62, alpha: 0.72 },
@@ -202,7 +152,9 @@ function createFeltTexture(themeKey) {
     ctx.save();
     ctx.translate(FELT_W * x, FELT_H * y);
     ctx.rotate(rot);
-    drawCasinoCrest(0, 0, FELT_W * 0.2 * scale, alpha);
+    drawCasinoCrest(ctx, {
+      x: 0, y: 0, width: FELT_W * 0.2 * scale, alpha, foreshorten: FELT_FORESHORTEN,
+    });
     ctx.restore();
   });
 
