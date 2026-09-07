@@ -54,22 +54,36 @@ function computeHingeDelta(bone, worldAngle) {
 }
 
 // Computed once, from the bones' bind pose, the first time a dealer model
-// loads — then reused as a fixed offset every frame after that (see
-// applySeatBend / updateDealerAnimations).
+// loads — then re-applied every frame after that (see applySeatBend /
+// updateDealerAnimations).
+//
+// What comes back is the ABSOLUTE seated rotation of each leg bone, not the
+// delta that produced it. That distinction is the whole fix for the legs
+// twitching: a delta has to be premultiplied onto whatever the animation
+// mixer last wrote, which is only correct while the mixer actually writes
+// those bones every single frame. In the gap between a one-shot gesture
+// ending and the idle crossfading back in, it doesn't — and the delta then
+// compounds onto its own previous result, kicking the legs out. Copying an
+// absolute rotation cannot compound, and it holds the legs still whatever
+// the mixer does, which is what a seated dealer's legs should do anyway.
+// The idle clip still drives the torso, arms and head.
 function computeSeatBend(bones) {
-  const hipL = computeHingeDelta(bones.upperLegL, HIP_ANGLE);
-  const hipR = computeHingeDelta(bones.upperLegR, HIP_ANGLE);
-  bones.upperLegL.quaternion.premultiply(hipL);
-  bones.upperLegR.quaternion.premultiply(hipR);
+  bones.upperLegL.quaternion.premultiply(computeHingeDelta(bones.upperLegL, HIP_ANGLE));
+  bones.upperLegR.quaternion.premultiply(computeHingeDelta(bones.upperLegR, HIP_ANGLE));
   bones.upperLegL.updateMatrixWorld(true);
   bones.upperLegR.updateMatrixWorld(true);
 
-  // Computed against the now-bent thighs, so this cancels exactly the
+  // Measured against the now-bent thighs, so this cancels exactly the
   // rotation the hip bend just added — not the original standing pose.
-  const kneeL = computeHingeDelta(bones.lowerLegL, KNEE_ANGLE);
-  const kneeR = computeHingeDelta(bones.lowerLegR, KNEE_ANGLE);
+  bones.lowerLegL.quaternion.premultiply(computeHingeDelta(bones.lowerLegL, KNEE_ANGLE));
+  bones.lowerLegR.quaternion.premultiply(computeHingeDelta(bones.lowerLegR, KNEE_ANGLE));
 
-  return { upperLegL: hipL, upperLegR: hipR, lowerLegL: kneeL, lowerLegR: kneeR };
+  return {
+    upperLegL: bones.upperLegL.quaternion.clone(),
+    upperLegR: bones.upperLegR.quaternion.clone(),
+    lowerLegL: bones.lowerLegL.quaternion.clone(),
+    lowerLegR: bones.lowerLegR.quaternion.clone(),
+  };
 }
 
 const modelPromises = new Map();
@@ -99,7 +113,7 @@ function fitSeatedModel(model, bones) {
   if (size.y > 0) model.scale.setScalar(TARGET_HEIGHT / size.y);
   model.updateMatrixWorld(true);
 
-  const deltas = computeSeatBend(bones);
+  const seatPose = computeSeatBend(bones);
   model.updateMatrixWorld(true);
 
   // Placed by the hips bone rather than the bounding box. Box3 measures
@@ -116,14 +130,17 @@ function fitSeatedModel(model, bones) {
   model.position.x -= hipWorld.x;
   model.position.z -= hipWorld.z;
 
-  return deltas;
+  return seatPose;
 }
 
-function applySeatBend(bones, deltas) {
-  bones.upperLegL.quaternion.premultiply(deltas.upperLegL);
-  bones.upperLegR.quaternion.premultiply(deltas.upperLegR);
-  bones.lowerLegL.quaternion.premultiply(deltas.lowerLegL);
-  bones.lowerLegR.quaternion.premultiply(deltas.lowerLegR);
+// Copy, not premultiply — see computeSeatBend. The mixer has just written
+// the idle clip's standing legs over these bones; this puts the seated pose
+// back, absolutely, so it can neither drift nor compound.
+function applySeatBend(bones, seated) {
+  bones.upperLegL.quaternion.copy(seated.upperLegL);
+  bones.upperLegR.quaternion.copy(seated.upperLegR);
+  bones.lowerLegL.quaternion.copy(seated.lowerLegL);
+  bones.lowerLegR.quaternion.copy(seated.lowerLegR);
 }
 
 const LOCAL_Y = new THREE.Vector3(0, 1, 0);
@@ -217,7 +234,7 @@ const activeDealers = new Set();
 export function updateDealerAnimations(deltaSeconds) {
   activeDealers.forEach((record) => {
     record.mixer.update(deltaSeconds);
-    if (record.bones && record.seatDeltas) applySeatBend(record.bones, record.seatDeltas);
+    if (record.bones && record.seatPose) applySeatBend(record.bones, record.seatPose);
     if (record.arm && record.reach) updateReach(record);
   });
 }
@@ -277,9 +294,9 @@ function populateDealer(group, key) {
         lowerLegR: model.getObjectByName('LowerLegR'),
       };
       const seated = Object.values(bones).every(Boolean);
-      let seatDeltas = null;
+      let seatPose = null;
       if (seated) {
-        seatDeltas = fitSeatedModel(model, bones);
+        seatPose = fitSeatedModel(model, bones);
       } else {
         console.warn('Dealer model is missing expected leg bones — seated pose skipped.');
       }
@@ -305,7 +322,7 @@ function populateDealer(group, key) {
       const arm = captureArmChain(model);
       if (!arm) console.warn('Dealer model is missing expected right-arm bones — reach gesture skipped.');
 
-      const record = { mixer, bones: seated ? bones : null, seatDeltas, arm, reach: null };
+      const record = { mixer, bones: seated ? bones : null, seatPose, arm, reach: null };
       activeDealers.add(record);
       group.userData.model = model;
       group.userData.mixer = mixer;

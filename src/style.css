@@ -2,6 +2,9 @@ html, body {
   margin: 0;
   padding: 0;
   min-height: 100%;
+  /* Stops the whole page rubber-banding when a drag on the table runs past
+     the edge of the canvas, which on a phone reads as the table sticking. */
+  overscroll-behavior: none;
 }
 
 #scene {
@@ -9,4 +12,15 @@ html, body {
   inset: 0;
   width: 100vw;
   height: 100vh;
+  /* OrbitControls sets this itself, but only on the element it is given and
+     only once it has initialised. Declaring it here means the very first
+     two-finger pinch is claimed by the canvas rather than being swallowed
+     by the browser's own page zoom — which is why pinch-to-zoom the table
+     did nothing on iOS.
+     -webkit-touch-callout / user-select stop a long press on the table
+     raising an image menu or starting a text selection mid-drag. */
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }

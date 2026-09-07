@@ -40,11 +40,23 @@ export function initScene(canvas) {
   camera.position.copy(cameraPositionForSeat(SEATS[2]));
   camera.lookAt(CAMERA_LOOK_AT);
 
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  // Phones are fill-rate bound, not triangle bound — this scene is only
+  // ~29k triangles, so nothing here is limited by geometry. What costs is
+  // every *pixel*: a phone at devicePixelRatio 3 asks for nine times the
+  // fragments of a 1x screen, and each of those fragments then pays for
+  // every light in the scene and a soft-shadow lookup on top. So the mobile
+  // tier cuts pixels and per-pixel work rather than detail, which is why it
+  // still looks like the desktop build.
+  const lowPower = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: !lowPower });
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  // 1.5 rather than 2-3. Paired with dropping MSAA this is roughly a 4x
+  // reduction in fragment work on a modern phone, and at this screen size
+  // the difference is very hard to see.
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, lowPower ? 1.5 : 2));
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = lowPower ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 0.82;
 
@@ -66,13 +78,18 @@ export function initScene(canvas) {
   controls.maxDistance = ROOM_HALF - 2;
   controls.target.copy(CAMERA_LOOK_AT);
 
-  const ambient = new THREE.AmbientLight(0xfff2d0, 0.4);
+  // Ambient is the one light that costs essentially nothing per fragment —
+  // no position, no attenuation, no shadow. So the mobile tier spends its
+  // savings here: dropping three point lights left the carpet and the far
+  // corners nearly black, and this buys that brightness back without
+  // buying back the cost.
+  const ambient = new THREE.AmbientLight(0xfff2d0, lowPower ? 0.78 : 0.4);
   scene.add(ambient);
 
   const key = new THREE.DirectionalLight(0xfff2d0, 0.8);
   key.position.set(3, 8, 4);
   key.castShadow = true;
-  key.shadow.mapSize.set(2048, 2048);
+  key.shadow.mapSize.set(lowPower ? 1024 : 2048, lowPower ? 1024 : 2048);
   key.shadow.camera.left = -9;
   key.shadow.camera.right = 9;
   key.shadow.camera.top = 9;
@@ -82,9 +99,14 @@ export function initScene(canvas) {
   key.shadow.bias = -0.0015;
   scene.add(key);
 
-  const rimLight = new THREE.PointLight(0xeac35e, 0.5, 14);
-  rimLight.position.set(-4, 3, -3);
-  scene.add(rimLight);
+  // Every point light is paid for by every lit fragment on screen, so the
+  // purely decorative one stands down on phones. The room's own sconces do
+  // the same job from the walls.
+  if (!lowPower) {
+    const rimLight = new THREE.PointLight(0xeac35e, 0.5, 14);
+    rimLight.position.set(-4, 3, -3);
+    scene.add(rimLight);
+  }
 
   // Overhead pendant lamp — a casino-style hanging light over the table.
   const pendant = createPendantLamp();
@@ -92,7 +114,7 @@ export function initScene(canvas) {
 
   // The room the table stands in — carpet, panelled walls, ceiling and the
   // house signage. Static, so it is built once and never touched again.
-  scene.add(createRoom());
+  scene.add(createRoom({ lowPower }));
 
   const table = createTable();
   scene.add(table);
@@ -157,11 +179,20 @@ export function initScene(canvas) {
   const BASE_FOV = 54;
   const BASE_ASPECT = 16 / 9;
   const H_FOV = 2 * Math.atan(Math.tan((BASE_FOV * Math.PI) / 360) * BASE_ASPECT);
+  // On a phone held upright the aspect falls to about 0.46, and holding the
+  // horizontal view fixed there demands a vertical fov of ~126°. The old
+  // ceiling of 100° was still far too wide: it framed the table as a small
+  // island with a third of the screen given to ceiling above and empty
+  // carpet below. 80° is the tightest framing that still keeps every seat's
+  // hand and bet spot comfortably on screen (checked by projecting the
+  // outermost ones — they land at 0.57 and 0.78 of half-width), and it puts
+  // the table, the dealer and the house sign where they belong.
+  const MAX_FOV = 80;
   function onResize() {
     const aspect = window.innerWidth / window.innerHeight;
     camera.aspect = aspect;
     camera.fov = aspect < BASE_ASPECT
-      ? Math.min(100, (2 * Math.atan(Math.tan(H_FOV / 2) / aspect) * 180) / Math.PI)
+      ? Math.min(MAX_FOV, (2 * Math.atan(Math.tan(H_FOV / 2) / aspect) * 180) / Math.PI)
       : BASE_FOV;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -178,8 +209,14 @@ export function initScene(canvas) {
   }
   animate();
 
-  // Dev-only handle for poking at the scene from the console.
-  if (import.meta.env.DEV) window.__nvgr = { scene, camera, dealer };
+  // Dev-only handle for poking at the scene from the console. tickDealer is
+  // this module's own bound copy of the animation step: importing the
+  // dealer module from the console gets a second instance with its own
+  // (empty) set of active dealers, so stepping it there silently does
+  // nothing and makes the figure look frozen when it isn't.
+  if (import.meta.env.DEV) {
+    window.__nvgr = { scene, camera, dealer, renderer, controls, tickDealer: updateDealerAnimations };
+  }
 
   return {
     scene, camera, renderer, controls, dealer, chairsBySeat,

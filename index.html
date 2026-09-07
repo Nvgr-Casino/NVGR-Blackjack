@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- viewport-fit=cover so the table fills the screen behind the notch and
+       home bar (the HUD already pads itself with env(safe-area-inset-*)).
+       maximum-scale pairs with touch-action:none on the canvas to keep a
+       two-finger pinch as a camera zoom instead of a page zoom. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover" />
   <title>NVGR Blackjack 21</title>
   <link rel="icon" type="image/png" href="./src/assets/nvgr-mark.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />

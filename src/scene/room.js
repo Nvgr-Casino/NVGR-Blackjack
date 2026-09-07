@@ -137,9 +137,9 @@ function createWallTexture(crests) {
   // Upper wall: deep burgundy, darker toward the floor so the room reads as
   // lit from the pendant above rather than uniformly flat.
   const wall = ctx.createLinearGradient(0, 0, 0, WALL_TEX_H);
-  wall.addColorStop(0, '#4a1320');
-  wall.addColorStop(0.55, '#330d17');
-  wall.addColorStop(1, '#1d070d');
+  wall.addColorStop(0, '#5e1a29');
+  wall.addColorStop(0.55, '#45121f');
+  wall.addColorStop(1, '#2a0b13');
   ctx.fillStyle = wall;
   ctx.fillRect(0, 0, WALL_TEX_W, WALL_TEX_H);
 
@@ -176,7 +176,13 @@ function createCarpetTexture() {
   canvas.height = S;
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = '#3d0f18';
+  // Lit brighter than it looks it should be. Lambert takes no light from
+  // the environment probe the way the old Standard material did, so the
+  // carpet lost most of its fill light in the swap and went almost black
+  // between the table and the walls. Putting the brightness into the
+  // texture rather than into scene-wide ambient keeps it off the felt and
+  // the figures, which were already lit correctly.
+  ctx.fillStyle = '#5c1a24';
   ctx.fillRect(0, 0, S, S);
 
   // Grain first, so the lattice drawn on top stays crisp.
@@ -263,12 +269,18 @@ function createSconce() {
  * house signage — everything static, so it is created once and never
  * touched again.
  */
-export function createRoom() {
+export function createRoom({ lowPower = false } = {}) {
   const room = new THREE.Group();
 
+  // Lambert, not Standard, for every surface in here. The walls, carpet and
+  // ceiling are matte — they have no specular response worth paying for —
+  // yet between them they cover most of the screen, so shading them with
+  // the full PBR model (and an environment probe lookup per fragment) was
+  // the single most expensive thing the room added. Lambert still supports
+  // the emissive map the gold needs.
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE),
-    new THREE.MeshStandardMaterial({ map: createCarpetTexture(), roughness: 0.95 })
+    new THREE.MeshLambertMaterial({ map: createCarpetTexture() })
   );
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = FLOOR_Y;
@@ -277,7 +289,7 @@ export function createRoom() {
 
   const ceiling = new THREE.Mesh(
     new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE),
-    new THREE.MeshStandardMaterial({ map: createCeilingTexture(), roughness: 1 })
+    new THREE.MeshLambertMaterial({ map: createCeilingTexture() })
   );
   ceiling.rotation.x = Math.PI / 2;
   ceiling.position.y = CEILING_Y;
@@ -299,9 +311,8 @@ export function createRoom() {
     const map = createWallTexture(crests);
     const wall = new THREE.Mesh(
       new THREE.PlaneGeometry(ROOM_SIZE, WALL_H),
-      new THREE.MeshStandardMaterial({
+      new THREE.MeshLambertMaterial({
         map,
-        roughness: 0.92,
         // The room is lit dimly on purpose, and gold that only ever reflects
         // is gold you cannot read. Re-using the colour map as an emissive
         // map lets the bright texels — the cornice, the rail, the crests —
@@ -347,9 +358,11 @@ export function createRoom() {
   signGlow.position.set(0, MARK_Y, -ROOM_HALF + 1.6);
   room.add(signGlow);
 
-  // Sconces down both side walls. Only the middle pair carries a real
+  // Sconces down both side walls. Only the middle pair ever carries a real
   // light — the rest are emissive fixtures, which cost nothing per fragment
-  // and read the same at this distance.
+  // and read the same at this distance. On a phone even that pair stands
+  // down, leaving the glowing shades: two fewer lights for every fragment
+  // on screen, for a difference you have to hunt for.
   [-ROOM_HALF + 0.12, ROOM_HALF - 0.12].forEach((x) => {
     const inward = x < 0 ? 1 : -1;
     [-6.5, 0, 6.5].forEach((z) => {
@@ -357,7 +370,7 @@ export function createRoom() {
       sconce.position.set(x, 2.6, z);
       sconce.rotation.z = inward * -0.32;
       room.add(sconce);
-      if (z === 0) {
+      if (z === 0 && !lowPower) {
         const lamp = new THREE.PointLight(0xffb964, 0.85, 13, 2);
         lamp.position.set(x + inward * 0.5, 3.0, z);
         room.add(lamp);

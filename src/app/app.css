@@ -555,7 +555,16 @@ img.avatar { padding: 0; }
   .tbl-topbar .badge { font-size: 9px; padding: 2px 7px; margin-right: 0; }
   .tbl-topbar .badge.pub, .tbl-topbar .badge.priv, .tbl-topbar .badge.shoe { display: none; }
   .tbl-icon-btn { font-size: 11px; padding: 5px 9px; }
-  .tbl-seatpicker { display: none; }
+  /* The seat switcher used to be dropped entirely here to keep the topbar
+     on one row. That silently removed the only way to change your view of
+     the table on the device where dragging the camera is hardest — so it
+     moves out of the bar instead, onto its own line underneath, left of the
+     centred countdown and clear of the seat rail on the right. */
+  .tbl-seatpicker {
+    position: fixed; top: 56px; left: 8px; z-index: 5;
+    display: flex; gap: 5px;
+  }
+  .tbl-seatpicker button { width: 26px; height: 26px; font-size: 11px; }
 
   /* The running log is a wide centred line that slides under the seat rail
      on a narrow screen. The clock is the part that actually matters here,
