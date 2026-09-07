@@ -150,6 +150,7 @@ export function enterTable(code) {
   formNotice = '';
   chatOpen = false;
   hostOpen = false;
+  lastSavedChips = null;
   if (roomUnsub) { roomUnsub(); roomUnsub = null; }
   const myKey = safeKey(session.uid);
   const roomRef = ref(db, 'rooms/' + code);
@@ -164,6 +165,7 @@ export function enterTable(code) {
     }
     session.room = newRoom;
     session.isAdmin = !!(newRoom && newRoom.adminId === myKey);
+    persistMyChips(newRoom);
     render();
   });
   startTick();
@@ -221,6 +223,20 @@ function tickCountdownOnly() {
   }
 }
 
+// A player's chips can change because of someone else's action (a dealer
+// payout settled by whoever acted last), so this is called from the room
+// listener too — not just after this client's own mutations.
+let lastSavedChips = null;
+function persistMyChips(room) {
+  if (!room || !session.uid) return;
+  const me = room.players && room.players[safeKey(session.uid)];
+  if (!me || typeof me.chips !== 'number') return;
+  if (me.chips === lastSavedChips) return;
+  lastSavedChips = me.chips;
+  session.chips = me.chips;
+  saveAccountChips(session.uid, me.name || session.name, me.chips).catch(() => {});
+}
+
 export async function mutateRoom(code, fn) {
   try {
     const result = await runTransaction(ref(db, 'rooms/' + code), (current) => {
@@ -229,11 +245,12 @@ export async function mutateRoom(code, fn) {
       return current;
     });
     if (result.committed && result.snapshot.exists()) {
-      const r = result.snapshot.val();
-      for (const key of (r.playerOrder || [])) {
-        const p = r.players[key];
-        if (p) saveAccountChips(key === safeKey(session.uid) ? session.uid : key, p.name, p.chips).catch(() => {});
-      }
+      // Only ever persist your own balance. This used to write an account
+      // row for every seated player, which meant the database had to let
+      // any signed-in client overwrite anyone's chips. Everyone's own
+      // client mirrors their balance instead (see persistMyChips), so the
+      // data still keeps up without that hole.
+      persistMyChips(result.snapshot.val());
     }
     connLost = false;
   } catch (e) {
@@ -318,8 +335,10 @@ export async function playNow() {
     const result = await runTransaction(ref(db, 'rooms/' + code), (current) => {
       if (!current) return current;
       const count = Object.keys(current.players || {}).length;
-      if (current.players && current.players[key]) return current;
-      if (count >= MAX_PUBLIC_SEATS) return;
+      // Already seated is not a no-op: seatPlayerIn is what brings someone
+      // back in who sat a window out, so it still has to run. Only a full
+      // table blocks a genuinely new seat.
+      if (!(current.players && current.players[key]) && count >= MAX_PUBLIC_SEATS) return;
       seatPlayerIn(current, chips);
       return current;
     });
@@ -358,8 +377,7 @@ export async function joinSpecificPublicTable(code) {
   const result = await runTransaction(ref(db, 'rooms/' + code), (current) => {
     if (!current) return current;
     const count = Object.keys(current.players || {}).length;
-    if (current.players && current.players[key]) return current;
-    if (count >= MAX_PUBLIC_SEATS) return;
+    if (!(current.players && current.players[key]) && count >= MAX_PUBLIC_SEATS) return;
     seatPlayerIn(current, chips);
     return current;
   });

@@ -1,0 +1,82 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "accounts": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "chips": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "updatedAt": { ".validate": "newData.isNumber()" },
+        "currentRoom": { ".validate": "newData.isString() && newData.val().length <= 8" },
+        "$other": { ".validate": false }
+      }
+    },
+
+    "users": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid",
+        "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "online": { ".validate": "newData.isBoolean()" },
+        "lastSeen": { ".validate": "newData.isNumber()" },
+        "$other": { ".validate": false }
+      }
+    },
+
+    "friendRequests": {
+      "$to": {
+        ".read": "auth != null && auth.uid === $to",
+        "$from": {
+          ".write": "auth != null && ((auth.uid === $from && $from !== $to) || auth.uid === $to)",
+          ".validate": "!newData.exists() || (newData.hasChildren(['name','at']) && newData.child('name').isString())"
+        }
+      }
+    },
+
+    "friends": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "$other": {
+          ".write": "auth != null && (auth.uid === $uid || (auth.uid === $other && (!newData.exists() || root.child('friendRequests').child($other).child($uid).exists())))"
+        }
+      }
+    },
+
+    "dmInbox": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "$from": {
+          ".write": "auth != null && ((auth.uid === $from && newData.exists()) || (auth.uid === $uid && !newData.exists()))",
+          ".validate": "!newData.exists() || newData.hasChildren(['name','preview','at'])"
+        }
+      }
+    },
+
+    "dms": {
+      "$thread": {
+        ".read": "auth != null && ($thread.beginsWith(auth.uid + '__') || $thread.endsWith('__' + auth.uid))",
+        ".write": "auth != null && ($thread.beginsWith(auth.uid + '__') || $thread.endsWith('__' + auth.uid))",
+        "$message": {
+          ".validate": "newData.hasChildren(['from','text','at']) && newData.child('from').val() === auth.uid && newData.child('text').isString() && newData.child('text').val().length <= 500 && newData.child('at').isNumber()"
+        }
+      }
+    },
+
+    "publicIndex": {
+      ".read": "auth != null",
+      "tables": {
+        "$code": { ".write": "auth != null" }
+      }
+    },
+
+    "rooms": {
+      "$code": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    }
+  }
+}

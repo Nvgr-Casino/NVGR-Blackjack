@@ -261,6 +261,18 @@ export function processBettingTimeoutLogic(r) {
   r.bettingDeadline = null;
   r.log = (r.log || []).concat(notes.length ? notes : ['Betting time is up.']).slice(-8);
   checkAutoDeal(r);
+
+  // If the window shut with nobody having bet, the table is left in a
+  // betting phase with nothing to deal and every player marked 'sitout' —
+  // and since only a new round clears that flag, it would sit there
+  // forever. Anyone still at the table gets a fresh round instead.
+  if (r.phase === 'betting' && (r.playerOrder || []).length > 0) {
+    const stillLive = r.playerOrder.some((key) => {
+      const p = r.players[key];
+      return p && (p.status === 'betting' || p.status === 'bet-placed');
+    });
+    if (!stillLive) startRoundLogic(r);
+  }
 }
 
 export function resolveDealerAndPayouts(r) {
