@@ -34,6 +34,16 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    # Repeated here rather than relying on the workflow-level block above.
+    # deploy-pages mints an OIDC token, and a run failed with "Ensure
+    # GITHUB_TOKEN has permission id-token: write" despite that block —
+    # the repository's own default is read-only, and stating the scopes on
+    # the job that actually needs them is what GitHub's own Pages workflow
+    # does. Job-level permissions replace the default outright.
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
