@@ -9,6 +9,7 @@ import {
   avatarColor, initials, chipLadderForTable, stakesFor, stakesLabel, safeKey,
 } from './roomLogic.js';
 import { chipButtonDataURL } from '../scene/chip.js';
+import { characterPortraitDataURL, defaultCharacterFor } from '../scene/character.js';
 import { brandMark, esc } from './uiHelpers.js';
 import * as S from './session.js';
 import * as Social from './social.js';
@@ -93,6 +94,14 @@ export function syncRoomToScene(room, myKey) {
 
   const order = room.playerOrder || [];
   const seatIndexOf = new Map(order.map((key, i) => [key, i]));
+
+  // Seat the chosen figure for every occupied seat, and empty the rest.
+  for (let i = 0; i < MAX_PUBLIC_SEATS; i++) {
+    const key = order[i];
+    const p = key && room.players ? room.players[key] : null;
+    if (p) driver.applySeatCharacter(i, p.character || defaultCharacterFor(key));
+    else driver.clearSeatCharacter(i);
+  }
 
   // Bet chips: draw the stack the moment a seat's bet is placed, clear on a
   // fresh round. If the local player already tapped this seat's chips out
@@ -367,7 +376,7 @@ export function renderTableScreen() {
     const addable = !isMe && !Social.isFriend(key);
     return `
       <div class="seat-mini ${onTurn ? 'on-turn' : ''} ${addable ? 'addable' : ''}" ${addable ? `data-add-friend="${esc(key)}" data-add-name="${esc(p.name)}" title="Add ${esc(p.name)} as a friend"` : ''}>
-        <div class="avatar" style="background:${color};">${esc(initials(p.name))}</div>
+        <img class="avatar" src="${characterPortraitDataURL(p.character || defaultCharacterFor(key), 64)}" alt="">
         <span class="sm-name">${esc(p.name)}${isMe ? ' (you)' : ''}</span>
         <span class="sm-chips">${p.chips.toLocaleString()}</span>
         <span class="sm-status">${esc(statusText)}</span>

@@ -10,6 +10,7 @@ import { renderAuth, attachAuth } from './app/screens/auth.js';
 import { renderHome, attachHome } from './app/screens/home.js';
 import { renderJoin, attachJoin } from './app/screens/join.js';
 import { renderFriends, attachFriends, renderDm, attachDm } from './app/screens/friends.js';
+import { renderCharacter, attachCharacter } from './app/screens/character.js';
 import { SUIT_FLOAT_HTML, brandMark } from './app/uiHelpers.js';
 
 const canvas = document.getElementById('scene');
@@ -40,6 +41,11 @@ function render() {
   if (session.screen === 'join') {
     root.innerHTML = renderJoin();
     attachJoin();
+    return;
+  }
+  if (session.screen === 'character') {
+    root.innerHTML = renderCharacter();
+    attachCharacter();
     return;
   }
   if (session.screen === 'friends') {

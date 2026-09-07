@@ -3,6 +3,7 @@ import { dealCard, revealCard } from '../scene/deal.js';
 import { CARD_WIDTH } from '../scene/card.js';
 import { createChip, createChipForValue, createChipStack, CHIP_HEIGHT, DENOMINATIONS } from '../scene/chip.js';
 import { createChipTray } from '../scene/props.js';
+import { createCharacter } from '../scene/character.js';
 import { focusOn } from '../scene/cameraFocus.js';
 import { createHandBadge } from '../scene/handBadge.js';
 import { SEATS, DEALER, cameraPositionForSeat, CAMERA_LOOK_AT } from '../scene/seats.js';
@@ -103,12 +104,48 @@ export function createTableDriver({ scene, camera, controls, dealer, chairsBySea
   }
   positionChipRack();
 
+  // ---------- seated characters ----------
+  // One figure per occupied seat. The seat the camera is sitting in stays
+  // empty for the same reason its chair is hidden — you are that player,
+  // and a body in the way would fill the screen.
+  const seatCharacters = new Map(); // seatIndex -> { id, group }
+
+  function applySeatCharacter(seatIndex, characterId) {
+    const existing = seatCharacters.get(seatIndex);
+    if (existing && existing.id === characterId) {
+      existing.group.visible = seatIndex !== viewSeatIndex;
+      return;
+    }
+    if (existing) scene.remove(existing.group);
+    if (!characterId) { seatCharacters.delete(seatIndex); return; }
+
+    const seat = SEATS[seatIndex];
+    if (!seat) return;
+    const group = createCharacter(characterId);
+    group.position.copy(seat.position);
+    group.rotation.y = seat.facingAngle;
+    group.visible = seatIndex !== viewSeatIndex;
+    scene.add(group);
+    seatCharacters.set(seatIndex, { id: characterId, group });
+  }
+
+  function clearSeatCharacter(seatIndex) {
+    const existing = seatCharacters.get(seatIndex);
+    if (!existing) return;
+    scene.remove(existing.group);
+    seatCharacters.delete(seatIndex);
+  }
+
   // ---------- camera / seat viewpoint ----------
   function setViewSeat(seatIndex) {
     if (seatIndex === viewSeatIndex) return;
     if (chairsBySeat.get(viewSeatIndex)) chairsBySeat.get(viewSeatIndex).visible = true;
+    const leaving = seatCharacters.get(viewSeatIndex);
+    if (leaving) leaving.group.visible = true;
     viewSeatIndex = seatIndex;
     if (chairsBySeat.get(viewSeatIndex)) chairsBySeat.get(viewSeatIndex).visible = false;
+    const arriving = seatCharacters.get(viewSeatIndex);
+    if (arriving) arriving.group.visible = false;
     camera.position.copy(cameraPositionForSeat(SEATS[viewSeatIndex]));
     camera.lookAt(CAMERA_LOOK_AT);
     controls.target.copy(CAMERA_LOOK_AT);
@@ -299,6 +336,8 @@ export function createTableDriver({ scene, camera, controls, dealer, chairsBySea
     hideSeatBadges,
     setDealerBadge,
     hideDealerBadge,
+    applySeatCharacter,
+    clearSeatCharacter,
     addBetChipVisual,
     clearBetChipsForSeat,
     collectBetChipsForSeat,

@@ -104,13 +104,18 @@ export function initials(name) {
   return (name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
 }
 
-export function addPlayerToRoom(room, uid, name, chips) {
+export function addPlayerToRoom(room, uid, name, chips, character) {
   const key = safeKey(uid);
   if (!room.players) room.players = {};
   if (!room.playerOrder) room.playerOrder = [];
-  if (room.players[key]) return;
+  // Already seated: keep their seat and hand, but let a character change
+  // made since they sat down take effect.
+  if (room.players[key]) {
+    if (character) room.players[key].character = character;
+    return;
+  }
   room.players[key] = {
-    name, chips, hands: [], bet: 0, timeouts: 0,
+    name, chips, hands: [], bet: 0, timeouts: 0, character: character || null,
     status: room.phase === 'betting' ? 'betting' : 'sitout',
   };
   room.playerOrder.push(key);

@@ -8,9 +8,10 @@ import {
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
   updateProfile, onAuthStateChanged, signOut,
 } from 'firebase/auth';
-import { ref, get, set, onValue, runTransaction } from 'firebase/database';
+import { ref, get, set, update, onValue, runTransaction } from 'firebase/database';
 import { auth, db } from '../firebase/config.js';
 import { FELT_THEME_KEYS } from '../scene/table.js';
+import { defaultCharacterFor } from '../scene/character.js';
 // Circular by design: social.js reads session state and calls refresh().
 // Both sides only touch each other inside functions, never at module load,
 // so the cycle resolves fine.
@@ -23,7 +24,7 @@ import {
   everyoneDecidedInsurance, resolveInsurance, processInsuranceTimeout,
 } from './roomLogic.js';
 
-export let session = { screen: 'loading', uid: null, name: null, photo: null, chips: 0, code: null, isAdmin: false, room: null };
+export let session = { screen: 'loading', uid: null, name: null, photo: null, chips: 0, character: null, code: null, isAdmin: false, room: null };
 export let roomUnsub = null;
 let tickTimer = null;
 export let formError = '';
@@ -58,12 +59,32 @@ async function loadAccount(uid) {
 }
 async function ensureAccount(uid, name) {
   const existing = await loadAccount(uid);
-  if (existing) return existing.chips;
-  await set(ref(db, 'accounts/' + safeKey(uid)), { name, chips: STARTING_CHIPS, updatedAt: Date.now() });
-  return STARTING_CHIPS;
+  if (existing) {
+    return { chips: existing.chips, character: existing.character || defaultCharacterFor(safeKey(uid)) };
+  }
+  const character = defaultCharacterFor(safeKey(uid));
+  await set(ref(db, 'accounts/' + safeKey(uid)), { name, chips: STARTING_CHIPS, character, updatedAt: Date.now() });
+  return { chips: STARTING_CHIPS, character };
 }
+
+// The chosen figure lives on the account so it follows the player between
+// tables, and is copied onto their seat so everyone else can render it.
+export async function chooseCharacter(id) {
+  session.character = id;
+  render();
+  await set(ref(db, 'accounts/' + safeKey(session.uid) + '/character'), id).catch(() => {});
+  if (session.code) {
+    await mutateRoom(session.code, (r) => {
+      const p = r.players && r.players[safeKey(session.uid)];
+      if (p) p.character = id;
+    });
+  }
+}
+// update(), not set(): a full write here would drop the sibling fields on
+// the account — the chosen character and currentRoom — every time a hand
+// settled.
 async function saveAccountChips(uid, name, chips) {
-  await set(ref(db, 'accounts/' + safeKey(uid)), { name, chips, updatedAt: Date.now() });
+  await update(ref(db, 'accounts/' + safeKey(uid)), { name, chips, updatedAt: Date.now() });
 }
 async function setCurrentRoom(uid, code) {
   await set(ref(db, 'accounts/' + safeKey(uid) + '/currentRoom'), code || null);
@@ -76,7 +97,9 @@ export function initAuth() {
       session.uid = user.uid;
       session.name = user.displayName || (user.email ? user.email.split('@')[0] : 'Player');
       session.photo = user.photoURL || null;
-      session.chips = await ensureAccount(user.uid, session.name);
+      const account = await ensureAccount(user.uid, session.name);
+      session.chips = account.chips;
+      session.character = account.character;
       initSocial();
       const acctSnap = await get(ref(db, 'accounts/' + safeKey(user.uid) + '/currentRoom'));
       const lastRoom = acctSnap.exists() ? acctSnap.val() : null;
@@ -95,7 +118,7 @@ export function initAuth() {
       loadLobby();
     } else {
       stopSocial();
-      session = { screen: 'auth', uid: null, name: null, photo: null, chips: 0, code: null, isAdmin: false, room: null };
+      session = { screen: 'auth', uid: null, name: null, photo: null, chips: 0, character: null, code: null, isAdmin: false, room: null };
       render();
     }
   });
@@ -271,7 +294,7 @@ export async function sendChatMessage(text) {
 }
 
 export async function createRoom() {
-  const chips = await ensureAccount(session.uid, session.name);
+  const chips = (await ensureAccount(session.uid, session.name)).chips;
   const code = genCode();
   const room = {
     code, adminId: safeKey(session.uid), isPublic: false,
@@ -282,7 +305,7 @@ export async function createRoom() {
     turnDeadline: null, chat: [], log: ['Table opened.'],
   };
   shuffleShoe(room);
-  addPlayerToRoom(room, session.uid, session.name, chips);
+  addPlayerToRoom(room, session.uid, session.name, chips, session.character);
   await set(ref(db, 'rooms/' + code), room);
   await setCurrentRoom(session.uid, code);
   enterTable(code);
@@ -294,12 +317,12 @@ export async function joinRoom(code) {
   if (!code) { formError = 'Enter a table code.'; render(); return; }
   const snap = await get(ref(db, 'rooms/' + code));
   if (!snap.exists()) { formError = 'No table found with that code.'; render(); return; }
-  const chips = await ensureAccount(session.uid, session.name);
+  const chips = (await ensureAccount(session.uid, session.name)).chips;
   const key = safeKey(session.uid);
   if (!snap.val().players || !snap.val().players[key]) {
     await runTransaction(ref(db, 'rooms/' + code), (current) => {
       if (!current) return current;
-      addPlayerToRoom(current, session.uid, session.name, chips);
+      addPlayerToRoom(current, session.uid, session.name, chips, session.character);
       return current;
     });
   }
@@ -311,7 +334,7 @@ export async function joinRoom(code) {
 // live clock (an untouched table, or one whose window lapsed while it sat
 // empty), opens a fresh betting window so the round can actually come round.
 function seatPlayerIn(current, chips) {
-  addPlayerToRoom(current, session.uid, session.name, chips);
+  addPlayerToRoom(current, session.uid, session.name, chips, session.character);
   // Someone who sat out a window and has now chosen this table again is
   // asking to play: addPlayerToRoom leaves an already-seated player alone,
   // so without this they would stay stuck as a spectator with no way back
@@ -327,7 +350,7 @@ function seatPlayerIn(current, chips) {
 
 export async function playNow() {
   formError = '';
-  const chips = await ensureAccount(session.uid, session.name);
+  const chips = (await ensureAccount(session.uid, session.name)).chips;
   const key = safeKey(session.uid);
   const idxSnap = await get(ref(db, 'publicIndex/tables'));
   const codes = idxSnap.exists() ? Object.keys(idxSnap.val()) : [];
@@ -363,7 +386,7 @@ async function createPublicTable(chips, key) {
     chat: [], log: ['Table opened. Place your bet to jump in.'],
   };
   shuffleShoe(room);
-  addPlayerToRoom(room, session.uid, session.name, chips);
+  addPlayerToRoom(room, session.uid, session.name, chips, session.character);
   await set(ref(db, 'rooms/' + code), room);
   await set(ref(db, 'publicIndex/tables/' + code), true);
   await setCurrentRoom(session.uid, code);
@@ -372,7 +395,7 @@ async function createPublicTable(chips, key) {
 
 export async function joinSpecificPublicTable(code) {
   formError = '';
-  const chips = await ensureAccount(session.uid, session.name);
+  const chips = (await ensureAccount(session.uid, session.name)).chips;
   const key = safeKey(session.uid);
   const result = await runTransaction(ref(db, 'rooms/' + code), (current) => {
     if (!current) return current;
@@ -472,7 +495,7 @@ export async function loadLobby() {
       const snap = await get(ref(db, 'rooms/' + code));
       const r = snap.val();
       if (!r || !r.isPublic) continue;
-      const seats = Object.values(r.players || {}).map((p) => ({ name: p.name, chips: p.chips || 0 }));
+      const seats = Object.values(r.players || {}).map((p) => ({ name: p.name, chips: p.chips || 0, character: p.character || null }));
       // Tables opened before stakes existed would all read as the lowest
       // tier, leaving a lobby of identical rooms — give each one a tier the
       // first time it is seen so the spread is real.

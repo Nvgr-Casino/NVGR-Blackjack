@@ -455,6 +455,31 @@ label { display: block; font-size: 12px; color: var(--cream-dim); margin-bottom:
 .tbl-float-panel.host { left: 12px; }
 .tbl-float-panel .admin-title { margin-bottom: 10px; }
 
+/* ---- Character picker ---- */
+.char-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 14px;
+  max-width: 700px; margin: 0 auto; position: relative; z-index: 1;
+}
+.char-card {
+  position: relative; background: var(--panel); border: 0.5px solid var(--line); border-radius: 14px;
+  padding: 14px 10px 12px; cursor: pointer; font-family: inherit; color: var(--cream);
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  transition: border-color 0.15s, transform 0.1s;
+}
+.char-card:hover { border-color: var(--rim-dim); transform: translateY(-2px); }
+.char-card.chosen { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
+.char-portrait {
+  width: 84px; height: 84px; border-radius: 50%; display: block;
+  border: 2px solid var(--rim); background: rgba(10, 2, 3, 0.4);
+}
+.char-name { font-family: Georgia, serif; font-size: 15px; color: var(--cream); }
+.char-tick { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); }
+
+/* Portraits stand in for the old initials discs, so the image has to fill
+   the same round frame those rules already set up. */
+.mini-avatar, .pb-avatar, .seat-mini .avatar { object-fit: cover; }
+img.avatar { padding: 0; }
+
 /* ---- Friends, presence and direct messages ---- */
 .lobby-section-title {
   font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--gold);

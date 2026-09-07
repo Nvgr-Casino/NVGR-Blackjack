@@ -3,6 +3,7 @@
 // fixed player bar. Actions are unchanged from index4.html's renderHome.
 import { MAX_PUBLIC_SEATS, avatarColor, initials, stakesLabel } from '../roomLogic.js';
 import { feltTheme } from '../../scene/table.js';
+import { characterPortraitDataURL, defaultCharacterFor } from '../../scene/character.js';
 import { brandMark, casinoMark, esc } from '../uiHelpers.js';
 import * as S from '../session.js';
 import * as Social from '../social.js';
@@ -26,7 +27,7 @@ function seatsHtml(seats) {
     if (!p) return `<div class="mini-seat s${i}"><div class="mini-avatar empty"></div></div>`;
     return `
       <div class="mini-seat s${i} filled">
-        <div class="mini-avatar" style="background:${avatarColor(p.name)};">${esc(initials(p.name))}</div>
+        <img class="mini-avatar" src="${characterPortraitDataURL(p.character || defaultCharacterFor(p.name), 64)}" alt="${esc(p.name)}" title="${esc(p.name)}">
         <div class="mini-chips">${shortChips(p.chips)}</div>
       </div>`;
   }).join('');
@@ -102,11 +103,12 @@ export function renderHome() {
     <p class="house-credit">Blackjack 21 — a <b>NVGR Casino</b> game · more tables coming soon</p>
 
     <div class="player-bar">
-      <div class="pb-avatar" style="background:${avatarColor(S.session.name || '?')};">${esc(initials(S.session.name))}</div>
+      <img class="pb-avatar" src="${characterPortraitDataURL(S.session.character || defaultCharacterFor(''), 72)}" alt="">
       <div class="pb-info">
         <span class="pb-name">${esc(S.session.name)}</span>
         <span class="pb-chips">${(S.session.chips || 0).toLocaleString()}</span>
       </div>
+      <button class="btn btn-ghost btn-small pb-friends" id="characterBtn">Character</button>
       <button class="btn btn-ghost btn-small pb-friends" id="friendsBtn">Friends${Social.badgeCount() ? ` <span class="pb-badge">${Social.badgeCount()}</span>` : ''}</button>
       <button id="signOutBtn">Sign out</button>
     </div>
@@ -122,6 +124,7 @@ export function attachHome() {
   on('goJoinBtn', () => S.goToScreen('join'));
   on('signOutBtn', S.doSignOut);
   on('friendsBtn', () => S.goToScreen('friends'));
+  on('characterBtn', () => S.goToScreen('character'));
   on('refreshLobbyBtn', S.loadLobby);
   document.querySelectorAll('[data-join-table]').forEach((btn) => {
     btn.onclick = () => S.joinSpecificPublicTable(btn.getAttribute('data-join-table'));
