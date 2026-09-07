@@ -66,7 +66,12 @@ export function createTableDriver({ scene, camera, controls, dealer, chairsBySea
   const pendingStack = [];
   const dealerMeshes = [];
   let releaseFocus = null;
+  // Where the camera sits. Seat 3 is only the opening guess, used until the
+  // room tells us which seat is actually yours — see followSeat.
   let viewSeatIndex = 2;
+  // Set once the player picks a viewpoint from the seat switcher, after
+  // which their choice is theirs and the room stops moving the camera.
+  let viewSeatPinned = false;
 
   const dealerBadge = createHandBadge();
   dealerBadge.sprite.position.set(DEALER.handSpot.x, 0.34, DEALER.handSpot.z);
@@ -137,7 +142,10 @@ export function createTableDriver({ scene, camera, controls, dealer, chairsBySea
   }
 
   // ---------- camera / seat viewpoint ----------
-  function setViewSeat(seatIndex) {
+  function setViewSeat(seatIndex, { manual = true } = {}) {
+    // A hand-picked viewpoint sticks: once you have chosen where to sit and
+    // watch from, later room updates must not drag the camera back.
+    if (manual) viewSeatPinned = true;
     if (seatIndex === viewSeatIndex) return;
     if (chairsBySeat.get(viewSeatIndex)) chairsBySeat.get(viewSeatIndex).visible = true;
     const leaving = seatCharacters.get(viewSeatIndex);
@@ -152,6 +160,21 @@ export function createTableDriver({ scene, camera, controls, dealer, chairsBySea
     positionChipRack();
   }
   if (chairsBySeat.get(viewSeatIndex)) chairsBySeat.get(viewSeatIndex).visible = false;
+
+  // Puts the camera in the seat the player is actually sitting in. Your real
+  // position at the table is your join order, which isn't known until the
+  // room syncs — so without this the view stayed parked in the middle seat
+  // and you watched your own hand from someone else's chair.
+  function followSeat(seatIndex) {
+    if (viewSeatPinned) return;
+    if (seatIndex === null || seatIndex === undefined || seatIndex < 0) return;
+    setViewSeat(seatIndex, { manual: false });
+  }
+
+  // Leaving a table forgets a hand-picked viewpoint, so the next table you
+  // join starts by following your seat there rather than inheriting a
+  // choice you made about a different room.
+  function releaseViewSeat() { viewSeatPinned = false; }
 
   function focusOnSeatHand(seatIndex) {
     const seat = SEATS[seatIndex];
@@ -324,6 +347,8 @@ export function createTableDriver({ scene, camera, controls, dealer, chairsBySea
 
   return {
     setViewSeat,
+    followSeat,
+    releaseViewSeat,
     getViewSeat: () => viewSeatIndex,
     focusOnSeatHand,
     releaseSeatFocus,

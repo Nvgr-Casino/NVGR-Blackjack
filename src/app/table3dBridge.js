@@ -83,6 +83,17 @@ function spawnBetStack(seatIndex, amount, ladder) {
   });
 }
 
+// Paints the seat switcher's highlight from the camera's actual seat — the
+// one source of truth for it, whether the seat was chosen by hand or
+// followed automatically when the room said where you sit.
+function markViewSeatButton() {
+  if (!driver) return;
+  const current = driver.getViewSeat();
+  document.querySelectorAll('[data-view-seat]').forEach((b) => {
+    b.classList.toggle('current', Number(b.getAttribute('data-view-seat')) === current);
+  });
+}
+
 // ---------- the real sync ----------
 export function syncRoomToScene(room, myKey) {
   if (!driver || !room) return;
@@ -97,6 +108,20 @@ export function syncRoomToScene(room, myKey) {
 
   const order = room.playerOrder || [];
   const seatIndexOf = new Map(order.map((key, i) => [key, i]));
+
+  // Sit the camera down in your own chair. Which seat is yours is your join
+  // order, so it isn't known until the room arrives — the scene has to open
+  // on some seat before then, and that placeholder was being left in place
+  // for the whole session. Once you have picked a viewpoint by hand this
+  // stops moving the camera (see followSeat).
+  const mySeatIndex = myKey === null || myKey === undefined ? undefined : seatIndexOf.get(myKey);
+  if (mySeatIndex !== undefined) {
+    driver.followSeat(mySeatIndex);
+    // The switcher's highlight is painted when the screen renders, which
+    // happens before this runs — so it would otherwise point at the seat
+    // the camera just left until the next redraw.
+    markViewSeatButton();
+  }
 
   // Seat the chosen figure for every occupied seat, and empty the rest.
   for (let i = 0; i < MAX_PUBLIC_SEATS; i++) {
@@ -544,12 +569,14 @@ export function attachTableScreen() {
   });
 
   document.querySelectorAll('[data-view-seat]').forEach((btn) => {
-    btn.classList.toggle('current', Number(btn.getAttribute('data-view-seat')) === driver.getViewSeat());
     btn.onclick = () => {
       driver.setViewSeat(Number(btn.getAttribute('data-view-seat')));
-      document.querySelectorAll('[data-view-seat]').forEach((b) => b.classList.toggle('current', b === btn));
+      markViewSeatButton();
     };
   });
+  // Covers the spectator case too, where no seat is yours and the room sync
+  // never gets to paint this.
+  markViewSeatButton();
 }
 
 export function resetTableDiffState() {
@@ -560,5 +587,7 @@ export function resetTableDiffState() {
   betChipsShown = {};
   localPendingSeats = {};
   lastPhase = null;
+  // A viewpoint you picked by hand belonged to the table you just left.
+  if (driver) driver.releaseViewSeat();
 }
 
