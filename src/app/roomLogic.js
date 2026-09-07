@@ -202,21 +202,45 @@ export function dealRoundCards(r) {
     shuffleShoe(r);
     r.log = (r.log || []).concat('Cut card — shuffling ' + DECKS_IN_SHOE + ' fresh decks.').slice(-8);
   }
-  r.dealtIn = bettors.slice();
+  // A real table deals round the table, not one player at a time: a single
+  // card to every box in seat order, then the dealer's upcard, then a
+  // second card to every box, then the dealer's hole card. This is not
+  // cosmetic — it decides which card out of the shoe each player actually
+  // gets, so dealing two at a time hands one player a pair the next player
+  // should have had.
+  //
+  // Seat order, too, not the order people happened to join in: boxes are
+  // dealt along the table, and now that players can move chairs those two
+  // are different. It sets the order of play as well, which is why it runs
+  // seat 1 through 5 — the same left-to-right the player sees and the seat
+  // numbers already imply.
+  const boxes = bettors.slice().sort((a, b) => seatOf(r, a) - seatOf(r, b));
+  r.dealtIn = boxes.slice();
   r.turnOrder = [];
+
+  // Stakes come off and an empty hand is opened for each box first, so the
+  // passes below have somewhere to deal into.
   for (const key of r.playerOrder) {
     if (!bettors.includes(key)) { r.players[key].status = 'sitout'; continue; }
     const p = r.players[key];
-    const bet = p.bet;
-    p.chips -= bet;
-    const cards = [drawCard(r), drawCard(r)];
-    const handStatus = isBlackjack(cards) ? 'blackjack' : 'playing';
-    p.hands = [{ cards, bet, status: handStatus }];
+    p.chips -= p.bet;
+    p.hands = [{ cards: [], bet: p.bet, status: 'playing' }];
     p.status = 'playing';
-    if (handStatus === 'playing') r.turnOrder.push({ pid: key, hi: 0 });
   }
-  r.dealer.hand = [drawCard(r), drawCard(r)];
+
+  for (const key of boxes) r.players[key].hands[0].cards.push(drawCard(r));
+  r.dealer.hand = [drawCard(r)];
+  for (const key of boxes) r.players[key].hands[0].cards.push(drawCard(r));
+  r.dealer.hand.push(drawCard(r));
   r.dealer.hiddenRevealed = false;
+
+  // A natural can only be recognised once both passes are out.
+  for (const key of boxes) {
+    const hand = r.players[key].hands[0];
+    if (isBlackjack(hand.cards)) hand.status = 'blackjack';
+    else r.turnOrder.push({ pid: key, hi: 0 });
+  }
+
   r.currentTurnIndex = 0;
   r.bettingDeadline = null;
   r.log = (r.log || []).concat('Cards dealt.').slice(-8);
