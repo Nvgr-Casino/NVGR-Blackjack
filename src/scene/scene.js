@@ -42,20 +42,28 @@ export function initScene(canvas) {
   camera.lookAt(cameraLookAtForSeat(openingSeat));
 
   // Phones are fill-rate bound, not triangle bound — this scene is only
-  // ~29k triangles, so nothing here is limited by geometry. What costs is
-  // every *pixel*: a phone at devicePixelRatio 3 asks for nine times the
-  // fragments of a 1x screen, and each of those fragments then pays for
-  // every light in the scene and a soft-shadow lookup on top. So the mobile
-  // tier cuts pixels and per-pixel work rather than detail, which is why it
-  // still looks like the desktop build.
+  // ~29k triangles, so nothing is limited by geometry. What costs is every
+  // *pixel*: a phone at devicePixelRatio 3 asks for nine times the fragments
+  // of a 1x screen, and each one then pays for every light in the scene and
+  // a shadow lookup on top. So the mobile tier trims per-pixel work — a
+  // smaller shadow map, fewer decorative lights — rather than detail.
   const lowPower = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820;
 
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: !lowPower });
+  // Render resolution, though, is not guessed from the device any more.
+  // Capping phones at 1.5x while their screens are 3x meant the whole image
+  // was drawn at half resolution and upscaled — which is what "everything
+  // looks low quality" actually was, cards included; their textures were
+  // never the limit. Everyone now starts at full quality and the renderer
+  // measures whether the device can hold it (see adaptQuality), so a fast
+  // phone keeps a sharp picture and only a struggling one gives resolution
+  // up. Antialiasing is on everywhere for the same reason.
+  const DPR_STEPS = [2, 1.5, 1.25, 1];
+  let dprStep = 0;
+  const applyPixelRatio = () => renderer.setPixelRatio(Math.min(window.devicePixelRatio, DPR_STEPS[dprStep]));
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
-  // 1.5 rather than 2-3. Paired with dropping MSAA this is roughly a 4x
-  // reduction in fragment work on a modern phone, and at this screen size
-  // the difference is very hard to see.
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, lowPower ? 1.5 : 2));
+  applyPixelRatio();
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = lowPower ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -200,9 +208,48 @@ export function initScene(canvas) {
   }
   onResize();
 
+  // Watches how long frames are actually taking and gives up resolution only
+  // if the device cannot hold a smooth one. It only ever steps down, never
+  // back up: a system that also climbs will oscillate around whatever level
+  // is marginal, and a picture that keeps changing sharpness is worse than
+  // one that settles slightly soft. The first few seconds are ignored
+  // because models and textures are still being decoded then, and judging
+  // the device on that would downgrade everyone.
+  const SETTLE_MS = 4000;
+  const WINDOW_FRAMES = 60;
+  const SLOW_FRAME_MS = 22;   // ~45fps; below this and it reads as juddery
+  const startedAt = performance.now();
+  let windowFrames = [];
+  let slowWindows = 0;
+
+  function adaptQuality(frameMs, now) {
+    if (now - startedAt < SETTLE_MS || dprStep >= DPR_STEPS.length - 1) return;
+    // A backgrounded tab has its frame callbacks throttled to a crawl or
+    // stopped outright, so those gaps say nothing about how fast the device
+    // is — counting them would quietly downgrade anyone who switched tabs.
+    if (document.hidden || frameMs > 100) { windowFrames = []; return; }
+    windowFrames.push(frameMs);
+    if (windowFrames.length < WINDOW_FRAMES) return;
+    // Median, not mean: one stall while a texture uploads shouldn't count as
+    // the device being slow.
+    const median = windowFrames.slice().sort((a, b) => a - b)[WINDOW_FRAMES >> 1];
+    windowFrames = [];
+    // Two bad windows in a row, so a single hiccup doesn't cost sharpness.
+    slowWindows = median > SLOW_FRAME_MS ? slowWindows + 1 : 0;
+    if (slowWindows >= 2) {
+      slowWindows = 0;
+      dprStep++;
+      applyPixelRatio();
+    }
+  }
+
   const clock = new THREE.Clock();
+  let lastFrame = performance.now();
   function animate() {
     requestAnimationFrame(animate);
+    const now = performance.now();
+    adaptQuality(now - lastFrame, now);
+    lastFrame = now;
     tickAnimations();
     updateDealerAnimations(clock.getDelta());
     if (!cameraOverride.active) controls.update();

@@ -34,7 +34,7 @@ const sideCache = new Map();
 function finalize(canvas) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 8;
+  texture.anisotropy = 16;
   return texture;
 }
 

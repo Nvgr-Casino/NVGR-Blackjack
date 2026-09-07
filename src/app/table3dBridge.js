@@ -498,7 +498,10 @@ export function attachTableScreen() {
   const r = S.session.room;
   const myKey = r && S.session.uid ? safeKey(S.session.uid) : null;
   const me = r && myKey && r.players ? r.players[myKey] : null;
-  const mySeatIndex = r && myKey ? (r.playerOrder || []).indexOf(myKey) : -1;
+  // Your chair, not your place in the join queue. Bet chips are drawn from
+  // this, so while it still read the join order they piled up on whichever
+  // seat you first sat in and stayed there after you moved.
+  const mySeatIndex = r && myKey && r.players && r.players[myKey] ? seatOf(r, myKey) : -1;
 
   const hitBtn = document.getElementById('hitBtn'); if (hitBtn) hitBtn.onclick = S.hit;
   const standBtn = document.getElementById('standBtn'); if (standBtn) standBtn.onclick = S.stand;
