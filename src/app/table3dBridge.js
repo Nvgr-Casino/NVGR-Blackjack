@@ -6,7 +6,7 @@
 import { createTableDriver } from '../ui/gameController.js';
 import {
   MAX_PUBLIC_SEATS, MAX_TIMEOUTS, DECKS_IN_SHOE, rankOf, suitOf, handValue,
-  avatarColor, initials, chipLadderForTable, stakesFor, stakesLabel, safeKey,
+  avatarColor, initials, chipLadderForTable, stakesFor, stakesLabel, safeKey, seatOf,
 } from './roomLogic.js';
 import { chipButtonDataURL } from '../scene/chip.js';
 import { characterPortraitDataURL, defaultCharacterFor } from '../scene/character.js';
@@ -83,17 +83,6 @@ function spawnBetStack(seatIndex, amount, ladder) {
   });
 }
 
-// Paints the seat switcher's highlight from the camera's actual seat — the
-// one source of truth for it, whether the seat was chosen by hand or
-// followed automatically when the room said where you sit.
-function markViewSeatButton() {
-  if (!driver) return;
-  const current = driver.getViewSeat();
-  document.querySelectorAll('[data-view-seat]').forEach((b) => {
-    b.classList.toggle('current', Number(b.getAttribute('data-view-seat')) === current);
-  });
-}
-
 // ---------- the real sync ----------
 export function syncRoomToScene(room, myKey) {
   if (!driver || !room) return;
@@ -107,7 +96,9 @@ export function syncRoomToScene(room, myKey) {
   }
 
   const order = room.playerOrder || [];
-  const seatIndexOf = new Map(order.map((key, i) => [key, i]));
+  // Keyed off each player's real chair, not their position in the join
+  // queue — those are different things now that players can move.
+  const seatIndexOf = new Map(order.map((key) => [key, seatOf(room, key)]));
 
   // Sit the camera down in your own chair. Which seat is yours is your join
   // order, so it isn't known until the room arrives — the scene has to open
@@ -115,17 +106,13 @@ export function syncRoomToScene(room, myKey) {
   // for the whole session. Once you have picked a viewpoint by hand this
   // stops moving the camera (see followSeat).
   const mySeatIndex = myKey === null || myKey === undefined ? undefined : seatIndexOf.get(myKey);
-  if (mySeatIndex !== undefined) {
-    driver.followSeat(mySeatIndex);
-    // The switcher's highlight is painted when the screen renders, which
-    // happens before this runs — so it would otherwise point at the seat
-    // the camera just left until the next redraw.
-    markViewSeatButton();
-  }
+  if (mySeatIndex !== undefined) driver.followSeat(mySeatIndex);
 
   // Seat the chosen figure for every occupied seat, and empty the rest.
+  const occupant = new Map();
+  order.forEach((key) => occupant.set(seatIndexOf.get(key), key));
   for (let i = 0; i < MAX_PUBLIC_SEATS; i++) {
-    const key = order[i];
+    const key = occupant.get(i);
     const p = key && room.players ? room.players[key] : null;
     if (p) driver.applySeatCharacter(i, p.character || defaultCharacterFor(key));
     else driver.clearSeatCharacter(i);
@@ -361,9 +348,28 @@ export function renderTableScreen() {
     }
   }
 
+  // A real seat picker, not a camera picker. Tapping a free chair moves you
+  // into it and the view follows, because you watch the table from wherever
+  // you are actually sitting. Chairs someone else is in, and any move while
+  // you are holding cards, are refused here as well as in the rules.
+  const mySeatNow = myKey ? seatOf(r, myKey) : -1;
+  const holdingCards = !!(me && me.hands && me.hands.length);
+  const seatOwner = new Map();
+  (r.playerOrder || []).forEach((k) => seatOwner.set(seatOf(r, k), k));
   const seatSwitcher = `
     <div class="tbl-seatpicker" id="seatSwitchRow">
-      ${SEATS_LABELS.map((label, i) => `<button class="seat-switch-btn" data-view-seat="${i}" title="View seat ${i + 1}">${i + 1}</button>`).join('')}
+      ${SEATS_LABELS.map((label, i) => {
+        const owner = seatOwner.get(i);
+        const mine = owner === myKey && myKey;
+        const taken = owner && !mine;
+        const blocked = taken || holdingCards || mySeatNow === -1;
+        const title = mine ? 'Your seat'
+          : taken ? esc(r.players[owner].name) + ' is in seat ' + (i + 1)
+          : holdingCards ? 'Finish the hand before moving seats'
+          : 'Move to seat ' + (i + 1);
+        return `<button class="seat-switch-btn${mine ? ' current' : ''}${taken ? ' taken' : ''}"
+          data-take-seat="${i}" ${blocked ? 'disabled' : ''} title="${title}">${i + 1}</button>`;
+      }).join('')}
     </div>`;
 
   // Who's who — the 3D scene shows cards/chips/badges in place, but not
@@ -568,15 +574,9 @@ export function attachTableScreen() {
     el.onclick = () => Social.sendFriendRequest(el.getAttribute('data-add-friend'), el.getAttribute('data-add-name'));
   });
 
-  document.querySelectorAll('[data-view-seat]').forEach((btn) => {
-    btn.onclick = () => {
-      driver.setViewSeat(Number(btn.getAttribute('data-view-seat')));
-      markViewSeatButton();
-    };
+  document.querySelectorAll('[data-take-seat]').forEach((btn) => {
+    btn.onclick = () => S.changeSeat(Number(btn.getAttribute('data-take-seat')));
   });
-  // Covers the spectator case too, where no seat is yours and the room sync
-  // never gets to paint this.
-  markViewSeatButton();
 }
 
 export function resetTableDiffState() {

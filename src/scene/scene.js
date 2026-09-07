@@ -9,7 +9,7 @@ import { createDealerFigure, setDealerModel, startDealerIdle, updateDealerAnimat
 import { createBetRing, createCardShoe, createChipTray } from './props.js';
 import { createRoom, ROOM_HALF } from './room.js';
 import { TABLE_BACK_Z } from './table.js';
-import { SEATS, DEALER, cameraPositionForSeat, CAMERA_LOOK_AT } from './seats.js';
+import { SEATS, DEALER, cameraPositionForSeat, cameraLookAtForSeat } from './seats.js';
 import { tickAnimations } from './animator.js';
 import { cameraOverride } from './cameraFocus.js';
 
@@ -37,8 +37,9 @@ export function initScene(canvas) {
   // enough of the table to follow the round. Default to the center seat's
   // view until the player picks one; gameController.js repositions this
   // once they do.
-  camera.position.copy(cameraPositionForSeat(SEATS[2]));
-  camera.lookAt(CAMERA_LOOK_AT);
+  const openingSeat = SEATS[2];
+  camera.position.copy(cameraPositionForSeat(openingSeat));
+  camera.lookAt(cameraLookAtForSeat(openingSeat));
 
   // Phones are fill-rate bound, not triangle bound — this scene is only
   // ~29k triangles, so nothing here is limited by geometry. What costs is
@@ -76,7 +77,7 @@ export function initScene(canvas) {
   controls.minPolarAngle = Math.PI / 3;
   controls.minDistance = 3;
   controls.maxDistance = ROOM_HALF - 2;
-  controls.target.copy(CAMERA_LOOK_AT);
+  controls.target.copy(cameraLookAtForSeat(openingSeat));
 
   // Ambient is the one light that costs essentially nothing per fragment —
   // no position, no attenuation, no shadow. So the mobile tier spends its

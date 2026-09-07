@@ -406,7 +406,13 @@ label { display: block; font-size: 12px; color: var(--cream-dim); margin-bottom:
   width: 22px; height: 22px; border-radius: 50%; padding: 0; font-size: 10px; line-height: 1;
   background: rgba(18, 4, 5, 0.6); border: 0.5px solid var(--line-strong); color: var(--cream-dim); cursor: pointer;
 }
-.tbl-seatpicker button.current { border-color: var(--gold); color: var(--gold); }
+.tbl-seatpicker button.current { border-color: var(--gold); color: var(--gold); background: rgba(234, 195, 94, 0.16); }
+/* A chair someone else is in reads as occupied rather than merely
+   unavailable — the same disabled dimming as "you can't move right now"
+   would not say why. */
+.tbl-seatpicker button.taken { border-style: dashed; opacity: 0.55; }
+.tbl-seatpicker button:disabled { cursor: default; }
+.tbl-seatpicker button:not(:disabled):hover { border-color: var(--gold); color: var(--gold); }
 
 .tbl-status {
   position: fixed; top: 48px; left: 50%; transform: translateX(-50%); z-index: 4;

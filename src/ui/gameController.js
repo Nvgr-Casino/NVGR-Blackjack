@@ -4,10 +4,10 @@ import { CARD_WIDTH } from '../scene/card.js';
 import { createChip, createChipForValue, createChipStack, CHIP_HEIGHT, DENOMINATIONS } from '../scene/chip.js';
 import { createChipTray } from '../scene/props.js';
 import { createCharacter } from '../scene/character.js';
-import { focusOn } from '../scene/cameraFocus.js';
+import { focusOn, cameraOverride } from '../scene/cameraFocus.js';
 import { createHandBadge } from '../scene/handBadge.js';
-import { SEATS, DEALER, cameraPositionForSeat, CAMERA_LOOK_AT } from '../scene/seats.js';
-import { animate, easeOutCubic } from '../scene/animator.js';
+import { SEATS, DEALER, cameraPositionForSeat, cameraLookAtForSeat } from '../scene/seats.js';
+import { animate, easeOutCubic, easeInOutCubic } from '../scene/animator.js';
 
 // Pure 3D/visual driver for the table — no DOM, no game rules. It knows how
 // to put a card/chip/badge somewhere on the felt for a given seat index and
@@ -69,9 +69,9 @@ export function createTableDriver({ scene, camera, controls, dealer, chairsBySea
   // Where the camera sits. Seat 3 is only the opening guess, used until the
   // room tells us which seat is actually yours — see followSeat.
   let viewSeatIndex = 2;
-  // Set once the player picks a viewpoint from the seat switcher, after
-  // which their choice is theirs and the room stops moving the camera.
-  let viewSeatPinned = false;
+  // False until the room has placed the camera in the player's own chair
+  // once; see followSeat.
+  let seatFollowed = false;
 
   const dealerBadge = createHandBadge();
   dealerBadge.sprite.position.set(DEALER.handSpot.x, 0.34, DEALER.handSpot.z);
@@ -142,10 +142,54 @@ export function createTableDriver({ scene, camera, controls, dealer, chairsBySea
   }
 
   // ---------- camera / seat viewpoint ----------
-  function setViewSeat(seatIndex, { manual = true } = {}) {
-    // A hand-picked viewpoint sticks: once you have chosen where to sit and
-    // watch from, later room updates must not drag the camera back.
-    if (manual) viewSeatPinned = true;
+  // Every seat's camera sits on one circle around the table's look-at
+  // point, so a move between two of them is a change of angle. Interpolating
+  // the angle sweeps the view around the table; interpolating the positions
+  // directly would cut the chord between them and, for seats on opposite
+  // sides, drive the camera straight through the table.
+  function glideTo(destination, lookAt, duration) {
+    const from = camera.position.clone();
+    const fromLook = controls.target.clone();
+    // Every seat's camera sits on one circle about the table's centre, so
+    // the sweep is around that centre — not around the look-at point, which
+    // is itself moving.
+    const a0 = Math.atan2(from.x, from.z);
+    const a1 = Math.atan2(destination.x, destination.z);
+    let sweep = a1 - a0;
+    while (sweep > Math.PI) sweep -= Math.PI * 2;
+    while (sweep < -Math.PI) sweep += Math.PI * 2;
+    const r0 = Math.hypot(from.x, from.z);
+    const r1 = Math.hypot(destination.x, destination.z);
+    const look = fromLook.clone();
+
+    cameraOverride.active = true;
+    animate({
+      duration,
+      easing: easeInOutCubic,
+      onUpdate: (t) => {
+        const angle = a0 + sweep * t;
+        const radius = r0 + (r1 - r0) * t;
+        camera.position.set(
+          Math.sin(angle) * radius,
+          from.y + (destination.y - from.y) * t,
+          Math.cos(angle) * radius
+        );
+        look.lerpVectors(fromLook, lookAt, t);
+        camera.lookAt(look);
+      },
+      onComplete: () => {
+        camera.position.copy(destination);
+        controls.target.copy(lookAt);
+        camera.lookAt(lookAt);
+        // OrbitControls re-derives its orbit from wherever the camera
+        // actually is on the next update, so handing control back here needs
+        // no resync — it simply picks up from the new seat.
+        cameraOverride.active = false;
+      },
+    });
+  }
+
+  function setViewSeat(seatIndex, { animated = true } = {}) {
     if (seatIndex === viewSeatIndex) return;
     if (chairsBySeat.get(viewSeatIndex)) chairsBySeat.get(viewSeatIndex).visible = true;
     const leaving = seatCharacters.get(viewSeatIndex);
@@ -154,27 +198,31 @@ export function createTableDriver({ scene, camera, controls, dealer, chairsBySea
     if (chairsBySeat.get(viewSeatIndex)) chairsBySeat.get(viewSeatIndex).visible = false;
     const arriving = seatCharacters.get(viewSeatIndex);
     if (arriving) arriving.group.visible = false;
-    camera.position.copy(cameraPositionForSeat(SEATS[viewSeatIndex]));
-    camera.lookAt(CAMERA_LOOK_AT);
-    controls.target.copy(CAMERA_LOOK_AT);
+
+    const destination = cameraPositionForSeat(SEATS[viewSeatIndex]);
+    const lookAt = cameraLookAtForSeat(SEATS[viewSeatIndex]);
+    if (animated) {
+      glideTo(destination, lookAt, 620);
+    } else {
+      camera.position.copy(destination);
+      camera.lookAt(lookAt);
+      controls.target.copy(lookAt);
+    }
     positionChipRack();
   }
   if (chairsBySeat.get(viewSeatIndex)) chairsBySeat.get(viewSeatIndex).visible = false;
 
-  // Puts the camera in the seat the player is actually sitting in. Your real
-  // position at the table is your join order, which isn't known until the
-  // room syncs — so without this the view stayed parked in the middle seat
-  // and you watched your own hand from someone else's chair.
+  // Puts the camera in the chair the player is actually sitting in, and
+  // keeps it there when they move. The first move of a session is a snap
+  // rather than a sweep: on joining there is no previous seat to travel
+  // from, and gliding in from the default view reads as a glitch.
   function followSeat(seatIndex) {
-    if (viewSeatPinned) return;
     if (seatIndex === null || seatIndex === undefined || seatIndex < 0) return;
-    setViewSeat(seatIndex, { manual: false });
+    setViewSeat(seatIndex, { animated: seatFollowed });
+    seatFollowed = true;
   }
 
-  // Leaving a table forgets a hand-picked viewpoint, so the next table you
-  // join starts by following your seat there rather than inheriting a
-  // choice you made about a different room.
-  function releaseViewSeat() { viewSeatPinned = false; }
+  function releaseViewSeat() { seatFollowed = false; }
 
   function focusOnSeatHand(seatIndex) {
     const seat = SEATS[seatIndex];

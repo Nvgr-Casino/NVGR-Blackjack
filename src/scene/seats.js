@@ -49,6 +49,21 @@ const CAMERA_BACK_DISTANCE = 2.25;
 const CAMERA_HEIGHT = 3.85;
 export const CAMERA_LOOK_AT = new THREE.Vector3(0, 0.65, -1.0);
 
+// What a player in this seat is actually looking at: halfway between their
+// own cards and the dealer's, lifted off the felt.
+//
+// Aiming every seat at one fixed point in the middle of the table was fine
+// while the camera never left the middle seat. Once it sits where the
+// player really sits, that fixed point tilts the view too far away: your
+// own hand lands near the bottom of the frame — behind the betting panel —
+// and the further round the table your seat is, the further off-centre it
+// drifts. Splitting the difference with the dealer frames your cards and
+// theirs identically from all five chairs.
+const LOOK_LIFT = 0.3;
+export function cameraLookAtForSeat(seat) {
+  return seat.handSpot.clone().lerp(DEALER.handSpot, 0.5).setY(LOOK_LIFT);
+}
+
 export function cameraPositionForSeat(seat) {
   const dir = seat.position.clone().setY(0).normalize();
   return new THREE.Vector3(

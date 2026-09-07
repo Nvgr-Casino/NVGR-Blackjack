@@ -164,7 +164,7 @@ function createWallTexture(crests) {
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 8;
+  texture.anisotropy = 16;
   return texture;
 }
 
@@ -220,7 +220,7 @@ function createCarpetTexture() {
   texture.wrapT = THREE.RepeatWrapping;
   texture.repeat.set(7, 7);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 8;
+  texture.anisotropy = 16;
   return texture;
 }
 
@@ -346,7 +346,7 @@ export function createRoom({ lowPower = false } = {}) {
   room.add(sign);
   new THREE.TextureLoader().load(logoUrl, (tex) => {
     tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = 8;
+    tex.anisotropy = 16;
     signMat.map = tex;
     signMat.opacity = 1;
     signMat.needsUpdate = true;

@@ -22,7 +22,7 @@ import {
   safeKey, genCode, shuffleShoe, drawCard, addPlayerToRoom, startRoundLogic, dealRoundCards,
   checkAutoDeal, processBettingTimeoutLogic, processTurnTimeoutLogic, resolveDealerAndPayouts,
   advanceTurnIn, rankOf, handValue, chipLadderForTable, stakesFor, TABLE_STAKES,
-  everyoneDecidedInsurance, resolveInsurance, processInsuranceTimeout,
+  everyoneDecidedInsurance, resolveInsurance, processInsuranceTimeout, moveToSeat,
 } from './roomLogic.js';
 
 export let session = { screen: 'loading', uid: null, name: null, photo: null, chips: 0, character: null, code: null, isAdmin: false, room: null };
@@ -66,6 +66,14 @@ async function ensureAccount(uid, name) {
   const character = defaultCharacterFor(safeKey(uid));
   await set(ref(db, 'accounts/' + safeKey(uid)), { name, chips: STARTING_CHIPS, character, updatedAt: Date.now() });
   return { chips: STARTING_CHIPS, character };
+}
+
+// Take a different chair at the table. moveToSeat refuses if the seat is
+// occupied or the player is holding cards, so a losing race just leaves
+// everyone where they were.
+export async function changeSeat(seatIndex) {
+  if (!session.code) return;
+  await mutateRoom(session.code, (r) => { moveToSeat(r, session.uid, seatIndex); });
 }
 
 // The chosen figure lives on the account so it follows the player between

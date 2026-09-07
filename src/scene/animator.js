@@ -6,6 +6,13 @@ export function easeOutCubic(t) {
   return 1 - Math.pow(1 - t, 3);
 }
 
+// Eases in as well as out. For a move the eye follows the whole way —
+// the camera sweeping between seats — starting at full speed reads as a
+// jerk, which easeOutCubic alone can't avoid.
+export function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
 export function animate({ duration, onUpdate, onComplete, easing = easeOutCubic }) {
   active.push({ start: performance.now(), duration, onUpdate, onComplete, easing });
 }

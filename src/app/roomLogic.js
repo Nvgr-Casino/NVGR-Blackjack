@@ -104,6 +104,44 @@ export function initials(name) {
   return (name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
 }
 
+// Where a player physically sits, 0..MAX_PUBLIC_SEATS-1.
+//
+// This used to be implied by their index in playerOrder, which is really
+// just the order they arrived in. That conflated two different things:
+// seats always filled from the left, and nobody could ever move — picking
+// a seat only swung the camera while your body stayed put. Seats are their
+// own property now; playerOrder keeps doing what it was actually for,
+// which is iteration and turn order.
+export function seatOf(room, key) {
+  const p = room.players && room.players[key];
+  if (p && typeof p.seat === 'number') return p.seat;
+  // Rooms opened before seats existed: fall back to the old meaning so a
+  // table in progress doesn't rearrange itself under the players.
+  return (room.playerOrder || []).indexOf(key);
+}
+
+export function seatTaken(room, seatIndex, exceptKey) {
+  return (room.playerOrder || []).some((k) => k !== exceptKey && seatOf(room, k) === seatIndex);
+}
+
+export function firstFreeSeat(room) {
+  for (let i = 0; i < MAX_PUBLIC_SEATS; i++) if (!seatTaken(room, i)) return i;
+  return 0;
+}
+
+// Moves a player to a different chair. Refused while they hold cards —
+// otherwise a dealt hand would teleport across the table mid-round.
+export function moveToSeat(room, uid, seatIndex) {
+  const key = safeKey(uid);
+  const p = room.players && room.players[key];
+  if (!p) return false;
+  if (!Number.isInteger(seatIndex) || seatIndex < 0 || seatIndex >= MAX_PUBLIC_SEATS) return false;
+  if (p.hands && p.hands.length) return false;
+  if (seatTaken(room, seatIndex, key)) return false;
+  p.seat = seatIndex;
+  return true;
+}
+
 export function addPlayerToRoom(room, uid, name, chips, character) {
   const key = safeKey(uid);
   if (!room.players) room.players = {};
@@ -116,6 +154,7 @@ export function addPlayerToRoom(room, uid, name, chips, character) {
   }
   room.players[key] = {
     name, chips, hands: [], bet: 0, timeouts: 0, character: character || null,
+    seat: firstFreeSeat(room),
     status: room.phase === 'betting' ? 'betting' : 'sitout',
   };
   room.playerOrder.push(key);
