@@ -6,11 +6,12 @@
 import { createTableDriver } from '../ui/gameController.js';
 import {
   MAX_PUBLIC_SEATS, MAX_TIMEOUTS, DECKS_IN_SHOE, rankOf, suitOf, handValue,
-  avatarColor, initials, chipLadderFor, safeKey,
+  avatarColor, initials, chipLadderForTable, stakesFor, stakesLabel, safeKey,
 } from './roomLogic.js';
 import { chipButtonDataURL } from '../scene/chip.js';
 import { brandMark, esc } from './uiHelpers.js';
 import * as S from './session.js';
+import * as Social from './social.js';
 
 const DEAL_STEP_MS = 320;
 
@@ -19,6 +20,7 @@ const OUTCOME_LABEL = {
   blackjack: (bet) => 'Blackjack — won ' + (bet + Math.floor(bet * 1.5)).toLocaleString(),
   push: () => 'Push',
   lose: (bet) => 'Lost ' + bet.toLocaleString(),
+  surrender: (bet) => 'Surrendered — kept ' + Math.floor(bet / 2).toLocaleString(),
 };
 
 let driver = null;
@@ -36,8 +38,11 @@ let betChipsShown = {}; // seatIndex -> bool, whether we've drawn a bet chip thi
 let localPendingSeats = {};
 let lastPhase = null;
 
+let setFeltTheme = () => {};
+
 export function mountTable3D(sceneHandles) {
   driver = createTableDriver(sceneHandles);
+  setFeltTheme = sceneHandles.setFeltTheme || (() => {});
   return driver;
 }
 
@@ -79,6 +84,8 @@ function spawnBetStack(seatIndex, amount, ladder) {
 export function syncRoomToScene(room, myKey) {
   if (!driver || !room) return;
 
+  setFeltTheme(room.felt);
+
   if (room.round !== lastRound) {
     lastRound = room.round;
     resetRoundVisuals();
@@ -98,8 +105,8 @@ export function syncRoomToScene(room, myKey) {
     if (p.status === 'bet-placed' && !betChipsShown[seatIndex]) {
       betChipsShown[seatIndex] = true;
       if (!localPendingSeats[seatIndex]) {
-        const ladder = chipLadderFor(p.chips);
-        spawnBetStack(seatIndex, p.bet, ladder);
+        const { min, max } = stakesFor(room);
+        spawnBetStack(seatIndex, p.bet, chipLadderForTable(min, max));
       }
     }
     if (p.status === 'betting' && betChipsShown[seatIndex]) {
@@ -123,7 +130,7 @@ export function syncRoomToScene(room, myKey) {
   // one card at a time instead of popping in all at once.
   const events = [];
 
-  if (room.phase === 'playing' || room.phase === 'dealer' || room.phase === 'results') {
+  if (room.phase === 'insurance' || room.phase === 'playing' || room.phase === 'dealer' || room.phase === 'results') {
     const dHand = room.dealer.hand || [];
     for (let i = lastDealerCount; i < dHand.length; i++) {
       events.push({ kind: 'dealer', index: i, card: dHand[i], faceDown: i === 1 && !room.dealer.hiddenRevealed });
@@ -175,7 +182,7 @@ export function syncRoomToScene(room, myKey) {
     }
   });
 
-  if (room.phase === 'playing' || room.phase === 'dealer' || room.phase === 'results') {
+  if (room.phase === 'insurance' || room.phase === 'playing' || room.phase === 'dealer' || room.phase === 'results') {
     driver.setDealerBadge(String(handValue(room.dealer.hand.slice(0, room.dealer.hiddenRevealed ? room.dealer.hand.length : 1))));
   } else {
     driver.hideDealerBadge();
@@ -183,7 +190,7 @@ export function syncRoomToScene(room, myKey) {
 
   // Round-long camera zoom onto MY seat while a hand is in progress.
   if (myKey && seatIndexOf.has(myKey)) {
-    const goingToPlay = room.phase === 'playing' || room.phase === 'dealer' || room.phase === 'results';
+    const goingToPlay = room.phase === 'insurance' || room.phase === 'playing' || room.phase === 'dealer' || room.phase === 'results';
     if (goingToPlay && lastPhase === 'betting') driver.focusOnSeatHand(seatIndexOf.get(myKey));
     if (room.phase === 'betting' && lastPhase !== 'betting') driver.releaseSeatFocus();
   }
@@ -238,6 +245,9 @@ export function renderTableScreen() {
   if (phase === 'betting' && r.bettingDeadline) {
     const remaining = Math.max(0, Math.ceil((r.bettingDeadline - Date.now()) / 1000));
     countdownHtml = `<div class="countdown" id="countdownText">Betting closes in ${remaining}s</div>`;
+  } else if (phase === 'insurance' && r.insuranceDeadline) {
+    const remaining = Math.max(0, Math.ceil((r.insuranceDeadline - Date.now()) / 1000));
+    countdownHtml = `<div class="countdown" id="countdownText">Insurance closes in ${remaining}s</div>`;
   } else if (myTurn && r.turnDeadline) {
     const remaining = Math.max(0, Math.ceil((r.turnDeadline - Date.now()) / 1000));
     countdownHtml = `<div class="countdown" id="countdownText">Act within ${remaining}s or you’ll be stood</div>`;
@@ -249,36 +259,62 @@ export function renderTableScreen() {
     if (phase === 'betting' && me.status === 'betting') {
       S.syncPendingBetRound(r.round);
       if (S.pendingBet > me.chips) S.setPendingBetClamped(me.chips);
-      const ladder = chipLadderFor(me.chips);
+      const { min, max } = stakesFor(r);
+      const ladder = chipLadderForTable(min, max);
       const chipsHtml = ladder.map((v, i) => {
-        const affordable = (S.pendingBet + v) <= me.chips;
+        // A chip is offered only if it fits both the player's balance and
+        // the table ceiling.
+        const allowed = (S.pendingBet + v) <= me.chips && (S.pendingBet + v) <= max;
         const art = chipButtonDataURL(v, i);
-        return `<button class="chip-btn ${affordable ? '' : 'disabled'}" style="background-image:url(${art});" data-chip="${v}" data-chip-index="${i}" ${affordable ? '' : 'disabled'} aria-label="Bet ${v.toLocaleString()}" title="${v.toLocaleString()}"></button>`;
+        return `<button class="chip-btn ${allowed ? '' : 'disabled'}" style="background-image:url(${art});" data-chip="${v}" data-chip-index="${i}" ${allowed ? '' : 'disabled'} aria-label="Bet ${v.toLocaleString()}" title="${v.toLocaleString()}"></button>`;
       }).join('');
-      const canRepeat = !!me.lastBet && me.lastBet <= me.chips;
+      const canRepeat = !!me.lastBet && me.lastBet <= me.chips && me.lastBet >= min && me.lastBet <= max;
+      const belowMin = S.pendingBet > 0 && S.pendingBet < min;
+      const betReady = S.pendingBet >= min && S.pendingBet <= max && S.pendingBet <= me.chips;
+      const betNote = belowMin
+        ? `Table minimum is ${min.toLocaleString()}`
+        : `Table limits ${stakesLabel(min, max)}`;
       myControls = `
         <div class="card-panel my-controls" style="max-width:460px;">
           <div class="balance-display"><span class="chip-icon"></span><span class="balance-label">Your balance</span><span class="balance-value">${me.chips.toLocaleString()}</span></div>
-          <p class="hint" style="margin:-2px 0 8px;">Tap chips below to build your bet on the felt</p>
+          <p class="hint ${belowMin ? 'warn' : ''}" style="margin:-2px 0 8px;">${betNote}</p>
           <div class="chip-grid">${chipsHtml}</div>
           <div class="row" style="margin-top:4px;">
             <button class="btn btn-ghost btn-small" id="clearBetBtn" ${S.pendingBet <= 0 ? 'disabled' : ''}>Clear</button>
             <button class="btn btn-ghost btn-small" id="repeatBetBtn" ${canRepeat ? '' : 'disabled'}>Repeat ${me.lastBet ? me.lastBet.toLocaleString() : ''}</button>
           </div>
-          <button class="btn btn-solid" id="confirmBetBtn" style="margin-top:10px;" ${S.pendingBet <= 0 ? 'disabled' : ''}>Place bet — ${S.pendingBet.toLocaleString()}</button>
+          <button class="btn btn-solid" id="confirmBetBtn" style="margin-top:10px;" ${betReady ? '' : 'disabled'}>Place bet — ${S.pendingBet.toLocaleString()}</button>
           <button class="btn btn-ghost btn-small" id="sitOutBtn" style="width:100%;margin-top:8px;">Sit out this round</button>
         </div>`;
     } else if (phase === 'betting' && me.status === 'bet-placed') {
       myControls = `<p class="log-line">Bet placed: ${me.bet.toLocaleString()}. Waiting for the table…</p>`;
+    } else if (phase === 'insurance') {
+      if (me.insuranceDecided) {
+        myControls = `<p class="log-line">${me.insurance ? 'Insurance taken.' : 'No insurance.'} Waiting for the table…</p>`;
+      } else {
+        const cost = Math.floor(((me.hands && me.hands[0] && me.hands[0].bet) || me.bet || 0) / 2);
+        const canAfford = cost > 0 && me.chips >= cost;
+        myControls = `
+          <div class="card-panel my-controls" style="max-width:400px;">
+            <p class="hint" style="margin:0 0 10px;">Dealer shows an Ace. Insurance costs ${cost.toLocaleString()} and pays 2:1 if the dealer has blackjack.</p>
+            <div class="action-bar">
+              <button class="btn btn-solid" id="insureYesBtn" ${canAfford ? '' : 'disabled'}>Take insurance</button>
+              <button class="btn" id="insureNoBtn">No thanks</button>
+            </div>
+          </div>`;
+      }
     } else if (myTurn && myHand) {
       const canDouble = myHand.cards.length === 2 && me.chips >= myHand.bet;
       const canSplit = myHand.cards.length === 2 && me.hands.length === 1 && me.chips >= myHand.bet && rankOf(myHand.cards[0]) === rankOf(myHand.cards[1]);
+      // Late surrender: only on an untouched two-card hand that was never split.
+      const canSurrender = myHand.cards.length === 2 && me.hands.length === 1;
       myControls = `
         <div class="action-bar my-controls">
           <button class="btn btn-solid" id="hitBtn">Hit</button>
           <button class="btn" id="standBtn">Stand</button>
           <button class="btn" id="doubleBtn" ${canDouble ? '' : 'disabled'}>Double</button>
           <button class="btn" id="splitBtn" ${canSplit ? '' : 'disabled'}>Split</button>
+          <button class="btn" id="surrenderBtn" ${canSurrender ? '' : 'disabled'}>Surrender</button>
         </div>`;
     } else if (phase === 'playing') {
       const curPlayer = cur ? r.players[cur.pid] : null;
@@ -304,6 +340,11 @@ export function renderTableScreen() {
     let statusText = '';
     if (phase === 'lobby' || (phase === 'betting' && p.status === 'sitout')) statusText = p.chips > 0 ? 'Waiting' : 'Needs chips';
     else if (phase === 'betting') statusText = p.status === 'bet-placed' ? 'Bet ' + p.bet.toLocaleString() : 'Choosing bet…';
+    else if (phase === 'insurance') {
+      if (!p.hands || !p.hands.length) statusText = 'Sitting out';
+      else if (!p.insuranceDecided) statusText = 'Insurance?';
+      else statusText = p.insurance ? 'Insured' : 'No insurance';
+    }
     else if (phase === 'playing' || phase === 'dealer') {
       if (p.status === 'sitout') statusText = 'Sitting out';
       else if (!p.hands || !p.hands.length) statusText = 'Waiting';
@@ -311,6 +352,7 @@ export function renderTableScreen() {
         if (h.status === 'blackjack') return 'Blackjack!';
         if (h.status === 'busted') return 'Busted';
         if (h.status === 'stood') return 'Stood';
+        if (h.status === 'surrendered') return 'Surrendered';
         if (onTurn && cur.hi === hi) return 'Their turn';
         return 'Waiting';
       }).join(' / ');
@@ -320,12 +362,16 @@ export function renderTableScreen() {
     }
     if (phase === 'betting' && p.timeouts > 0) statusText += ` (${p.timeouts}/${MAX_TIMEOUTS})`;
     const color = avatarColor(p.name);
+    // Tapping another player offers a friend request — the only place in
+    // the app where you meet someone new.
+    const addable = !isMe && !Social.isFriend(key);
     return `
-      <div class="seat-mini ${onTurn ? 'on-turn' : ''}">
+      <div class="seat-mini ${onTurn ? 'on-turn' : ''} ${addable ? 'addable' : ''}" ${addable ? `data-add-friend="${esc(key)}" data-add-name="${esc(p.name)}" title="Add ${esc(p.name)} as a friend"` : ''}>
         <div class="avatar" style="background:${color};">${esc(initials(p.name))}</div>
         <span class="sm-name">${esc(p.name)}${isMe ? ' (you)' : ''}</span>
         <span class="sm-chips">${p.chips.toLocaleString()}</span>
         <span class="sm-status">${esc(statusText)}</span>
+        ${addable ? '<span class="sm-add">+</span>' : ''}
       </div>`;
   }).join('');
   const seatsStrip = seatsStripHtml ? `<div class="tbl-seats-mini">${seatsStripHtml}</div>` : '';
@@ -384,6 +430,7 @@ export function renderTableScreen() {
         ${brandMark('topbar')}
         <span class="tbl-code">Code: <b>${esc(r.code)}</b></span>
         <span class="badge ${r.isPublic ? 'pub' : 'priv'}">${r.isPublic ? 'Public · ' + (r.playerOrder || []).length + '/' + MAX_PUBLIC_SEATS : 'Private'}</span>
+        <span class="badge stakes">${stakesLabel(stakesFor(r).min, stakesFor(r).max)}</span>
         ${shoeBadge(r)}
       </div>
       <div class="tbl-topbar-right">
@@ -414,6 +461,9 @@ export function attachTableScreen() {
   const standBtn = document.getElementById('standBtn'); if (standBtn) standBtn.onclick = S.stand;
   const doubleBtn = document.getElementById('doubleBtn'); if (doubleBtn) doubleBtn.onclick = S.doubleDown;
   const splitBtn = document.getElementById('splitBtn'); if (splitBtn) splitBtn.onclick = S.splitHand;
+  const surrenderBtn = document.getElementById('surrenderBtn'); if (surrenderBtn) surrenderBtn.onclick = S.surrender;
+  const insureYes = document.getElementById('insureYesBtn'); if (insureYes) insureYes.onclick = () => S.takeInsurance(true);
+  const insureNo = document.getElementById('insureNoBtn'); if (insureNo) insureNo.onclick = () => S.takeInsurance(false);
   const clearBetBtn = document.getElementById('clearBetBtn');
   if (clearBetBtn) clearBetBtn.onclick = () => {
     S.clearPendingBet();
@@ -424,7 +474,8 @@ export function attachTableScreen() {
     S.repeatPendingBet();
     if (mySeatIndex !== -1 && me) {
       driver.clearBetChipsForSeat(mySeatIndex);
-      spawnBetStack(mySeatIndex, S.pendingBet, chipLadderFor(me.chips));
+      const { min, max } = stakesFor(r);
+      spawnBetStack(mySeatIndex, S.pendingBet, chipLadderForTable(min, max));
       localPendingSeats[mySeatIndex] = true;
     }
   };
@@ -475,6 +526,10 @@ export function attachTableScreen() {
   }
   const chatLog = document.getElementById('chatLog');
   if (chatLog) chatLog.scrollTop = chatLog.scrollHeight;
+
+  document.querySelectorAll('[data-add-friend]').forEach((el) => {
+    el.onclick = () => Social.sendFriendRequest(el.getAttribute('data-add-friend'), el.getAttribute('data-add-name'));
+  });
 
   document.querySelectorAll('[data-view-seat]').forEach((btn) => {
     btn.classList.toggle('current', Number(btn.getAttribute('data-view-seat')) === driver.getViewSeat());

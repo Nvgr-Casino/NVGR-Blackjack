@@ -1,9 +1,11 @@
 // Lobby: public tables shown as mini blackjack tables in a grid (seats
 // drawn around each felt), plus a "create private table" tile, over a
 // fixed player bar. Actions are unchanged from index4.html's renderHome.
-import { MAX_PUBLIC_SEATS, avatarColor, initials } from '../roomLogic.js';
+import { MAX_PUBLIC_SEATS, avatarColor, initials, stakesLabel } from '../roomLogic.js';
+import { feltTheme } from '../../scene/table.js';
 import { brandMark, casinoMark, esc } from '../uiHelpers.js';
 import * as S from '../session.js';
+import * as Social from '../social.js';
 
 const PHASE_LABEL = {
   betting: 'Betting open',
@@ -31,10 +33,14 @@ function seatsHtml(seats) {
   return `<div class="mini-seats">${inner}</div>`;
 }
 
-function miniTable(inner) {
+function miniTable(inner, felt) {
+  // The tile's cloth matches the real table's, so the lobby previews the
+  // room you are about to sit at.
+  const t = felt ? feltTheme(felt) : null;
+  const style = t ? ` style="--felt-hi:${t.hi};--felt-lo:${t.lo};"` : '';
   return `
     <div class="mini-table">
-      <div class="mini-felt">
+      <div class="mini-felt"${style}>
         <span class="mini-legend">BLACKJACK PAYS 3 TO 2</span>
         <span class="mini-arc"></span>
       </div>
@@ -64,7 +70,8 @@ export function renderHome() {
       return `
         <div class="table-tile ${full ? 'is-full' : 'is-joinable'}" ${full ? '' : `data-join-table="${esc(t.code)}"`}>
           <div class="tile-badge ${t.phase === 'betting' ? 'open' : ''}">${PHASE_LABEL[t.phase] || 'Open'}</div>
-          ${miniTable(seatsHtml(t.seats || []))}
+          <div class="tile-stakes">${stakesLabel(t.minBet || 100, t.maxBet || 2000)}</div>
+          ${miniTable(seatsHtml(t.seats || []), t.felt)}
           <div class="tile-foot">
             <div class="tile-info"><span class="tile-name">Table ${esc(t.code)}</span><span class="tile-meta">${t.count}/${MAX_PUBLIC_SEATS} seated</span></div>
             <span class="btn ${full ? 'btn-ghost' : 'btn-solid'} btn-small">${full ? 'Full' : 'Join'}</span>
@@ -100,6 +107,7 @@ export function renderHome() {
         <span class="pb-name">${esc(S.session.name)}</span>
         <span class="pb-chips">${(S.session.chips || 0).toLocaleString()}</span>
       </div>
+      <button class="btn btn-ghost btn-small pb-friends" id="friendsBtn">Friends${Social.badgeCount() ? ` <span class="pb-badge">${Social.badgeCount()}</span>` : ''}</button>
       <button id="signOutBtn">Sign out</button>
     </div>
   `;
@@ -113,6 +121,7 @@ export function attachHome() {
   on('hostBtn', S.createRoom);
   on('goJoinBtn', () => S.goToScreen('join'));
   on('signOutBtn', S.doSignOut);
+  on('friendsBtn', () => S.goToScreen('friends'));
   on('refreshLobbyBtn', S.loadLobby);
   document.querySelectorAll('[data-join-table]').forEach((btn) => {
     btn.onclick = () => S.joinSpecificPublicTable(btn.getAttribute('data-join-table'));

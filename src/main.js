@@ -9,6 +9,7 @@ import { mountTable3D, syncRoomToScene, renderTableScreen, attachTableScreen, re
 import { renderAuth, attachAuth } from './app/screens/auth.js';
 import { renderHome, attachHome } from './app/screens/home.js';
 import { renderJoin, attachJoin } from './app/screens/join.js';
+import { renderFriends, attachFriends, renderDm, attachDm } from './app/screens/friends.js';
 import { SUIT_FLOAT_HTML, brandMark } from './app/uiHelpers.js';
 
 const canvas = document.getElementById('scene');
@@ -39,6 +40,16 @@ function render() {
   if (session.screen === 'join') {
     root.innerHTML = renderJoin();
     attachJoin();
+    return;
+  }
+  if (session.screen === 'friends') {
+    root.innerHTML = renderFriends();
+    attachFriends();
+    return;
+  }
+  if (session.screen === 'dm') {
+    root.innerHTML = renderDm();
+    attachDm();
     return;
   }
   if (session.screen === 'table') {

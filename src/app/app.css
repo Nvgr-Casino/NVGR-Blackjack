@@ -177,6 +177,7 @@ label { display: block; font-size: 12px; color: var(--cream-dim); margin-bottom:
 .badge { display: inline-block; font-size: 11px; letter-spacing: 0.5px; padding: 3px 9px; border-radius: 20px; border: 0.5px solid var(--line-strong); color: var(--cream-dim); margin-bottom: 14px; margin-right: 6px; }
 .badge.pub { border-color: var(--good); color: var(--good); }
 .badge.priv { border-color: var(--rim-dim); color: var(--gold); }
+.badge.stakes { border-color: var(--rim-dim); color: var(--gold); letter-spacing: 1px; }
 .badge.shoe { border-color: var(--line-strong); color: var(--cream-dim); }
 .badge.shoe.fresh { border-color: var(--gold); color: var(--gold); }
 .log-line { font-size: 13px; color: var(--cream-dim); text-align: center; margin-bottom: 14px; min-height: 18px; }
@@ -273,6 +274,11 @@ label { display: block; font-size: 12px; color: var(--cream-dim); margin-bottom:
   color: var(--cream-dim); border: 0.5px solid var(--line-strong); border-radius: 20px; padding: 3px 9px;
 }
 .tile-badge.open { color: var(--good); border-color: var(--good); }
+.tile-stakes {
+  position: absolute; top: 10px; right: 14px;
+  font-size: 11px; letter-spacing: 1px; color: var(--gold); font-family: Georgia, serif;
+}
+.hint.warn { color: var(--danger); }
 .tile-badge.ghost { color: var(--gold); border-color: var(--rim-dim); }
 
 /* The felt: a D-shape, dealer along the flat top edge, players around the
@@ -448,3 +454,104 @@ label { display: block; font-size: 12px; color: var(--cream-dim); margin-bottom:
 .tbl-float-panel.chat { right: 12px; }
 .tbl-float-panel.host { left: 12px; }
 .tbl-float-panel .admin-title { margin-bottom: 10px; }
+
+/* ---- Friends, presence and direct messages ---- */
+.lobby-section-title {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--gold);
+  margin: 22px auto 10px; max-width: 520px; position: relative; z-index: 1;
+}
+.friend-list { display: flex; flex-direction: column; gap: 8px; max-width: 520px; margin: 0 auto 8px; position: relative; z-index: 1; }
+.friend-row {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--panel); border: 0.5px solid var(--line); border-radius: 12px; padding: 10px 14px;
+}
+.friend-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.friend-name { font-size: 14px; font-weight: 600; color: var(--cream); }
+.friend-status { font-size: 12px; color: var(--cream-dim); display: flex; align-items: center; gap: 6px; }
+.friend-status.on { color: var(--good); }
+.friend-status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line-strong); flex-shrink: 0; }
+.friend-status .dot.on { background: var(--good); box-shadow: 0 0 6px var(--good); }
+.friend-preview { font-size: 12px; color: var(--gold); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.unread-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); flex-shrink: 0; }
+.friend-row .btn { width: auto; flex-shrink: 0; }
+
+.pb-friends { position: relative; width: auto; flex-shrink: 0; }
+.pb-badge {
+  display: inline-block; min-width: 17px; padding: 0 4px; margin-left: 4px;
+  border-radius: 9px; background: var(--gold); color: var(--ink);
+  font-size: 11px; font-weight: 700; text-align: center;
+}
+
+.dm-header { display: flex; align-items: center; gap: 12px; max-width: 520px; margin: 0 auto 12px; padding-top: 6px; }
+.dm-who { display: flex; flex-direction: column; }
+.dm-log {
+  max-width: 520px; margin: 0 auto; padding: 12px; min-height: 220px; max-height: 54vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 8px;
+  background: var(--panel); border: 0.5px solid var(--line); border-radius: 12px;
+}
+.dm-msg { display: flex; }
+.dm-msg .dm-text {
+  max-width: 78%; padding: 8px 12px; border-radius: 12px; font-size: 13.5px; line-height: 1.4;
+  background: rgba(246, 236, 217, 0.08); color: var(--cream); border: 0.5px solid var(--line);
+}
+.dm-msg.mine { justify-content: flex-end; }
+.dm-msg.mine .dm-text { background: rgba(234, 195, 94, 0.16); border-color: var(--rim-dim); color: var(--gold-bright); }
+.dm-input { max-width: 520px; margin: 10px auto 0; }
+
+.seat-mini.addable { cursor: pointer; }
+.seat-mini.addable:hover { border-color: var(--gold); }
+.sm-add { color: var(--gold); font-weight: 700; padding-left: 2px; }
+
+/* ---- Phones ----
+   The table screen is the tight one: a fixed topbar, a seat rail and a
+   bottom dock all competing for a ~360px wide, ~640px tall window. Chrome
+   shrinks, the chip rail stays reachable with a thumb, and the floating
+   panels go full width instead of overflowing. */
+@media (max-width: 640px) {
+  .wrap { padding: 16px 12px 60px; }
+
+  /* Everything below keeps the topbar to a single row. Once it wraps, the
+     fixed status line and seat rail below it have nowhere to go and end up
+     underneath it, so the least useful bits are dropped instead: the seat
+     switcher (a camera nicety), the seat-count and shoe badges, and the
+     word "Code:" — the code itself stays. */
+  .tbl-topbar { padding: 8px 10px; gap: 6px; flex-wrap: nowrap; }
+  .tbl-topbar-left { gap: 6px; flex-wrap: nowrap; }
+  /* Sized by height, not width: the mark is roughly square, so a width in
+     the 70s makes the bar tall enough to swallow the status line below it. */
+  .brand-mark.topbar { width: auto; height: 38px; }
+  .tbl-code { font-size: 0; }
+  .tbl-code b { font-size: 12px; }
+  .tbl-topbar .badge { font-size: 9px; padding: 2px 7px; margin-right: 0; }
+  .tbl-topbar .badge.pub, .tbl-topbar .badge.priv, .tbl-topbar .badge.shoe { display: none; }
+  .tbl-icon-btn { font-size: 11px; padding: 5px 9px; }
+  .tbl-seatpicker { display: none; }
+
+  /* The running log is a wide centred line that slides under the seat rail
+     on a narrow screen. The clock is the part that actually matters here,
+     and the seat rail already says who did what, so the log stands down. */
+  .tbl-status { top: 58px; }
+  .tbl-status .countdown { font-size: 10px; padding: 3px 9px; }
+  .tbl-status .log-line-mini { display: none; }
+
+  .tbl-seats-mini { top: 84px; right: 6px; gap: 3px; }
+  .seat-mini { font-size: 10px; padding: 2px 8px 2px 2px; gap: 4px; }
+  .seat-mini .avatar { width: 16px; height: 16px; font-size: 7px; }
+  .seat-mini .sm-name { max-width: 54px; }
+
+  .tbl-bottom-hud { max-height: 56vh; padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px)); }
+  .tbl-bottom-hud .card-panel { padding: 10px 12px; }
+  .tbl-bottom-hud .chip-grid { gap: 6px; }
+  .tbl-bottom-hud .chip-btn { width: 40px; height: 40px; }
+  .tbl-bottom-hud .balance-display .balance-value { font-size: 16px; }
+  .action-bar { gap: 6px; }
+  .action-bar .btn { min-width: 0; flex: 1 1 30%; padding: 11px 6px; font-size: 13px; }
+
+  .tbl-float-panel { width: auto; left: 10px; right: 10px; bottom: 84px; }
+
+  .lobby-grid { gap: 14px; padding-bottom: 84px; }
+  .lobby-actions .btn { min-width: 0; }
+  .brand-mark.lobby { width: min(230px, 66vw); }
+  .casino-mark.eyebrow { width: 120px; }
+  .house-credit { font-size: 10px; padding: 0 8px; }
+}

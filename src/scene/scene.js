@@ -143,11 +143,25 @@ export function initScene(canvas) {
   });
 
   window.addEventListener('resize', onResize);
+
+  // A perspective camera's fov is vertical, so on a narrow phone screen the
+  // horizontal view collapses and the table falls out of frame at the
+  // sides. Holding the *horizontal* field of view constant instead means
+  // the table stays framed the same way at any aspect ratio, portrait
+  // included — the view just gets taller rather than cropping inward.
+  const BASE_FOV = 54;
+  const BASE_ASPECT = 16 / 9;
+  const H_FOV = 2 * Math.atan(Math.tan((BASE_FOV * Math.PI) / 360) * BASE_ASPECT);
   function onResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
+    const aspect = window.innerWidth / window.innerHeight;
+    camera.aspect = aspect;
+    camera.fov = aspect < BASE_ASPECT
+      ? Math.min(100, (2 * Math.atan(Math.tan(H_FOV / 2) / aspect) * 180) / Math.PI)
+      : BASE_FOV;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
   }
+  onResize();
 
   const clock = new THREE.Clock();
   function animate() {
@@ -159,7 +173,10 @@ export function initScene(canvas) {
   }
   animate();
 
-  return { scene, camera, renderer, controls, dealer, chairsBySeat };
+  return {
+    scene, camera, renderer, controls, dealer, chairsBySeat,
+    setFeltTheme: table.userData.setFeltTheme,
+  };
 }
 
 function createPendantLamp() {

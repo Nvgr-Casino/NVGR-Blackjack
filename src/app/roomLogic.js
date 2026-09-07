@@ -17,6 +17,7 @@ export const BETTING_SECONDS = 20;
 // player, and the round itself, would be stuck waiting on a turn that can
 // never come. See processTurnTimeoutLogic below.
 export const TURN_SECONDS = 20;
+export const INSURANCE_SECONDS = 15;
 export const MAX_TIMEOUTS = 3;
 export const RESULTS_PAUSE_MS = 4000;
 export const DEALER_REVEAL_DELAY = 650;
@@ -124,6 +125,7 @@ export function startRoundLogic(r) {
   for (const key of r.playerOrder) {
     const p = r.players[key];
     p.hands = []; p.bet = 0; delete p.outcome;
+    p.insurance = 0; p.insuranceDecided = false;
     if (r.isPublic && p.chips <= 0) p.chips = STARTING_CHIPS;
     p.status = p.chips > 0 ? 'betting' : 'sitout';
   }
@@ -159,8 +161,77 @@ export function dealRoundCards(r) {
   r.currentTurnIndex = 0;
   r.bettingDeadline = null;
   r.log = (r.log || []).concat('Cards dealt.').slice(-8);
+  // Dealer showing an Ace: insurance is offered before anyone plays.
+  if (rankOf(r.dealer.hand[0]) === 'A' && (r.dealtIn || []).length > 0) {
+    openInsurance(r);
+    return;
+  }
+  beginPlay(r);
+}
+
+// Where a round goes once any insurance question is settled.
+function beginPlay(r) {
   if (r.turnOrder.length === 0) { r.turnDeadline = null; r.phase = 'dealer'; resolveDealerAndPayouts(r); }
   else { r.turnDeadline = Date.now() + TURN_SECONDS * 1000; r.phase = 'playing'; }
+}
+
+export function openInsurance(r) {
+  r.phase = 'insurance';
+  r.insuranceDeadline = Date.now() + INSURANCE_SECONDS * 1000;
+  for (const key of (r.dealtIn || [])) {
+    const p = r.players[key];
+    if (!p) continue;
+    p.insurance = 0;
+    p.insuranceDecided = false;
+  }
+  r.log = (r.log || []).concat('Dealer shows an Ace — insurance?').slice(-8);
+}
+
+export function everyoneDecidedInsurance(r) {
+  return (r.dealtIn || []).every((key) => {
+    const p = r.players[key];
+    return !p || p.insuranceDecided;
+  });
+}
+
+// Insurance pays 2:1 when the dealer has blackjack — the side bet wins
+// exactly when the main bet loses. If the dealer does have it, the round is
+// over before anyone plays a card.
+export function resolveInsurance(r) {
+  if (r.phase !== 'insurance') return;
+  const dealerBJ = isBlackjack(r.dealer.hand);
+  const notes = [];
+  for (const key of (r.dealtIn || [])) {
+    const p = r.players[key];
+    if (!p || !p.insurance) continue;
+    if (dealerBJ) {
+      p.chips += p.insurance * 3; // stake back plus 2:1
+      notes.push(p.name + ' wins insurance.');
+    }
+  }
+  r.insuranceDeadline = null;
+  if (dealerBJ) {
+    r.dealer.hiddenRevealed = true;
+    r.log = (r.log || []).concat(notes.concat('Dealer has blackjack.')).slice(-8);
+    r.turnDeadline = null;
+    r.phase = 'dealer';
+    resolveDealerAndPayouts(r);
+    return;
+  }
+  r.log = (r.log || []).concat(notes.length ? notes : ['No dealer blackjack — insurance lost.']).slice(-8);
+  beginPlay(r);
+}
+
+// Mirrors the betting/turn timeouts: an undecided player simply declines.
+export function processInsuranceTimeout(r) {
+  if (r.phase !== 'insurance') return;
+  if (!r.insuranceDeadline) { r.insuranceDeadline = Date.now() + INSURANCE_SECONDS * 1000; return; }
+  if (Date.now() < r.insuranceDeadline) return;
+  for (const key of (r.dealtIn || [])) {
+    const p = r.players[key];
+    if (p) p.insuranceDecided = true;
+  }
+  resolveInsurance(r);
 }
 
 export function checkAutoDeal(r) {
@@ -207,7 +278,10 @@ export function resolveDealerAndPayouts(r) {
     for (const hand of p.hands) {
       const pv = handValue(hand.cards);
       let outcome;
-      if (hand.status === 'busted') { outcome = 'lose'; }
+      // Half the stake was already handed back at the moment of
+      // surrendering, so there is nothing left to settle here.
+      if (hand.status === 'surrendered') { outcome = 'surrender'; }
+      else if (hand.status === 'busted') { outcome = 'lose'; }
       else if (hand.status === 'blackjack') {
         if (dealerBJ) { p.chips += hand.bet; outcome = 'push'; }
         else { const win = Math.floor(hand.bet * 1.5); p.chips += hand.bet + win; outcome = 'blackjack'; }
@@ -266,13 +340,39 @@ export function processTurnTimeoutLogic(r) {
   advanceTurnIn(r);
 }
 
-export function chipLadderFor(chips) {
-  const base = [100, 250, 500, 1000, 2500, 5000];
-  let scale = 1;
-  if (chips >= 5000000) scale = 100;
-  else if (chips >= 1000000) scale = 20;
-  else if (chips >= 500000) scale = 10;
-  else if (chips >= 200000) scale = 4;
-  else if (chips >= 100000) scale = 2;
-  return base.map((v) => v * scale);
+// Every table advertises its own stakes, the way a real pit does — the
+// lobby is a choice between rooms, not five identical ones. A table's
+// limits are fixed when it opens and never change under the players.
+export const TABLE_STAKES = [
+  { min: 100, max: 2000 },
+  { min: 500, max: 10000 },
+  { min: 1000, max: 25000 },
+  { min: 5000, max: 100000 },
+  { min: 25000, max: 500000 },
+];
+
+// Tables created before stakes existed have no limits stored, so they read
+// as the lowest tier rather than breaking.
+export function stakesFor(room) {
+  const min = (room && room.minBet) || TABLE_STAKES[0].min;
+  const max = (room && room.maxBet) || TABLE_STAKES[0].max;
+  return { min, max };
+}
+
+export function stakesLabel(min, max) {
+  const short = (n) => (n >= 1000 ? (n % 1000 ? (n / 1000).toFixed(1) : n / 1000) + 'K' : String(n));
+  return short(min) + ' / ' + short(max);
+}
+
+// Chip denominations for a table: start at the minimum bet and climb in
+// familiar casino steps, always finishing on the table maximum so a player
+// can reach either limit without fiddling.
+export function chipLadderForTable(min, max) {
+  const out = [min];
+  for (const m of [2, 5, 10, 25, 50, 100]) {
+    const v = min * m;
+    if (v < max && out.length < 5) out.push(v);
+  }
+  out.push(max);
+  return [...new Set(out)].slice(0, 6);
 }

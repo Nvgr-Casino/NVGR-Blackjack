@@ -10,11 +10,17 @@ import {
 } from 'firebase/auth';
 import { ref, get, set, onValue, runTransaction } from 'firebase/database';
 import { auth, db } from '../firebase/config.js';
+import { FELT_THEME_KEYS } from '../scene/table.js';
+// Circular by design: social.js reads session state and calls refresh().
+// Both sides only touch each other inside functions, never at module load,
+// so the cycle resolves fine.
+import { initSocial, stopSocial, goOffline } from './social.js';
 import {
   STARTING_CHIPS, BETTING_SECONDS, TURN_SECONDS, MAX_PUBLIC_SEATS, MIN_PUBLIC_TABLES,
   safeKey, genCode, shuffleShoe, drawCard, addPlayerToRoom, startRoundLogic, dealRoundCards,
   checkAutoDeal, processBettingTimeoutLogic, processTurnTimeoutLogic, resolveDealerAndPayouts,
-  advanceTurnIn, rankOf, handValue, chipLadderFor,
+  advanceTurnIn, rankOf, handValue, chipLadderForTable, stakesFor, TABLE_STAKES,
+  everyoneDecidedInsurance, resolveInsurance, processInsuranceTimeout,
 } from './roomLogic.js';
 
 export let session = { screen: 'loading', uid: null, name: null, photo: null, chips: 0, code: null, isAdmin: false, room: null };
@@ -35,6 +41,9 @@ let pendingBetRound = null;
 let onChange = () => {};
 export function setOnChange(fn) { onChange = fn; }
 function render() { onChange(); }
+// Lets sibling modules (social.js) redraw after their own live data lands,
+// without each of them owning a copy of the render wiring.
+export function refresh() { onChange(); }
 
 export function setAuthMode(mode) { authMode = mode; formError = ''; render(); }
 export function setChatOpen(open) { chatOpen = open; render(); }
@@ -68,6 +77,7 @@ export function initAuth() {
       session.name = user.displayName || (user.email ? user.email.split('@')[0] : 'Player');
       session.photo = user.photoURL || null;
       session.chips = await ensureAccount(user.uid, session.name);
+      initSocial();
       const acctSnap = await get(ref(db, 'accounts/' + safeKey(user.uid) + '/currentRoom'));
       const lastRoom = acctSnap.exists() ? acctSnap.val() : null;
       if (lastRoom) {
@@ -84,6 +94,7 @@ export function initAuth() {
       render();
       loadLobby();
     } else {
+      stopSocial();
       session = { screen: 'auth', uid: null, name: null, photo: null, chips: 0, code: null, isAdmin: false, room: null };
       render();
     }
@@ -128,6 +139,7 @@ function friendlyAuthError(e) {
 export async function doSignOut() {
   if (roomUnsub) { roomUnsub(); roomUnsub = null; }
   clearTick();
+  await goOffline();
   await signOut(auth);
 }
 
@@ -181,6 +193,8 @@ function startTick() {
     if (r) {
       if (r.phase === 'betting' && r.bettingDeadline && Date.now() >= r.bettingDeadline) {
         mutateRoom(session.code, (rr) => processBettingTimeoutLogic(rr));
+      } else if (r.phase === 'insurance' && (!r.insuranceDeadline || Date.now() >= r.insuranceDeadline)) {
+        mutateRoom(session.code, (rr) => processInsuranceTimeout(rr));
       } else if (r.phase === 'playing' && (!r.turnDeadline || Date.now() >= r.turnDeadline)) {
         mutateRoom(session.code, (rr) => processTurnTimeoutLogic(rr));
       } else if (r.isPublic && r.phase === 'results' && r.resultsAt && (Date.now() - r.resultsAt) >= 4000) {
@@ -198,6 +212,9 @@ function tickCountdownOnly() {
   if (r.phase === 'betting' && r.bettingDeadline) {
     const remaining = Math.max(0, Math.ceil((r.bettingDeadline - Date.now()) / 1000));
     el.textContent = 'Betting closes in ' + remaining + 's';
+  } else if (r.phase === 'insurance' && r.insuranceDeadline) {
+    const remaining = Math.max(0, Math.ceil((r.insuranceDeadline - Date.now()) / 1000));
+    el.textContent = 'Insurance closes in ' + remaining + 's';
   } else if (r.phase === 'playing' && r.turnDeadline) {
     const remaining = Math.max(0, Math.ceil((r.turnDeadline - Date.now()) / 1000));
     el.textContent = 'Act within ' + remaining + 's or you’ll be stood';
@@ -241,6 +258,7 @@ export async function createRoom() {
   const code = genCode();
   const room = {
     code, adminId: safeKey(session.uid), isPublic: false,
+    minBet: TABLE_STAKES[1].min, maxBet: TABLE_STAKES[1].max,
     players: {}, playerOrder: [],
     dealer: { hand: [], hiddenRevealed: false },
     deck: [], phase: 'lobby', turnOrder: [], currentTurnIndex: 0, dealtIn: [], round: 0, bettingDeadline: null,
@@ -277,6 +295,14 @@ export async function joinRoom(code) {
 // empty), opens a fresh betting window so the round can actually come round.
 function seatPlayerIn(current, chips) {
   addPlayerToRoom(current, session.uid, session.name, chips);
+  // Someone who sat out a window and has now chosen this table again is
+  // asking to play: addPlayerToRoom leaves an already-seated player alone,
+  // so without this they would stay stuck as a spectator with no way back
+  // in — and on a table with no other bettors, no new round ever starts.
+  const p = current.players[safeKey(session.uid)];
+  if (current.phase === 'betting' && p && p.status === 'sitout' && p.chips > 0) {
+    p.status = 'betting';
+  }
   if (current.phase === 'betting' && (!current.bettingDeadline || current.bettingDeadline < Date.now())) {
     current.bettingDeadline = Date.now() + BETTING_SECONDS * 1000;
   }
@@ -310,6 +336,7 @@ async function createPublicTable(chips, key) {
   const code = genCode();
   const room = {
     code, adminId: key, isPublic: true,
+    minBet: TABLE_STAKES[1].min, maxBet: TABLE_STAKES[1].max,
     players: {}, playerOrder: [],
     dealer: { hand: [], hiddenRevealed: false }, deck: [],
     phase: 'betting', turnOrder: [], currentTurnIndex: 0, dealtIn: [], round: 1,
@@ -380,9 +407,12 @@ export async function giveChips(pidKey, amount) {
 // An empty table waiting for its first player: dealt from its own shoe,
 // open at the betting phase, with no betting clock running until someone
 // actually sits down (see seatPlayerIn).
-function emptyPublicRoom() {
+function emptyPublicRoom(stakes, felt) {
+  const tier = stakes || TABLE_STAKES[Math.floor(Math.random() * TABLE_STAKES.length)];
   const room = {
     code: genCode(), isPublic: true,
+    minBet: tier.min, maxBet: tier.max,
+    felt: felt || FELT_THEME_KEYS[Math.floor(Math.random() * FELT_THEME_KEYS.length)],
     players: {}, playerOrder: [],
     dealer: { hand: [], hiddenRevealed: false }, deck: [],
     phase: 'betting', turnOrder: [], currentTurnIndex: 0, dealtIn: [], round: 1,
@@ -393,15 +423,23 @@ function emptyPublicRoom() {
   return room;
 }
 
+// Seeded tables walk the stakes ladder rather than picking at random, so a
+// fresh lobby always offers a spread of limits instead of, say, five
+// high-roller tables.
 async function ensureOpenTables(tables) {
   const missing = MIN_PUBLIC_TABLES - tables.length;
   if (missing <= 0) return tables;
+  const taken = new Set(tables.map((t) => t.minBet));
+  const spread = TABLE_STAKES.filter((s) => !taken.has(s.min));
   const created = [];
   for (let i = 0; i < missing; i++) {
-    const room = emptyPublicRoom();
+    const room = emptyPublicRoom(
+      spread[i % spread.length] || TABLE_STAKES[i % TABLE_STAKES.length],
+      FELT_THEME_KEYS[(tables.length + i) % FELT_THEME_KEYS.length]
+    );
     await set(ref(db, 'rooms/' + room.code), room);
     await set(ref(db, 'publicIndex/tables/' + room.code), true);
-    created.push({ code: room.code, count: 0, seats: [], phase: room.phase });
+    created.push({ code: room.code, count: 0, seats: [], phase: room.phase, minBet: room.minBet, maxBet: room.maxBet, felt: room.felt });
   }
   return tables.concat(created);
 }
@@ -417,7 +455,21 @@ export async function loadLobby() {
       const r = snap.val();
       if (!r || !r.isPublic) continue;
       const seats = Object.values(r.players || {}).map((p) => ({ name: p.name, chips: p.chips || 0 }));
-      tables.push({ code, count: seats.length, seats, phase: r.phase });
+      // Tables opened before stakes existed would all read as the lowest
+      // tier, leaving a lobby of identical rooms — give each one a tier the
+      // first time it is seen so the spread is real.
+      if (!r.minBet) {
+        const tier = TABLE_STAKES[tables.length % TABLE_STAKES.length];
+        await set(ref(db, 'rooms/' + code + '/minBet'), tier.min);
+        await set(ref(db, 'rooms/' + code + '/maxBet'), tier.max);
+        r.minBet = tier.min; r.maxBet = tier.max;
+      }
+      if (!r.felt) {
+        r.felt = FELT_THEME_KEYS[tables.length % FELT_THEME_KEYS.length];
+        await set(ref(db, 'rooms/' + code + '/felt'), r.felt);
+      }
+      const { min, max } = stakesFor(r);
+      tables.push({ code, count: seats.length, seats, phase: r.phase, minBet: min, maxBet: max, felt: r.felt });
     }
     tables.sort((a, b) => b.count - a.count);
     lobbyTables = await ensureOpenTables(tables);
@@ -437,11 +489,55 @@ export async function placeBet(amount) {
     const p = r.players[key];
     if (!p || p.status !== 'betting') return;
     if (!amount || amount <= 0 || amount > p.chips) return;
+    // The table's limits are enforced here, inside the transaction, not
+    // just greyed out in the UI.
+    const { min, max } = stakesFor(r);
+    if (amount < min || amount > max) return;
     p.bet = amount; p.lastBet = amount; p.status = 'bet-placed';
     r.log = (r.log || []).concat(p.name + ' bet ' + amount + '.').slice(-8);
     checkAutoDeal(r);
   });
   pendingBet = 0;
+}
+
+// Insurance costs half the original bet and is offered only while the
+// dealer's Ace is showing, before any cards are played.
+export async function takeInsurance(yes) {
+  await mutateRoom(session.code, (r) => {
+    if (r.phase !== 'insurance') return;
+    const key = safeKey(session.uid);
+    const p = r.players[key];
+    if (!p || p.insuranceDecided) return;
+    if (yes) {
+      const bet = (p.hands && p.hands[0] && p.hands[0].bet) || p.bet || 0;
+      const cost = Math.floor(bet / 2);
+      if (cost > 0 && p.chips >= cost) {
+        p.chips -= cost;
+        p.insurance = cost;
+        r.log = (r.log || []).concat(p.name + ' takes insurance.').slice(-8);
+      }
+    }
+    p.insuranceDecided = true;
+    if (everyoneDecidedInsurance(r)) resolveInsurance(r);
+  });
+}
+
+// Late surrender: fold a two-card hand for half the stake back. Not offered
+// once a hand has been hit or split.
+export async function surrender() {
+  await mutateRoom(session.code, (r) => {
+    const key = safeKey(session.uid);
+    const cur = (r.turnOrder || [])[r.currentTurnIndex];
+    if (!cur || cur.pid !== key) return;
+    const p = r.players[key];
+    const hand = p && p.hands && p.hands[cur.hi];
+    if (!hand || hand.status !== 'playing') return;
+    if (hand.cards.length !== 2 || p.hands.length > 1) return;
+    p.chips += Math.floor(hand.bet / 2);
+    hand.status = 'surrendered';
+    r.log = (r.log || []).concat(p.name + ' surrenders.').slice(-8);
+    advanceTurnIn(r);
+  });
 }
 
 export async function sitOutRound() {
@@ -483,7 +579,7 @@ export function setPendingBetClamped(max) {
   if (pendingBet > max) pendingBet = max;
 }
 
-export { chipLadderFor };
+export { chipLadderForTable, stakesFor };
 
 export async function hit() {
   await mutateRoom(session.code, (r) => {

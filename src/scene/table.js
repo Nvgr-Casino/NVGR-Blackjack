@@ -62,9 +62,24 @@ function normalizeShapeUVs(geometry) {
 const FELT_W = 1000;
 const FELT_H = 1900;
 
+// Each table picks a cloth. Every one of these is a deep, saturated colour,
+// so the single bright gold ink used for the rules text and the house crest
+// keeps its contrast on all of them — the lettering is never restyled per
+// table, only the cloth underneath it changes.
+export const FELT_THEMES = {
+  red: { hi: '#cc2c42', lo: '#7d1420' },
+  green: { hi: '#127a4f', lo: '#06371f' },
+  blue: { hi: '#1b5fa8', lo: '#0a2647' },
+  purple: { hi: '#5b3a8a', lo: '#24123f' },
+  black: { hi: '#33333a', lo: '#0d0d10' },
+};
+export const FELT_THEME_KEYS = Object.keys(FELT_THEMES);
+export function feltTheme(key) { return FELT_THEMES[key] || FELT_THEMES.red; }
+
 // Canvas-painted felt: a warm radial vignette, the house-rules text placed
 // where the dealer's rail props won't cover it, and a subtle branding line.
-function createFeltTexture() {
+function createFeltTexture(themeKey) {
+  const theme = feltTheme(themeKey);
   const canvas = document.createElement('canvas');
   canvas.width = FELT_W;
   canvas.height = FELT_H;
@@ -74,8 +89,8 @@ function createFeltTexture() {
     FELT_W / 2, FELT_H * 0.38, FELT_H * 0.06,
     FELT_W / 2, FELT_H * 0.5, FELT_H * 0.62
   );
-  gradient.addColorStop(0, '#cc2c42');
-  gradient.addColorStop(1, '#7d1420');
+  gradient.addColorStop(0, theme.hi);
+  gradient.addColorStop(1, theme.lo);
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, FELT_W, FELT_H);
 
@@ -256,7 +271,19 @@ export function createTable() {
   // MeshStandardMaterial keeps a thin specular lobe even at roughness=1,
   // which showed up as a visible highlight streak from the key light on
   // this large flat surface.
-  const feltMat = new THREE.MeshLambertMaterial({ map: createFeltTexture(), side: THREE.DoubleSide });
+  const feltMat = new THREE.MeshLambertMaterial({ map: createFeltTexture('red'), side: THREE.DoubleSide });
+  // Repainting the cloth means regenerating the whole texture (the rules
+  // text and crest are baked into it), so it is done only when a table
+  // actually asks for a different colour — never per frame.
+  let feltThemeKey = 'red';
+  group.userData.setFeltTheme = (key) => {
+    const next = FELT_THEMES[key] ? key : 'red';
+    if (next === feltThemeKey) return;
+    feltThemeKey = next;
+    feltMat.map.dispose();
+    feltMat.map = createFeltTexture(next);
+    feltMat.needsUpdate = true;
+  };
   const felt = new THREE.Mesh(feltGeo, feltMat);
   felt.rotation.x = Math.PI / 2;
   felt.position.y = 0.01;

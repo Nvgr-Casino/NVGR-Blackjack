@@ -23,8 +23,8 @@ function labelText(value) {
 // The bet-ladder buttons in the table screen's HTML HUD (src/app/table3dBridge.js)
 // — and the physical chips tapped onto the felt when building a bet — use
 // this same 6-step palette, one color per rung of roomLogic.js's
-// chipLadderFor (kept separate from the 4-value DENOMINATIONS above, which
-// are for the fixed-denomination chips used in payout/collect animations).
+// chipLadderForTable (kept separate from the 4-value DENOMINATIONS above,
+// which are for the fixed chips used in payout/collect animations).
 export const LADDER_COLORS = ['#f6ecd9', '#c0392b', '#2b6ca8', '#1f7a4d', '#5b3a8a', '#161616'];
 export const LADDER_DARK = [false, false, false, false, true, true];
 
@@ -134,9 +134,9 @@ export function chipFaceDataURL(colorIndex) {
 // Same face art (color fill, dashed edge, gold ring, NVGR wordmark, baked-in
 // value label), but for an arbitrary bet amount rather than one of the 4
 // fixed on-table denominations — the real bet ladder (roomLogic.js's
-// chipLadderFor) scales with a player's balance, so its buttons can show any
-// value, not just 100/500/1000/5000. Used by table3dBridge.js so the actual
-// betting buttons are the same designed chip, not a plain CSS circle.
+// chipLadderForTable) is set by each table's own limits, so its buttons can
+// show any value, not just 100/500/1000/5000. Used by table3dBridge.js so
+// the betting buttons are the same designed chip, not a plain CSS circle.
 export function chipButtonDataURL(value, colorIndex) {
   return getFaceEntry(ladderDenom(value, colorIndex)).dataURL;
 }
