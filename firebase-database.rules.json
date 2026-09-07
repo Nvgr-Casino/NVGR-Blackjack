@@ -11,6 +11,7 @@
         "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
         "updatedAt": { ".validate": "newData.isNumber()" },
         "currentRoom": { ".validate": "newData.isString() && newData.val().length <= 8" },
+        "character": { ".validate": "newData.isString() && newData.val().length <= 32" },
         "$other": { ".validate": false }
       }
     },
