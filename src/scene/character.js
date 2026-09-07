@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { loadGltf } from './gltf.js';
 
 // Player characters: real rigged models from Quaternius' Ultimate Modular
 // Men and Women packs (CC0, same source and skeleton as the dealer), so one
@@ -48,15 +48,7 @@ function modelUrl(file) {
   return import.meta.env.BASE_URL + 'models/characters/' + file;
 }
 
-const loaders = new Map();
-function loadModel(file) {
-  if (!loaders.has(file)) {
-    loaders.set(file, new Promise((resolve, reject) => {
-      new GLTFLoader().load(modelUrl(file), resolve, undefined, reject);
-    }));
-  }
-  return loaders.get(file);
-}
+const loadModel = (file) => loadGltf(modelUrl(file));
 
 // Same technique the dealer uses: a bone's local rotation offset is derived
 // from its actual world orientation, because the local axes depend on

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { loadGltf } from './gltf.js';
 import { DEALER } from './seats.js';
 
 // A real rigged human model (CC0, Quaternius "Ultimate Modular Men Pack" —
@@ -12,7 +12,10 @@ import { DEALER } from './seats.js';
 // base — hardcoding a leading "/" would look for the model at the domain
 // root and 404 on GitHub Pages, where the site lives under /NVGR-Blackjack/.
 // Two dealers, same rig and animation set, so a table can run either.
-export const DEALER_MODELS = { male: 'dealer.gltf', female: 'dealer_female.glb' };
+// Both .glb: `npm run models` emits a single self-contained file per model,
+// because a .gltf may keep its buffers in sidecar files and the compressed
+// output has to ship as one thing.
+export const DEALER_MODELS = { male: 'dealer.glb', female: 'dealer_female.glb' };
 export const DEALER_KEYS = Object.keys(DEALER_MODELS);
 const modelUrl = (file) => import.meta.env.BASE_URL + 'models/' + file;
 // Standing height used to scale the model. Bigger than a player (2.9) so
@@ -86,15 +89,7 @@ function computeSeatBend(bones) {
   };
 }
 
-const modelPromises = new Map();
-function loadModel(file) {
-  if (!modelPromises.has(file)) {
-    modelPromises.set(file, new Promise((resolve, reject) => {
-      new GLTFLoader().load(modelUrl(file), resolve, undefined, reject);
-    }));
-  }
-  return modelPromises.get(file);
-}
+const loadModel = (file) => loadGltf(modelUrl(file));
 
 // Scales the model to a known standing height (the source file's own unit
 // scale isn't something to assume, so this measures the actual bounding box
