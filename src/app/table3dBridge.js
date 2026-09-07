@@ -152,12 +152,17 @@ export function syncRoomToScene(room, myKey) {
   // into one list, so an initial deal (or the dealer's whole draw-to-17
   // sequence, which lands in a single Firebase transaction) still animates
   // one card at a time instead of popping in all at once.
-  const events = [];
+  //
+  // Dealer and seat cards are gathered separately because the order they
+  // are *played* in is not the order they are stored in. See the interleave
+  // below.
+  const dealerEvents = [];
+  const seatEvents = [];
 
   if (room.phase === 'insurance' || room.phase === 'playing' || room.phase === 'dealer' || room.phase === 'results') {
     const dHand = room.dealer.hand || [];
     for (let i = lastDealerCount; i < dHand.length; i++) {
-      events.push({ kind: 'dealer', index: i, card: dHand[i], faceDown: i === 1 && !room.dealer.hiddenRevealed });
+      dealerEvents.push({ kind: 'dealer', index: i, card: dHand[i], faceDown: i === 1 && !room.dealer.hiddenRevealed });
     }
     lastDealerCount = dHand.length;
   }
@@ -170,11 +175,33 @@ export function syncRoomToScene(room, myKey) {
       const countKey = seatIndex + ':' + handIndex;
       const seen = lastCounts[countKey] || 0;
       for (let i = seen; i < hand.cards.length; i++) {
-        events.push({ kind: 'seat', seatIndex, handIndex, handCount: p.hands.length, index: i, card: hand.cards[i] });
+        seatEvents.push({ kind: 'seat', seatIndex, handIndex, handCount: p.hands.length, index: i, card: hand.cards[i] });
       }
       lastCounts[countKey] = hand.cards.length;
     });
   });
+
+  // Play the cards out in the order a dealer's hands actually move: one to
+  // every box along the table, then one to the dealer, then round again.
+  // The cards were already *dealt* that way (see dealRoundCards), but they
+  // arrive here as a finished hand per player, and animating them in that
+  // stored order would show one box receiving both its cards before the
+  // next box gets any — the very thing that looked wrong at a full table.
+  // Beyond the opening two passes each event is a lone hit or split card,
+  // where the pass loop simply finds one thing to do.
+  const events = [];
+  const passes = Math.max(
+    ...dealerEvents.map((e) => e.index + 1),
+    ...seatEvents.map((e) => e.index + 1),
+    0
+  );
+  for (let pass = 0; pass < passes; pass++) {
+    seatEvents
+      .filter((e) => e.index === pass)
+      .sort((a, b) => a.seatIndex - b.seatIndex || a.handIndex - b.handIndex)
+      .forEach((e) => events.push(e));
+    dealerEvents.filter((e) => e.index === pass).forEach((e) => events.push(e));
+  }
 
   events.forEach((ev, i) => {
     setTimeout(() => {
