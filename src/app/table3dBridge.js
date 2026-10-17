@@ -28,6 +28,7 @@ let driver = null;
 
 // Diffing state — reset whenever a new round starts.
 let lastRound = null;
+let lastShuffledAt = null;   // the room stamp of the last reshuffle we animated
 let lastCounts = {}; // `${seatIndex}:${handIndex}` -> cards.length last seen
 let lastDealerCount = 0;
 let dealerRevealed = false;
@@ -93,6 +94,18 @@ export function syncRoomToScene(room, myKey) {
   if (room.round !== lastRound) {
     lastRound = room.round;
     resetRoundVisuals();
+  }
+
+  // The shoe was replaced — riffle the deck so the reshuffle is something
+  // you see, not just a line in the log. shuffledAt is the room's own stamp,
+  // so every player at the table watches it at the same moment, and
+  // comparing against the last one seen means re-renders don't replay it.
+  if (room.shuffledAt && room.shuffledAt !== lastShuffledAt) {
+    const firstSight = lastShuffledAt === null;
+    lastShuffledAt = room.shuffledAt;
+    // Don't riffle at someone who just walked up to a table mid-shoe; only
+    // a shuffle that happens while they are watching is worth animating.
+    if (!firstSight) driver.shuffleDeck();
   }
 
   const order = room.playerOrder || [];
@@ -611,6 +624,7 @@ export function attachTableScreen() {
 
 export function resetTableDiffState() {
   lastRound = null;
+  lastShuffledAt = null;
   lastCounts = {};
   lastDealerCount = 0;
   dealerRevealed = false;

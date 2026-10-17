@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { createTable } from './table.js';
 import { createChipStack } from './chip.js';
-import { createDeckStack } from './deal.js';
+import { createDeckStack, playShuffle } from './deal.js';
 import { createChair } from './avatar.js';
 import { createDealerFigure, setDealerModel, startDealerIdle, updateDealerAnimations } from './dealer.js';
 import { createBetRing, createCardShoe, createChipTray } from './props.js';
@@ -263,11 +263,18 @@ export function initScene(canvas) {
   // (empty) set of active dealers, so stepping it there silently does
   // nothing and makes the figure look frozen when it isn't.
   if (import.meta.env.DEV) {
-    window.__nvgr = { scene, camera, dealer, renderer, controls, tickDealer: updateDealerAnimations };
+    window.__nvgr = {
+      scene, camera, dealer, deck, renderer, controls,
+      tickDealer: updateDealerAnimations,
+      // This module's own bound copies, for the same reason as tickDealer:
+      // importing them from the console gets a second instance whose
+      // animation queue nothing is draining.
+      tickAnimations, shuffleDeck: () => playShuffle(deck),
+    };
   }
 
   return {
-    scene, camera, renderer, controls, dealer, chairsBySeat,
+    scene, camera, renderer, controls, dealer, deck, chairsBySeat,
     setFeltTheme: table.userData.setFeltTheme,
     setDealerModel: (key) => setDealerModel(dealer, key),
   };

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { dealCard, revealCard } from '../scene/deal.js';
+import { dealCard, revealCard, playShuffle } from '../scene/deal.js';
 import { CARD_WIDTH } from '../scene/card.js';
 import { createChip, createChipForValue, createChipStack, CHIP_HEIGHT, DENOMINATIONS } from '../scene/chip.js';
 import { createChipTray } from '../scene/props.js';
@@ -58,7 +58,7 @@ function handAnchor(seat, handIndex, handCount) {
   return new THREE.Vector3(seat.handSpot.x + localX * cos, seat.handSpot.y, seat.handSpot.z - localX * sin);
 }
 
-export function createTableDriver({ scene, camera, controls, dealer, chairsBySeat }) {
+export function createTableDriver({ scene, camera, controls, dealer, deck, chairsBySeat }) {
   // Indexed by seat: yourMeshes[seatIndex][handIndex] = [cardMesh, ...]
   const seatMeshes = [];
   const seatBadges = [];
@@ -397,6 +397,7 @@ export function createTableDriver({ scene, camera, controls, dealer, chairsBySea
     setViewSeat,
     followSeat,
     releaseViewSeat,
+    shuffleDeck: () => { if (deck) playShuffle(deck); },
     getViewSeat: () => viewSeatIndex,
     focusOnSeatHand,
     releaseSeatFocus,
