@@ -19,8 +19,22 @@ const TARGET_HEIGHT = 2.9;
 const HIP_ANGLE = -Math.PI / 2;
 const KNEE_ANGLE = Math.PI / 2;
 
+// The cast. Each one ships with a motion-captured "seated idle, hands on a
+// table" clip baked in, which is what puts their arms and hands where a
+// player's actually are and keeps them alive between hands.
+//
+// The old stylised figures are kept below them rather than deleted: they
+// are a tenth of the size, and anyone who already chose one still has a
+// character. Their ids must never be reused for anything else — a saved
+// account refers to its character by id.
 export const CHARACTERS = [
   { id: 'joe', name: 'Joe', sex: 'm', file: 'mx_joe.glb', tone: '#2b2f3a' },
+  { id: 'josh', name: 'Josh', sex: 'm', file: 'mx_josh.glb', tone: '#3b4454' },
+  { id: 'lewis', name: 'Lewis', sex: 'm', file: 'mx_lewis.glb', tone: '#2f5248' },
+  { id: 'louise', name: 'Louise', sex: 'f', file: 'mx_louise.glb', tone: '#24344f' },
+  { id: 'martha', name: 'Martha', sex: 'f', file: 'mx_martha.glb', tone: '#4a3350' },
+  { id: 'suzie', name: 'Suzie', sex: 'f', file: 'mx_suzie.glb', tone: '#6b5a4a' },
+
   { id: 'sterling', name: 'Sterling', sex: 'm', file: 'm_businessman.glb', tone: '#1e3a5f' },
   { id: 'baron', name: 'The Baron', sex: 'm', file: 'm_king.glb', tone: '#d4af52' },
   { id: 'rook', name: 'Rook', sex: 'm', file: 'm_hoodie.glb', tone: '#5b3a8a' },
@@ -209,7 +223,14 @@ export function hasPortraits() { return portraits.size >= CHARACTERS.length; }
 
 // Renders a head-and-shoulders shot of each character. Called once when the
 // picker opens; every later render just reads the cache.
-export function buildCharacterPortraits(size = 192) {
+//
+// `onPortrait` fires after each one so the picker can redraw as they
+// arrive. That matters now the cast is photoreal: a portrait costs a whole
+// model download, and waiting for all fourteen before showing any would
+// leave the screen on placeholder discs for megabytes at a time. They fill
+// in one by one instead, and every model fetched here is the same cached
+// one the table will use later.
+export function buildCharacterPortraits(size = 192, onPortrait = null) {
   if (thumbJob) return thumbJob;
   thumbJob = (async () => {
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -246,6 +267,7 @@ export function buildCharacterPortraits(size = 192) {
         portraits.set(c.id, renderer.domElement.toDataURL());
         scene.remove(model);
       } catch (e) { /* keep the fallback disc for this one */ }
+      if (onPortrait) { try { onPortrait(c.id); } catch (e) { /* a redraw failing must not stop the run */ } }
     }
     renderer.dispose();
     return true;

@@ -33,7 +33,10 @@ export function renderCharacter() {
 export function attachCharacter() {
   // Portraits are rendered from the real models the first time this screen
   // is opened; the redraw swaps the placeholder discs for the real ones.
-  if (!hasPortraits()) buildCharacterPortraits().then(() => S.refresh()).catch(() => {});
+  // Redraw as each portrait lands rather than only at the end — each one
+  // costs a model download, so the grid fills in instead of sitting on
+  // placeholder discs until the whole cast has arrived.
+  if (!hasPortraits()) buildCharacterPortraits(192, () => S.refresh()).catch(() => {});
   const back = document.getElementById('charBackBtn');
   if (back) back.onclick = () => S.goToScreen('home');
   document.querySelectorAll('[data-character]').forEach((btn) => {
