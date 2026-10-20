@@ -5,6 +5,7 @@ import { createTable } from './table.js';
 import { createChipStack } from './chip.js';
 import { createDeckStack, playShuffle } from './deal.js';
 import { createChair } from './avatar.js';
+import { updateSeatedCharacters } from './character.js';
 import { createDealerFigure, setDealerModel, startDealerIdle, updateDealerAnimations } from './dealer.js';
 import { createBetRing, createCardShoe, createChipTray } from './props.js';
 import { createRoom, ROOM_HALF } from './room.js';
@@ -251,7 +252,9 @@ export function initScene(canvas) {
     adaptQuality(now - lastFrame, now);
     lastFrame = now;
     tickAnimations();
-    updateDealerAnimations(clock.getDelta());
+    const delta = clock.getDelta();
+    updateDealerAnimations(delta);
+    updateSeatedCharacters(delta);
     if (!cameraOverride.active) controls.update();
     renderer.render(scene, camera);
   }

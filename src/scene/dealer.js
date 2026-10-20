@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { loadGltf } from './gltf.js';
+import { resolveRig, hasRoles, SEAT_ROLES, ARM_ROLES } from './rig.js';
 import { DEALER } from './seats.js';
 
 // A real rigged human model (CC0, Quaternius "Ultimate Modular Men Pack" —
@@ -145,12 +146,9 @@ const LOCAL_Y = new THREE.Vector3(0, 1, 0);
 // source file's raw translation numbers are in whatever unit scale the
 // model shipped in, and get whatever uniform scale fitSeatedModel applied
 // on top, so measuring post-scale sidesteps needing to know either.
-function captureArmChain(model) {
-  const shoulder = model.getObjectByName('ShoulderR');
-  const upperArm = model.getObjectByName('UpperArmR');
-  const lowerArm = model.getObjectByName('LowerArmR');
-  const wrist = model.getObjectByName('WristR');
-  if (!shoulder || !upperArm || !lowerArm || !wrist) return null;
+function captureArmChain(model, bones) {
+  if (!hasRoles(bones, ARM_ROLES)) return null;
+  const { upperArmR: upperArm, lowerArmR: lowerArm, wristR: wrist } = bones;
 
   model.updateMatrixWorld(true);
   const p1 = new THREE.Vector3();
@@ -279,16 +277,11 @@ function populateDealer(group, key) {
       // and the cached gltf is shared with any later swap back.
       const model = cloneSkinned(gltf.scene);
 
-      // GLTFLoader strips "." from node names (the source file names joints
-      // "UpperLeg.L" etc., following Blender's left/right suffix convention).
-      const bones = {
-        hips: model.getObjectByName('Hips'),
-        upperLegL: model.getObjectByName('UpperLegL'),
-        upperLegR: model.getObjectByName('UpperLegR'),
-        lowerLegL: model.getObjectByName('LowerLegL'),
-        lowerLegR: model.getObjectByName('LowerLegR'),
-      };
-      const seated = Object.values(bones).every(Boolean);
+      // Resolved by role rather than by name, so a dealer from a different
+      // pack (Mixamo's "mixamorig7:LeftUpLeg", say) sits down just as well
+      // as the original one. See src/scene/rig.js.
+      const bones = resolveRig(model);
+      const seated = hasRoles(bones, SEAT_ROLES);
       let seatPose = null;
       if (seated) {
         seatPose = fitSeatedModel(model, bones);
@@ -314,7 +307,7 @@ function populateDealer(group, key) {
       const idleAction = idleClip ? mixer.clipAction(idleClip) : null;
       if (idleAction) idleAction.play();
 
-      const arm = captureArmChain(model);
+      const arm = captureArmChain(model, bones);
       if (!arm) console.warn('Dealer model is missing expected right-arm bones — reach gesture skipped.');
 
       const record = { mixer, bones: seated ? bones : null, seatPose, arm, reach: null };

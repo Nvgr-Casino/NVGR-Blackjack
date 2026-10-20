@@ -1,0 +1,64 @@
+// Finds the bones the table needs, whatever skeleton a model arrived with.
+//
+// Every figure here is posed by code rather than by a canned animation —
+// the seated bend, and the dealer's arm reaching toward a seat — so the
+// scene has to be able to name a thigh. Hardcoding one pack's bone names
+// meant a model from anywhere else silently failed its pose and stood bolt
+// upright through the table.
+//
+// Two conventions matter so far: Quaternius ("UpperLegL") and Mixamo
+// ("mixamorig7:LeftUpLeg"). Mixamo's prefix carries a number that changes
+// per download — mixamorig, mixamorig1, mixamorig7 — so it can never be
+// matched literally, and GLTFLoader strips punctuation out of node names
+// on import anyway. Matching on the end of the name sidesteps both.
+
+const ROLE_NAMES = {
+  hips: ['Hips'],
+  upperLegL: ['UpperLegL', 'LeftUpLeg'],
+  upperLegR: ['UpperLegR', 'RightUpLeg'],
+  lowerLegL: ['LowerLegL', 'LeftLeg'],
+  lowerLegR: ['LowerLegR', 'RightLeg'],
+  shoulderR: ['ShoulderR', 'RightShoulder'],
+  upperArmR: ['UpperArmR', 'RightArm'],
+  lowerArmR: ['LowerArmR', 'RightForeArm'],
+  wristR: ['WristR', 'RightHand'],
+};
+
+// The leg roles are what a seated pose needs; without all of them the
+// figure cannot be sat down at all.
+export const SEAT_ROLES = ['hips', 'upperLegL', 'upperLegR', 'lowerLegL', 'lowerLegR'];
+export const ARM_ROLES = ['shoulderR', 'upperArmR', 'lowerArmR', 'wristR'];
+
+function findBone(model, candidates) {
+  let exact = null;
+  let suffix = null;
+  model.traverse((o) => {
+    if (exact || !o.isBone) return;
+    for (const name of candidates) {
+      if (o.name === name) { exact = o; return; }
+      // "mixamorig7:LeftUpLeg" / "mixamorig7LeftUpLeg" both end in the
+      // role name. Checked only after every exact match has been ruled
+      // out, so a literal name always wins.
+      if (!suffix && o.name.endsWith(name)) suffix = o;
+    }
+  });
+  return exact || suffix;
+}
+
+/**
+ * Resolves every bone role present on `model`. Missing roles come back
+ * undefined rather than throwing — callers decide whether a given pose is
+ * possible without them.
+ */
+export function resolveRig(model) {
+  const bones = {};
+  for (const role of Object.keys(ROLE_NAMES)) {
+    const bone = findBone(model, ROLE_NAMES[role]);
+    if (bone) bones[role] = bone;
+  }
+  return bones;
+}
+
+export function hasRoles(bones, roles) {
+  return roles.every((r) => !!bones[r]);
+}

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { loadGltf } from './gltf.js';
+import { resolveRig, hasRoles, SEAT_ROLES } from './rig.js';
 
 // Player characters: real rigged models from Quaternius' Ultimate Modular
 // Men and Women packs (CC0, same source and skeleton as the dealer), so one
@@ -19,6 +20,7 @@ const HIP_ANGLE = -Math.PI / 2;
 const KNEE_ANGLE = Math.PI / 2;
 
 export const CHARACTERS = [
+  { id: 'joe', name: 'Joe', sex: 'm', file: 'mx_joe.glb', tone: '#2b2f3a' },
   { id: 'sterling', name: 'Sterling', sex: 'm', file: 'm_businessman.glb', tone: '#1e3a5f' },
   { id: 'baron', name: 'The Baron', sex: 'm', file: 'm_king.glb', tone: '#d4af52' },
   { id: 'rook', name: 'Rook', sex: 'm', file: 'm_hoodie.glb', tone: '#5b3a8a' },
@@ -65,15 +67,46 @@ function hingeDelta(bone, worldAngle) {
   return desiredLocal.multiply(bone.quaternion.clone().invert());
 }
 
+// Every seated figure's animation mixer, stepped from the render loop.
+const seatedMixers = new Set();
+export function updateSeatedCharacters(deltaSeconds) {
+  seatedMixers.forEach((m) => m.update(deltaSeconds));
+}
+
+function pickSeatedClip(clips) {
+  if (!clips || !clips.length) return null;
+  // Mixamo exports a single clip named "mixamo.com"; a pack with several
+  // would want the seated one.
+  return clips.find((c) => /sit|seat/i.test(c.name)) || clips[0];
+}
+
+// Scales and drops a model onto the chair without touching its pose — for
+// figures whose pose is coming from an animation rather than from the
+// hinge bend below.
+function placeSeated(model) {
+  const bones = resolveRig(model);
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  if (size.y > 0) model.scale.setScalar(TARGET_HEIGHT / size.y);
+  model.updateMatrixWorld(true);
+  if (!bones.hips) return;
+  const hip = new THREE.Vector3();
+  bones.hips.getWorldPosition(hip);
+  model.position.y += SEAT_TOP_Y + 0.05 - hip.y;
+  model.updateMatrixWorld(true);
+  bones.hips.getWorldPosition(hip);
+  model.position.x -= hip.x;
+  model.position.z -= hip.z;
+}
+
 function sitDown(model) {
-  const bones = {
-    hips: model.getObjectByName('Hips'),
-    upperLegL: model.getObjectByName('UpperLegL'),
-    upperLegR: model.getObjectByName('UpperLegR'),
-    lowerLegL: model.getObjectByName('LowerLegL'),
-    lowerLegR: model.getObjectByName('LowerLegR'),
-  };
-  if (!bones.hips || !bones.upperLegL || !bones.lowerLegL) return false;
+  // By role, not by name — see src/scene/rig.js. A character from a pack
+  // with different bone names would otherwise stand bolt upright through
+  // the table instead of sitting in its chair.
+  const bones = resolveRig(model);
+  if (!hasRoles(bones, SEAT_ROLES)) return false;
 
   // Matrices first: the box is meaningless until the model's own transforms
   // are applied. The .glb dealers carry a scaled root node, so measuring
@@ -121,7 +154,24 @@ export function createCharacter(id) {
   loadModel(c.file).then((gltf) => {
     const model = cloneSkinned(gltf.scene);
     model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-    sitDown(model);
+
+    // A model that ships with its own seated animation gets to use it: real
+    // mocap puts the arms, hands and weight where a person actually holds
+    // them at a table, and keeps them alive between hands. The hand-built
+    // bend below only bends legs — it has nothing to say about arms, which
+    // is why a T-posed model sat down with its arms straight out.
+    const clip = pickSeatedClip(gltf.animations);
+    if (clip) {
+      placeSeated(model);
+      const mixer = new THREE.AnimationMixer(model);
+      mixer.clipAction(clip).play();
+      // Each figure is offset so a row of them doesn't breathe in unison.
+      mixer.setTime(Math.random() * clip.duration);
+      seatedMixers.add(mixer);
+      group.userData.mixer = mixer;
+    } else {
+      sitDown(model);
+    }
     group.add(model);
   }).catch(() => { /* a missing model just leaves an empty chair */ });
   return group;
