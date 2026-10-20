@@ -1,7 +1,12 @@
 import * as THREE from 'three';
 import { TABLE_RADIUS, TABLE_BACK_Z } from './table.js';
+import { m } from './scale.js';
 
-const SEAT_RADIUS = TABLE_RADIUS + 0.85;
+// Half a metre of clearance between the felt's edge and the chair, so a
+// seated figure reaches the table rather than growing out of it. At 0.85
+// the mocap pose — which leans forward with its hands on the table — put
+// forearms through the rim.
+const SEAT_RADIUS = TABLE_RADIUS + m(0.5);
 // The table's front is a semicircle spanning -90..90deg before the straight
 // sides begin — the two outer seats sit right out past that curve, beside
 // the straight sides that run back toward the dealer, using the space that
@@ -45,8 +50,11 @@ export const SEATS = SEAT_ANGLES_DEG.map((deg, i) => {
 // frame, so no single seat's view showed enough of the table to make sense
 // of the round. This wider, higher vantage keeps the whole felt (dealer's
 // cards down to every seat's hand spot) in frame from any of the 5 seats.
-const CAMERA_BACK_DISTANCE = 2.25;
-const CAMERA_HEIGHT = 3.85;
+// Over the seated player's shoulder. Their head now sits around y=1.4, so
+// the camera is about a metre above and a metre back of it — close enough
+// to read as their view, far enough that they are in it.
+const CAMERA_BACK_DISTANCE = m(0.72);
+const CAMERA_HEIGHT = m(1.3);
 export const CAMERA_LOOK_AT = new THREE.Vector3(0, 0.65, -1.0);
 
 // What a player in this seat is actually looking at: halfway between their

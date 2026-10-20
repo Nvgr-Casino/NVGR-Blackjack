@@ -110,15 +110,20 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
   positionChipRack();
 
   // ---------- seated characters ----------
-  // One figure per occupied seat. The seat the camera is sitting in stays
-  // empty for the same reason its chair is hidden — you are that player,
-  // and a body in the way would fill the screen.
+  // One figure per occupied seat, your own included.
+  //
+  // Your chair and your body used to be hidden at whichever seat the camera
+  // was in, on the reasoning that you *are* that player and a body would
+  // fill the screen. That was true of a first-person eye-line camera; this
+  // one sits 2.25 units behind the chair and 3.85 above it, which is over
+  // your own shoulder. Hiding them just left a hole at the table where you
+  // were sitting — no chair, no character, whichever way the camera turned.
   const seatCharacters = new Map(); // seatIndex -> { id, group }
 
   function applySeatCharacter(seatIndex, characterId) {
     const existing = seatCharacters.get(seatIndex);
     if (existing && existing.id === characterId) {
-      existing.group.visible = seatIndex !== viewSeatIndex;
+      existing.group.visible = true;
       return;
     }
     if (existing) scene.remove(existing.group);
@@ -129,7 +134,6 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
     const group = createCharacter(characterId);
     group.position.copy(seat.position);
     group.rotation.y = seat.facingAngle;
-    group.visible = seatIndex !== viewSeatIndex;
     scene.add(group);
     seatCharacters.set(seatIndex, { id: characterId, group });
   }
@@ -191,13 +195,7 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
 
   function setViewSeat(seatIndex, { animated = true } = {}) {
     if (seatIndex === viewSeatIndex) return;
-    if (chairsBySeat.get(viewSeatIndex)) chairsBySeat.get(viewSeatIndex).visible = true;
-    const leaving = seatCharacters.get(viewSeatIndex);
-    if (leaving) leaving.group.visible = true;
     viewSeatIndex = seatIndex;
-    if (chairsBySeat.get(viewSeatIndex)) chairsBySeat.get(viewSeatIndex).visible = false;
-    const arriving = seatCharacters.get(viewSeatIndex);
-    if (arriving) arriving.group.visible = false;
 
     const destination = cameraPositionForSeat(SEATS[viewSeatIndex]);
     const lookAt = cameraLookAtForSeat(SEATS[viewSeatIndex]);
@@ -210,7 +208,6 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
     }
     positionChipRack();
   }
-  if (chairsBySeat.get(viewSeatIndex)) chairsBySeat.get(viewSeatIndex).visible = false;
 
   // Puts the camera in the chair the player is actually sitting in, and
   // keeps it there when they move. The first move of a session is a snap

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { drawCasinoCrest } from './crest.js';
 import logoUrl from '../assets/nvgr-mark.png';
+import { FLOOR_Y } from './scale.js';
 
 // The salon the table stands in. Before this the table floated on a dark
 // disc in an empty void, which read as a 3D asset rather than a place —
@@ -13,7 +14,7 @@ import logoUrl from '../assets/nvgr-mark.png';
 // works. Retinting the walls per table would also mean repainting every
 // wall texture on each join.
 
-const FLOOR_Y = -0.91;        // matches the dealer/chair floor height
+// Floor height comes from the shared scale (see scale.js).
 export const CEILING_Y = 6.4; // just clears the pendant lamp's cord
 export const ROOM_HALF = 13;  // walls at ±13 in x and z
 const WALL_H = CEILING_Y - FLOOR_Y;

@@ -68,7 +68,11 @@ export function initScene(canvas) {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = lowPower ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.82;
+  // Lifted from 0.82. The whole room was reading as dull and murky — ACES
+  // rolls highlights off hard, and at that exposure the felt, the gold and
+  // the figures all sat in the bottom of the curve together with nothing
+  // bright enough to give the picture any snap.
+  renderer.toneMappingExposure = 1.15;
 
   // PBR environment lighting so the gold rim and chip metal actually pick up
   // reflections instead of looking flat-lit.
@@ -93,10 +97,10 @@ export function initScene(canvas) {
   // savings here: dropping three point lights left the carpet and the far
   // corners nearly black, and this buys that brightness back without
   // buying back the cost.
-  const ambient = new THREE.AmbientLight(0xfff2d0, lowPower ? 0.78 : 0.4);
+  const ambient = new THREE.AmbientLight(0xfff2d0, lowPower ? 0.95 : 0.7);
   scene.add(ambient);
 
-  const key = new THREE.DirectionalLight(0xfff2d0, 0.8);
+  const key = new THREE.DirectionalLight(0xfff2d0, 1.25);
   key.position.set(3, 8, 4);
   key.castShadow = true;
   key.shadow.mapSize.set(lowPower ? 1024 : 2048, lowPower ? 1024 : 2048);

@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { loadGltf } from './gltf.js';
-import { resolveRig, hasRoles, SEAT_ROLES, ARM_ROLES } from './rig.js';
+import { resolveRig, hasRoles, withoutRootMotion, SEAT_ROLES, ARM_ROLES } from './rig.js';
 import { DEALER } from './seats.js';
+import { SEAT_TOP_Y, DEALER_HEIGHT } from './scale.js';
 
 // A real rigged human model (CC0, Quaternius "Ultimate Modular Men Pack" —
 // public domain, free for commercial use) instead of a hand-built capsule
@@ -13,10 +14,14 @@ import { DEALER } from './seats.js';
 // base — hardcoding a leading "/" would look for the model at the domain
 // root and 404 on GitHub Pages, where the site lives under /NVGR-Blackjack/.
 // Two dealers, same rig and animation set, so a table can run either.
-// Both .glb: `npm run models` emits a single self-contained file per model,
-// because a .gltf may keep its buffers in sidecar files and the compressed
-// output has to ship as one thing.
-export const DEALER_MODELS = { male: 'dealer.glb', female: 'dealer_female.glb' };
+// The dealers are two of the same realistic cast the players choose from,
+// carrying the same motion-captured seated clip. A croupier who looks like
+// a person is the point; that they share a wardrobe with the players is how
+// a real floor looks anyway.
+export const DEALER_MODELS = {
+  male: 'characters/mx_josh.glb',
+  female: 'characters/mx_martha.glb',
+};
 export const DEALER_KEYS = Object.keys(DEALER_MODELS);
 const modelUrl = (file) => import.meta.env.BASE_URL + 'models/' + file;
 // Standing height used to scale the model. Bigger than a player (2.9) so
@@ -26,9 +31,8 @@ const modelUrl = (file) => import.meta.env.BASE_URL + 'models/' + file;
 // (hips land at -0.46, the felt is at +0.01), so a bare leg drew straight
 // across the table, and the dealer towered over the newly right-sized
 // players.
-const TARGET_HEIGHT = 3.4;
-const FLOOR_Y = -0.91; // matches table.js's floor mesh
-const SEAT_TOP_Y = FLOOR_Y + 0.4; // matches avatar.js's createChair() seat-cushion height
+const TARGET_HEIGHT = DEALER_HEIGHT;
+
 
 const WORLD_X = new THREE.Vector3(1, 0, 0);
 const HIP_ANGLE = -Math.PI / 2; // swings the thigh from hanging down to reaching forward, seated
@@ -97,6 +101,26 @@ const loadModel = (file) => loadGltf(modelUrl(file));
 // rather than guessing a factor), then drops it so — once the seated bend
 // is layered on every frame — the hips land on the sofa's own seat height
 // instead of the floor.
+// Scales a model to the dealer's height and drops it so its hips land on
+// the chair, without touching its pose — for figures whose pose comes from
+// an animation rather than from the hinge bend below.
+function fitModelToChair(model, bones) {
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  if (size.y > 0) model.scale.setScalar(TARGET_HEIGHT / size.y);
+  model.updateMatrixWorld(true);
+
+  const hip = new THREE.Vector3();
+  bones.hips.getWorldPosition(hip);
+  model.position.y += SEAT_TOP_Y + 0.05 - hip.y;
+  model.updateMatrixWorld(true);
+  bones.hips.getWorldPosition(hip);
+  model.position.x -= hip.x;
+  model.position.z -= hip.z;
+}
+
 function fitSeatedModel(model, bones) {
   // Matrices first: the box is meaningless until the model's own transforms
   // are applied. The .glb dealers carry a scaled root node, so measuring
@@ -283,7 +307,17 @@ function populateDealer(group, key) {
       const bones = resolveRig(model);
       const seated = hasRoles(bones, SEAT_ROLES);
       let seatPose = null;
-      if (seated) {
+      // A model carrying its own motion-captured seated clip is posed by
+      // that clip, not by the hinge bend. The bend would fight it every
+      // frame — it overwrites the leg rotations the animation just wrote —
+      // and the clip is the better pose anyway, since it has something to
+      // say about the torso and the left arm too.
+      const seatedClip = gltf.animations.find((c) => /sit|seat/i.test(c.name))
+        || (gltf.animations.length === 1 ? gltf.animations[0] : null);
+
+      if (seatedClip && bones.hips) {
+        fitModelToChair(model, bones);
+      } else if (seated) {
         seatPose = fitSeatedModel(model, bones);
       } else {
         console.warn('Dealer model is missing expected leg bones — seated pose skipped.');
@@ -303,7 +337,9 @@ function populateDealer(group, key) {
         clips[clip.name] = clip;
       });
 
-      const idleClip = clips.Idle_Neutral || clips.Idle;
+      const idleClip = seatedClip
+        ? withoutRootMotion(seatedClip, bones.hips)
+        : (clips.Idle_Neutral || clips.Idle);
       const idleAction = idleClip ? mixer.clipAction(idleClip) : null;
       if (idleAction) idleAction.play();
 

@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { loadGltf } from './gltf.js';
-import { resolveRig, hasRoles, SEAT_ROLES } from './rig.js';
+import { resolveRig, hasRoles, withoutRootMotion, SEAT_ROLES } from './rig.js';
+import { SEAT_TOP_Y, PLAYER_HEIGHT } from './scale.js';
 
 // Player characters: real rigged models from Quaternius' Ultimate Modular
 // Men and Women packs (CC0, same source and skeleton as the dealer), so one
@@ -11,11 +12,12 @@ import { resolveRig, hasRoles, SEAT_ROLES } from './rig.js';
 // pointing at the original's skeleton and every instance would move
 // together — hence SkeletonUtils.clone for each seat.
 
-const SEAT_TOP_Y = -0.51;   // createChair()'s cushion surface
+// Scale lives in scale.js now — see the note there about the table's
+// proportions, which is what these used to get wrong.
 // The dealer is deliberately oversized so its arms can reach across the
 // felt; a player only has to fit their own chair, so they are scaled to
 // something closer to life against the table.
-const TARGET_HEIGHT = 2.9;
+const TARGET_HEIGHT = PLAYER_HEIGHT;
 const HIP_ANGLE = -Math.PI / 2;
 const KNEE_ANGLE = Math.PI / 2;
 
@@ -176,9 +178,12 @@ export function createCharacter(id) {
     // is why a T-posed model sat down with its arms straight out.
     const clip = pickSeatedClip(gltf.animations);
     if (clip) {
+      const bones = resolveRig(model);
       placeSeated(model);
       const mixer = new THREE.AnimationMixer(model);
-      mixer.clipAction(clip).play();
+      // Without this the clip's hips-position track drags the figure off
+      // its chair to wherever the motion was captured — see rig.js.
+      mixer.clipAction(withoutRootMotion(clip, bones.hips)).play();
       // Each figure is offset so a row of them doesn't breathe in unison.
       mixer.setTime(Math.random() * clip.duration);
       seatedMixers.add(mixer);

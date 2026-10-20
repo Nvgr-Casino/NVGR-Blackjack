@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { FLOOR_Y, SEAT_TOP_Y, m } from './scale.js';
 
 // A flat circular "player card" — portrait circle + name + chip count —
 // matching how the reference casino game shows other players, instead of
@@ -78,42 +79,46 @@ export function createChair() {
   const goldMat = new THREE.MeshStandardMaterial({ color: 0xd4af52, roughness: 0.3, metalness: 0.7 });
   const cushionMat = new THREE.MeshLambertMaterial({ color: 0x6e1420 });
 
-  const floorY = -0.91;
-  const seatH = 0.4; // seat cushion's top surface, above the floor
-  const seatY = floorY + seatH;
+  // Derived from the shared scale so the cushion always meets the floor
+  // and the figures sitting on it (see scale.js).
+  const floorY = FLOOR_Y;
+  const seatY = SEAT_TOP_Y;
 
-  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.16, 0.54), cushionMat);
+  // Every dimension is a real measurement through the shared scale, so the
+  // chair grows with the room instead of staying doll-sized when the world
+  // changes size around it.
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(m(0.52), m(0.07), m(0.48)), cushionMat);
   seat.position.set(0, seatY, 0);
   seat.castShadow = true;
   seat.receiveShadow = true;
   group.add(seat);
 
   // Reclined backrest, tall enough to read as a lounge chair, not a stool.
-  const back = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.56, 0.14), cushionMat);
-  back.position.set(0, seatY + 0.34, -0.22);
+  const back = new THREE.Mesh(new THREE.BoxGeometry(m(0.52), m(0.5), m(0.1)), cushionMat);
+  back.position.set(0, seatY + m(0.3), -m(0.2));
   back.rotation.x = -0.16;
   back.castShadow = true;
   group.add(back);
 
   // Padded armrests on both sides.
   [-1, 1].forEach((side) => {
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.24, 0.5), cushionMat);
-    arm.position.set(side * 0.34, seatY + 0.13, -0.02);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(m(0.08), m(0.2), m(0.44)), cushionMat);
+    arm.position.set(side * m(0.3), seatY + m(0.11), -m(0.02));
     arm.castShadow = true;
     group.add(arm);
   });
 
   // Thin gold trim along the seat's front edge, matching the table's rim.
-  const trim = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.02, 0.02), goldMat);
-  trim.position.set(0, seatY - 0.07, 0.28);
+  const trim = new THREE.Mesh(new THREE.BoxGeometry(m(0.54), m(0.018), m(0.018)), goldMat);
+  trim.position.set(0, seatY - m(0.06), m(0.25));
   group.add(trim);
 
   const legOffsets = [
-    [0.26, 0.2], [-0.26, 0.2], [0.26, -0.2], [-0.26, -0.2],
+    [m(0.23), m(0.18)], [-m(0.23), m(0.18)], [m(0.23), -m(0.18)], [-m(0.23), -m(0.18)],
   ];
   legOffsets.forEach(([x, z]) => {
-    const legHeight = seatH - 0.14;
-    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.02, legHeight, 8), woodMat);
+    const legHeight = seatY - floorY - m(0.05);
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(m(0.022), m(0.018), legHeight, 8), woodMat);
     leg.position.set(x, floorY + legHeight / 2, z);
     leg.castShadow = true;
     group.add(leg);

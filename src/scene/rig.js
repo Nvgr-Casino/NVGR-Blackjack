@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+
 // Finds the bones the table needs, whatever skeleton a model arrived with.
 //
 // Every figure here is posed by code rather than by a canned animation —
@@ -61,4 +63,24 @@ export function resolveRig(model) {
 
 export function hasRoles(bones, roles) {
   return roles.every((r) => !!bones[r]);
+}
+
+/**
+ * Returns the clip with its root-motion track removed.
+ *
+ * A motion-capture clip animates the hips' *position* as well as every
+ * bone's rotation — that is how a walk travels. For a figure we have
+ * deliberately placed on a chair, that track is poison: the mixer rewrites
+ * the hips every frame to wherever the capture studio's floor was, undoing
+ * the placement. The dealer ended up sunk through the floor by two thirds
+ * of a metre this way.
+ *
+ * Only the position goes. The rotations are the pose, and they stay.
+ */
+export function withoutRootMotion(clip, hipsBone) {
+  if (!clip || !hipsBone) return clip;
+  const drop = hipsBone.name + '.position';
+  const tracks = clip.tracks.filter((t) => t.name !== drop);
+  if (tracks.length === clip.tracks.length) return clip;
+  return new THREE.AnimationClip(clip.name, clip.duration, tracks, clip.blendMode);
 }
