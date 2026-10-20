@@ -35,7 +35,13 @@ for (const src of walk(ROOT)) {
   // Always emit .glb: a .gltf can carry its buffers in separate files, and
   // the compressed output has to be one self-contained thing to ship.
   const dst = join(dirname(src), basename(src, extname(src)) + '.glb');
-  const tmp = dst + '.tmp';
+  // The temp name has to keep the .glb extension. gltf-transform picks its
+  // output container from the extension alone, so writing to "name.glb.tmp"
+  // silently produced glTF *JSON* with the buffer and textures as separate
+  // sidecar files — which still loaded, so nothing looked wrong, but it
+  // meant three HTTP requests per model instead of one and a palette
+  // texture shared by filename across every character in a folder.
+  const tmp = dst.replace(/\.glb$/, '.tmp.glb');
   const sizeBefore = statSync(src).size;
 
   execFileSync('npx', [
