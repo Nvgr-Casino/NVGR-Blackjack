@@ -3,7 +3,7 @@ import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js
 import { loadGltf } from './gltf.js';
 import { resolveRig, hasRoles, withoutRootMotion, SEAT_ROLES, ARM_ROLES } from './rig.js';
 import { DEALER } from './seats.js';
-import { SEAT_TOP_Y, DEALER_HEIGHT } from './scale.js';
+import { SEAT_TOP_Y, DEALER_HEIGHT, FLOOR_Y, m } from './scale.js';
 
 // A real rigged human model (CC0, Quaternius "Ultimate Modular Men Pack" —
 // public domain, free for commercial use) instead of a hand-built capsule
@@ -19,8 +19,8 @@ import { SEAT_TOP_Y, DEALER_HEIGHT } from './scale.js';
 // a person is the point; that they share a wardrobe with the players is how
 // a real floor looks anyway.
 export const DEALER_MODELS = {
-  male: 'characters/mx_josh.glb',
-  female: 'characters/mx_martha.glb',
+  male: 'dealer_male.glb',
+  female: 'dealer_female.glb',
 };
 export const DEALER_KEYS = Object.keys(DEALER_MODELS);
 const modelUrl = (file) => import.meta.env.BASE_URL + 'models/' + file;
@@ -101,20 +101,36 @@ const loadModel = (file) => loadGltf(modelUrl(file));
 // rather than guessing a factor), then drops it so — once the seated bend
 // is layered on every frame — the hips land on the sofa's own seat height
 // instead of the floor.
-// Scales a model to the dealer's height and drops it so its hips land on
-// the chair, without touching its pose — for figures whose pose comes from
-// an animation rather than from the hinge bend below.
-function fitModelToChair(model, bones) {
+// Stands the dealer on the floor behind the table, pose untouched.
+//
+// A blackjack dealer stands. Sitting them down was the root of two
+// separate faults at once: the table's wooden skirt runs 0.45 further back
+// than the felt, so a seated body at the rail was literally inside the
+// table; and from a chair that far back the arms could never reach the
+// felt to deal. Standing solves both — the torso clears the skirt
+// entirely, and a standing reach crosses the table the way a real one does.
+//
+// Placed by the model's own feet rather than by the hips, because what
+// matters standing is that the soles meet the carpet.
+function standAtTable(model, bones) {
   model.updateMatrixWorld(true);
+  // The bounding box is only trustworthy for the overall *height*, and only
+  // because the bind pose is a standing T-pose. It cannot be used to find
+  // where the figure ends up: Box3 reads a skinned mesh in bind space and
+  // knows nothing about what the bones did with it, which is how an earlier
+  // attempt put the dealer two and a half metres under the carpet.
   const box = new THREE.Box3().setFromObject(model);
   const size = new THREE.Vector3();
   box.getSize(size);
   if (size.y > 0) model.scale.setScalar(TARGET_HEIGHT / size.y);
   model.updateMatrixWorld(true);
 
+  // Placed by the hips, the one landmark every rig agrees on. A standing
+  // adult's hips sit about 0.95m up, so putting them there puts the soles
+  // on the carpet.
   const hip = new THREE.Vector3();
   bones.hips.getWorldPosition(hip);
-  model.position.y += SEAT_TOP_Y + 0.05 - hip.y;
+  model.position.y += (FLOOR_Y + m(0.95)) - hip.y;
   model.updateMatrixWorld(true);
   bones.hips.getWorldPosition(hip);
   model.position.x -= hip.x;
@@ -316,7 +332,7 @@ function populateDealer(group, key) {
         || (gltf.animations.length === 1 ? gltf.animations[0] : null);
 
       if (seatedClip && bones.hips) {
-        fitModelToChair(model, bones);
+        standAtTable(model, bones);
       } else if (seated) {
         seatPose = fitSeatedModel(model, bones);
       } else {

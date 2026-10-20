@@ -156,10 +156,7 @@ export function initScene(canvas) {
   shoe.position.set(0.75, 0.03, dealerGearZ);
   scene.add(shoe);
 
-  const dealerChair = createChair();
-  dealerChair.position.copy(DEALER.position);
-  dealerChair.rotation.y = DEALER.facingAngle;
-  scene.add(dealerChair);
+  // No chair for the dealer — they stand, like every real one.
 
   const dealer = createDealerFigure();
   dealer.position.copy(DEALER.position);

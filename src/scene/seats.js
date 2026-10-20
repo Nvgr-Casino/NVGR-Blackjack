@@ -86,10 +86,11 @@ export function cameraPositionForSeat(seat) {
 // the felt, just in front of it.
 export const RAIL_Z = TABLE_BACK_Z - 0.3;
 export const DEALER = {
-  // Just behind the rail, not a full extra step back — pulled in close
-  // enough that the (now much taller, real-model) dealer reads as standing
-  // right at the table instead of off in the distance behind their own gear.
-  position: new THREE.Vector3(0, 0, RAIL_Z - 0.05),
+  // Clear of the table's wooden skirt, which runs 0.45 further back than
+  // the felt does — a body standing at the old rail position was inside it.
+  // Close enough to still lean over the felt, which is where a dealer
+  // stands.
+  position: new THREE.Vector3(0, 0, TABLE_BACK_Z - 0.62),
   deckPosition: new THREE.Vector3(0.7, 0.05, TABLE_BACK_Z + 0.4),
   // Pulled just clear of the rail/tray/shoe cluster so the dealer's cards
   // (and hand-value badge) aren't lost in that clutter — with the back

@@ -75,54 +75,79 @@ export function createPlayerPortrait({ name = 'Guest', chips = 12500, accentColo
 export function createChair() {
   const group = new THREE.Group();
 
-  const woodMat = new THREE.MeshLambertMaterial({ color: 0x2b140c });
-  const goldMat = new THREE.MeshStandardMaterial({ color: 0xd4af52, roughness: 0.3, metalness: 0.7 });
-  const cushionMat = new THREE.MeshLambertMaterial({ color: 0x6e1420 });
+  // A barrel chair: a curved padded back wrapping a round cushion, on
+  // splayed gold legs. The old one was three boxes in the same deep red as
+  // the carpet and the walls, so five pieces of furniture simply dissolved
+  // into the room. Black leather against burgundy is the strongest contrast
+  // the house livery allows, and the curve is what makes it read as a
+  // designed chair rather than a crate.
+  const leatherMat = new THREE.MeshStandardMaterial({
+    color: 0x16161a, roughness: 0.42, metalness: 0.12,
+  });
+  const goldMat = new THREE.MeshStandardMaterial({
+    color: 0xe8c266, roughness: 0.2, metalness: 0.9,
+  });
 
-  // Derived from the shared scale so the cushion always meets the floor
-  // and the figures sitting on it (see scale.js).
-  const floorY = FLOOR_Y;
   const seatY = SEAT_TOP_Y;
+  const seatR = m(0.27);
 
-  // Every dimension is a real measurement through the shared scale, so the
-  // chair grows with the room instead of staying doll-sized when the world
-  // changes size around it.
-  const seat = new THREE.Mesh(new THREE.BoxGeometry(m(0.52), m(0.07), m(0.48)), cushionMat);
-  seat.position.set(0, seatY, 0);
+  // Round cushion, slightly tapered like a real upholstered pad.
+  const seat = new THREE.Mesh(
+    new THREE.CylinderGeometry(seatR, seatR * 0.92, m(0.11), 28),
+    leatherMat
+  );
+  seat.position.set(0, seatY - m(0.055), 0);
   seat.castShadow = true;
   seat.receiveShadow = true;
   group.add(seat);
 
-  // Reclined backrest, tall enough to read as a lounge chair, not a stool.
-  const back = new THREE.Mesh(new THREE.BoxGeometry(m(0.52), m(0.5), m(0.1)), cushionMat);
-  back.position.set(0, seatY + m(0.3), -m(0.2));
-  back.rotation.x = -0.16;
+  // Gold piping around the cushion's edge.
+  const piping = new THREE.Mesh(
+    new THREE.TorusGeometry(seatR, m(0.012), 8, 32),
+    goldMat
+  );
+  piping.rotation.x = Math.PI / 2;
+  piping.position.set(0, seatY - m(0.11), 0);
+  group.add(piping);
+
+  // The wrap-around back: an open cylinder arc behind and around the sides,
+  // leaning back a little. thetaStart puts the opening toward the table.
+  const BACK_SWEEP = Math.PI * 1.08;
+  const back = new THREE.Mesh(
+    new THREE.CylinderGeometry(seatR * 1.04, seatR * 1.04, m(0.46), 28, 1, true,
+      Math.PI / 2 - BACK_SWEEP / 2, BACK_SWEEP),
+    leatherMat
+  );
+  back.position.set(0, seatY + m(0.2), -m(0.03));
+  back.rotation.x = -0.07;
+  back.material.side = THREE.DoubleSide;
   back.castShadow = true;
   group.add(back);
 
-  // Padded armrests on both sides.
-  [-1, 1].forEach((side) => {
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(m(0.08), m(0.2), m(0.44)), cushionMat);
-    arm.position.set(side * m(0.3), seatY + m(0.11), -m(0.02));
-    arm.castShadow = true;
-    group.add(arm);
-  });
+  // Gold rail capping the back's top edge, following the same arc.
+  const rail = new THREE.Mesh(
+    new THREE.TorusGeometry(seatR * 1.04, m(0.016), 8, 32, BACK_SWEEP),
+    goldMat
+  );
+  rail.rotation.x = Math.PI / 2;
+  rail.rotation.z = Math.PI / 2 - BACK_SWEEP / 2;
+  rail.position.set(0, seatY + m(0.43), -m(0.03));
+  group.add(rail);
 
-  // Thin gold trim along the seat's front edge, matching the table's rim.
-  const trim = new THREE.Mesh(new THREE.BoxGeometry(m(0.54), m(0.018), m(0.018)), goldMat);
-  trim.position.set(0, seatY - m(0.06), m(0.25));
-  group.add(trim);
-
-  const legOffsets = [
-    [m(0.23), m(0.18)], [-m(0.23), m(0.18)], [m(0.23), -m(0.18)], [-m(0.23), -m(0.18)],
-  ];
-  legOffsets.forEach(([x, z]) => {
-    const legHeight = seatY - floorY - m(0.05);
-    const leg = new THREE.Mesh(new THREE.CylinderGeometry(m(0.022), m(0.018), legHeight, 8), woodMat);
-    leg.position.set(x, floorY + legHeight / 2, z);
+  // Four splayed gold legs.
+  const legH = seatY - FLOOR_Y - m(0.11);
+  [[1, 1], [1, -1], [-1, 1], [-1, -1]].forEach(([sx, sz]) => {
+    const leg = new THREE.Mesh(
+      new THREE.CylinderGeometry(m(0.016), m(0.011), legH, 10),
+      goldMat
+    );
+    leg.position.set(sx * seatR * 0.62, FLOOR_Y + legH / 2, sz * seatR * 0.62);
+    leg.rotation.z = -sx * 0.1;
+    leg.rotation.x = sz * 0.1;
     leg.castShadow = true;
     group.add(leg);
   });
 
   return group;
 }
+
