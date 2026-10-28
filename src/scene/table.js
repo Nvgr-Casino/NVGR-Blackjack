@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { drawCasinoCrest } from './crest.js';
+import { FLOOR_Y, m } from './scale.js';
 
 // A real casino "D" table: a semicircular front for the players plus a pair
 // of straight parallel sides running back to a flat rear edge for the
@@ -245,15 +246,56 @@ export function createTable() {
   // Wood skirt below, extruded from the same D outline (a plain circular
   // cylinder no longer matches now that the felt has straight sides and a
   // flat back — its corners would overhang past a round base).
-  const baseShape = buildTableShape(TABLE_RADIUS + 0.45, SIDE_LENGTH + 0.45);
-  const baseGeo = new THREE.ExtrudeGeometry(baseShape, { depth: 0.9, bevelEnabled: false, curveSegments: 24 });
+  //
+  // A real casino table is a shallow padded apron — about 15 cm — over a
+  // pedestal set well back from the edge, so the players' knees go under
+  // it. The apron used to be a fixed 0.9 units deep, which was the whole
+  // height to the floor once; after the floor dropped to give the table its
+  // real height, the table was left hovering more than a unit above the
+  // carpet, a slab in mid-air.
   const baseMat = new THREE.MeshStandardMaterial({ map: createWoodTexture(), roughness: 0.7 });
-  const base = new THREE.Mesh(baseGeo, baseMat);
-  base.rotation.x = Math.PI / 2;
-  base.position.y = -0.01;
-  base.receiveShadow = true;
-  base.castShadow = true;
-  group.add(base);
+  const APRON = m(0.15);
+  const apronShape = buildTableShape(TABLE_RADIUS + 0.45, SIDE_LENGTH + 0.45);
+  const apron = new THREE.Mesh(
+    new THREE.ExtrudeGeometry(apronShape, { depth: APRON, bevelEnabled: false, curveSegments: 24 }),
+    baseMat
+  );
+  apron.rotation.x = Math.PI / 2;
+  apron.position.y = -0.01;
+  apron.receiveShadow = true;
+  apron.castShadow = true;
+  group.add(apron);
+
+  // Pedestal: the same D outline, inset ~0.6 m so seated knees clear it,
+  // running from under the apron to the floor, finished with a gold
+  // kickplate where it meets the carpet.
+  const INSET = m(0.6);
+  const pedestalTop = -0.01 - APRON;
+  const pedestalH = pedestalTop - FLOOR_Y;
+  const pedestalMat = new THREE.MeshStandardMaterial({ color: 0x1c0d08, roughness: 0.6, metalness: 0.15 });
+  const pedestal = new THREE.Mesh(
+    new THREE.ExtrudeGeometry(
+      buildTableShape(TABLE_RADIUS + 0.45 - INSET, SIDE_LENGTH + 0.45 - INSET * 0.4),
+      { depth: pedestalH, bevelEnabled: false, curveSegments: 24 }
+    ),
+    pedestalMat
+  );
+  pedestal.rotation.x = Math.PI / 2;
+  pedestal.position.y = pedestalTop;
+  pedestal.castShadow = true;
+  pedestal.receiveShadow = true;
+  group.add(pedestal);
+
+  const kick = new THREE.Mesh(
+    new THREE.ExtrudeGeometry(
+      buildTableShape(TABLE_RADIUS + 0.45 - INSET + m(0.02), SIDE_LENGTH + 0.45 - INSET * 0.4 + m(0.02)),
+      { depth: m(0.06), bevelEnabled: false, curveSegments: 24 }
+    ),
+    new THREE.MeshStandardMaterial({ color: 0xd4af52, roughness: 0.3, metalness: 0.8 })
+  );
+  kick.rotation.x = Math.PI / 2;
+  kick.position.y = FLOOR_Y + m(0.06);
+  group.add(kick);
 
   return group;
 }

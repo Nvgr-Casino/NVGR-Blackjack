@@ -84,3 +84,35 @@ export function withoutRootMotion(clip, hipsBone) {
   if (tracks.length === clip.tracks.length) return clip;
   return new THREE.AnimationClip(clip.name, clip.duration, tracks, clip.blendMode);
 }
+
+/**
+ * Turns a model's blended materials into alpha cut-outs.
+ *
+ * Mixamo's FBX arrives with its hair and eyelashes marked transparent at
+ * opacity 0, and fbx2gltf carries that across faithfully. So nobody's hair
+ * was ever visible, but every strand card was still shaded and blended —
+ * measured at a quarter of the frame on integrated graphics with five
+ * players seated, for nothing on screen. One body mesh came through
+ * transparent at full opacity too, which also cost it depth sorting.
+ *
+ * A cut-out is opaque to the renderer: it writes depth, so whatever lies
+ * behind it is never shaded, and alpha-to-coverage feathers the edge
+ * through the MSAA the renderer already pays for. Hair cards come out
+ * glossy as plastic at the exported roughness, so they are dulled to
+ * something closer to hair.
+ */
+export function useCutoutMaterials(model) {
+  model.traverse((o) => {
+    if (!o.isMesh) return;
+    for (const mat of [].concat(o.material)) {
+      if (!mat.transparent) continue;
+      mat.transparent = false;
+      mat.opacity = 1;
+      mat.depthWrite = true;
+      mat.alphaTest = 0.25;
+      mat.alphaToCoverage = true;
+      if (!mat.roughnessMap) mat.roughness = Math.max(mat.roughness, 0.6);
+      mat.needsUpdate = true;
+    }
+  });
+}

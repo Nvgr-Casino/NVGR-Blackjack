@@ -58,7 +58,9 @@ export function initScene(canvas) {
   // measures whether the device can hold it (see adaptQuality), so a fast
   // phone keeps a sharp picture and only a struggling one gives resolution
   // up. Antialiasing is on everywhere for the same reason.
-  const DPR_STEPS = [2, 1.5, 1.25, 1];
+  // Down to 0.75: integrated laptop graphics (an Intel UHD 630, measured)
+  // still needed 21 ms a frame at 1x, so stopping at 1 left it juddering.
+  const DPR_STEPS = [2, 1.5, 1.25, 1, 0.85, 0.75];
   let dprStep = 0;
   const applyPixelRatio = () => renderer.setPixelRatio(Math.min(window.devicePixelRatio, DPR_STEPS[dprStep]));
 
@@ -66,7 +68,9 @@ export function initScene(canvas) {
   renderer.setSize(window.innerWidth, window.innerHeight);
   applyPixelRatio();
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = lowPower ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+  // Plain PCF everywhere: the soft variant's extra taps cost about a quarter
+  // of the frame on integrated graphics, for edges hardly anyone notices.
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   // Lifted from 0.82. The whole room was reading as dull and murky — ACES
   // rolls highlights off hard, and at that exposure the felt, the gold and
@@ -97,30 +101,31 @@ export function initScene(canvas) {
   // savings here: dropping three point lights left the carpet and the far
   // corners nearly black, and this buys that brightness back without
   // buying back the cost.
-  const ambient = new THREE.AmbientLight(0xfff2d0, lowPower ? 0.95 : 0.7);
+  // Raised a little on desktop too, to stand in for the rim light and the
+  // two sconce lamps that no longer exist.
+  const ambient = new THREE.AmbientLight(0xfff2d0, lowPower ? 0.95 : 0.85);
   scene.add(ambient);
 
   const key = new THREE.DirectionalLight(0xfff2d0, 1.25);
   key.position.set(3, 8, 4);
   key.castShadow = true;
-  key.shadow.mapSize.set(lowPower ? 1024 : 2048, lowPower ? 1024 : 2048);
-  key.shadow.camera.left = -9;
-  key.shadow.camera.right = 9;
-  key.shadow.camera.top = 9;
-  key.shadow.camera.bottom = -9;
+  // The frustum only has to hold the table, the chairs and the dealer — at
+  // ±9 most of the map was spent on empty carpet. Tightened, 1536 texels is
+  // sharper than the old 2048 and cheaper to draw.
+  const SHADOW_MAP = lowPower ? 1024 : 1536;
+  key.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);
+  key.shadow.camera.left = -6.5;
+  key.shadow.camera.right = 6.5;
+  key.shadow.camera.top = 6.5;
+  key.shadow.camera.bottom = -6.5;
   key.shadow.camera.near = 1;
   key.shadow.camera.far = 20;
   key.shadow.bias = -0.0015;
   scene.add(key);
 
-  // Every point light is paid for by every lit fragment on screen, so the
-  // purely decorative one stands down on phones. The room's own sconces do
-  // the same job from the walls.
-  if (!lowPower) {
-    const rimLight = new THREE.PointLight(0xeac35e, 0.5, 14);
-    rimLight.position.set(-4, 3, -3);
-    scene.add(rimLight);
-  }
+  // No decorative rim light any more: every point light is paid for by every
+  // lit fragment on screen, and on integrated graphics the scene could not
+  // afford five. The pendant and the sign's glow are the two that earn it.
 
   // Overhead pendant lamp — a casino-style hanging light over the table.
   const pendant = createPendantLamp();
@@ -128,7 +133,7 @@ export function initScene(canvas) {
 
   // The room the table stands in — carpet, panelled walls, ceiling and the
   // house signage. Static, so it is built once and never touched again.
-  scene.add(createRoom({ lowPower }));
+  scene.add(createRoom());
 
   const table = createTable();
   scene.add(table);
@@ -217,28 +222,35 @@ export function initScene(canvas) {
   // one that settles slightly soft. The first few seconds are ignored
   // because models and textures are still being decoded then, and judging
   // the device on that would downgrade everyone.
-  const SETTLE_MS = 4000;
-  const WINDOW_FRAMES = 60;
+  const SETTLE_MS = 3000;
+  const WINDOW_FRAMES = 30;
   const SLOW_FRAME_MS = 22;   // ~45fps; below this and it reads as juddery
-  const startedAt = performance.now();
+  let settleUntil = performance.now() + SETTLE_MS;
   let windowFrames = [];
   let slowWindows = 0;
 
   function adaptQuality(frameMs, now) {
-    if (now - startedAt < SETTLE_MS || dprStep >= DPR_STEPS.length - 1) return;
+    if (now < settleUntil || dprStep >= DPR_STEPS.length - 1) return;
     // A backgrounded tab has its frame callbacks throttled to a crawl or
     // stopped outright, so those gaps say nothing about how fast the device
     // is — counting them would quietly downgrade anyone who switched tabs.
-    if (document.hidden || frameMs > 100) { windowFrames = []; return; }
+    // Only gaps of a second or more are treated that way. This used to drop
+    // anything over 100 ms, and a slow GPU's ordinary frames were over that,
+    // so the one device that needed to step down never did.
+    if (document.hidden || frameMs > 1000) { windowFrames = []; return; }
     windowFrames.push(frameMs);
     if (windowFrames.length < WINDOW_FRAMES) return;
-    // Median, not mean: one stall while a texture uploads shouldn't count as
-    // the device being slow.
-    const median = windowFrames.slice().sort((a, b) => a - b)[WINDOW_FRAMES >> 1];
+    // The mean, not the median. A GPU that cannot keep up does not deliver
+    // evenly slow frames: the browser queues several at 16 ms and then
+    // blocks for 170 ms while the GPU catches up. The median of that is a
+    // perfect 16.6 — measured on a laptop running at 17 fps — so it never
+    // saw the problem. The mean is the real frame rate.
+    const mean = windowFrames.reduce((a, b) => a + b, 0) / windowFrames.length;
     windowFrames = [];
     // Two bad windows in a row, so a single hiccup doesn't cost sharpness.
-    slowWindows = median > SLOW_FRAME_MS ? slowWindows + 1 : 0;
-    if (slowWindows >= 2) {
+    // Far over budget is no hiccup, though: jump straight down.
+    slowWindows = mean > SLOW_FRAME_MS ? slowWindows + 1 : 0;
+    if (slowWindows >= 2 || mean > SLOW_FRAME_MS * 2) {
       slowWindows = 0;
       dprStep++;
       applyPixelRatio();
@@ -250,6 +262,14 @@ export function initScene(canvas) {
   function animate() {
     requestAnimationFrame(animate);
     const now = performance.now();
+    // main.js hides the canvas outside a table (sign-in, lobby). It used to
+    // go on drawing the whole room behind them at full cost regardless.
+    if (canvas.style.display === 'none') {
+      lastFrame = now;
+      settleUntil = now + SETTLE_MS;
+      clock.getDelta();
+      return;
+    }
     adaptQuality(now - lastFrame, now);
     lastFrame = now;
     tickAnimations();

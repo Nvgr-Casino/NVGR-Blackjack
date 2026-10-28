@@ -270,7 +270,7 @@ function createSconce() {
  * house signage — everything static, so it is created once and never
  * touched again.
  */
-export function createRoom({ lowPower = false } = {}) {
+export function createRoom() {
   const room = new THREE.Group();
 
   // Lambert, not Standard, for every surface in here. The walls, carpet and
@@ -359,11 +359,11 @@ export function createRoom({ lowPower = false } = {}) {
   signGlow.position.set(0, MARK_Y, -ROOM_HALF + 1.6);
   room.add(signGlow);
 
-  // Sconces down both side walls. Only the middle pair ever carries a real
-  // light — the rest are emissive fixtures, which cost nothing per fragment
-  // and read the same at this distance. On a phone even that pair stands
-  // down, leaving the glowing shades: two fewer lights for every fragment
-  // on screen, for a difference you have to hunt for.
+  // Sconces down both side walls, all emissive fixtures. The middle pair
+  // used to carry real point lights, but every point light is paid for by
+  // every fragment on screen — on integrated graphics those two cost more
+  // than the whole table — and at this distance a glowing shade reads the
+  // same as a lit one.
   [-ROOM_HALF + 0.12, ROOM_HALF - 0.12].forEach((x) => {
     const inward = x < 0 ? 1 : -1;
     [-6.5, 0, 6.5].forEach((z) => {
@@ -371,11 +371,6 @@ export function createRoom({ lowPower = false } = {}) {
       sconce.position.set(x, 2.6, z);
       sconce.rotation.z = inward * -0.32;
       room.add(sconce);
-      if (z === 0 && !lowPower) {
-        const lamp = new THREE.PointLight(0xffb964, 0.85, 13, 2);
-        lamp.position.set(x + inward * 0.5, 3.0, z);
-        room.add(lamp);
-      }
     });
   });
 

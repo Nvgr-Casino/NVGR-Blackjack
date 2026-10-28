@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { TABLE_RADIUS, TABLE_BACK_Z } from './table.js';
-import { m } from './scale.js';
+import { m, FLOOR_Y } from './scale.js';
 
 // Half a metre of clearance between the felt's edge and the chair, so a
 // seated figure reaches the table rather than growing out of it. At 0.85
@@ -53,8 +53,16 @@ export const SEATS = SEAT_ANGLES_DEG.map((deg, i) => {
 // Over the seated player's shoulder. Their head now sits around y=1.4, so
 // the camera is about a metre above and a metre back of it — close enough
 // to read as their view, far enough that they are in it.
-const CAMERA_BACK_DISTANCE = m(0.72);
-const CAMERA_HEIGHT = m(1.3);
+// Measured from the floor now, not as a fixed height — a fixed number
+// silently changed meaning every time the floor moved. A seated adult's
+// eyes are about 1.2 m up; this sits a hand's breadth above and just behind
+// that, so the view is the player's own rather than a spectator's from
+// across the room.
+const CAMERA_BACK_DISTANCE = m(0.5);
+const CAMERA_HEIGHT = FLOOR_Y + m(1.5);
+// Off to the right shoulder. Straight behind, the player's own head sat
+// dead centre in frame and hid the middle of the felt.
+const CAMERA_SHOULDER_OFFSET = m(0.32);
 export const CAMERA_LOOK_AT = new THREE.Vector3(0, 0.65, -1.0);
 
 // What a player in this seat is actually looking at: halfway between their
@@ -74,10 +82,13 @@ export function cameraLookAtForSeat(seat) {
 
 export function cameraPositionForSeat(seat) {
   const dir = seat.position.clone().setY(0).normalize();
+  // Perpendicular to the seat's radial line, toward the player's right as
+  // they face the table.
+  const side = new THREE.Vector3(dir.z, 0, -dir.x);
   return new THREE.Vector3(
-    seat.position.x + dir.x * CAMERA_BACK_DISTANCE,
+    seat.position.x + dir.x * CAMERA_BACK_DISTANCE + side.x * CAMERA_SHOULDER_OFFSET,
     CAMERA_HEIGHT,
-    seat.position.z + dir.z * CAMERA_BACK_DISTANCE
+    seat.position.z + dir.z * CAMERA_BACK_DISTANCE + side.z * CAMERA_SHOULDER_OFFSET
   );
 }
 

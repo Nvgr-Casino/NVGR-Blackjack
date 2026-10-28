@@ -22,13 +22,16 @@ export function createBetRing(radius = 0.4) {
 export function createCardShoe() {
   const group = new THREE.Group();
 
-  const bodyMat = new THREE.MeshPhysicalMaterial({
+  // Smoked acrylic by plain opacity. Transmission looked much the same on a
+  // box this small, but any transmissive material makes three.js render the
+  // whole scene a second time to refract it — measured at a third of the
+  // frame on integrated graphics, for one prop.
+  const bodyMat = new THREE.MeshStandardMaterial({
     color: 0x1c1c1c,
     roughness: 0.25,
     metalness: 0.1,
-    transmission: 0.35,
     transparent: true,
-    opacity: 0.9,
+    opacity: 0.88,
   });
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.22, 0.4), bodyMat);
   body.position.y = 0.11;

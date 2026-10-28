@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { loadGltf } from './gltf.js';
-import { resolveRig, hasRoles, withoutRootMotion, SEAT_ROLES, ARM_ROLES } from './rig.js';
+import { resolveRig, hasRoles, withoutRootMotion, useCutoutMaterials, SEAT_ROLES, ARM_ROLES } from './rig.js';
 import { DEALER } from './seats.js';
 import { SEAT_TOP_Y, DEALER_HEIGHT, FLOOR_Y, m } from './scale.js';
 
@@ -345,6 +345,7 @@ function populateDealer(group, key) {
           obj.receiveShadow = true;
         }
       });
+      useCutoutMaterials(model);
       group.add(model);
 
       const mixer = new THREE.AnimationMixer(model);

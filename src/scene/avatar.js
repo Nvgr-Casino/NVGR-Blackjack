@@ -75,79 +75,96 @@ export function createPlayerPortrait({ name = 'Guest', chips = 12500, accentColo
 export function createChair() {
   const group = new THREE.Group();
 
-  // A barrel chair: a curved padded back wrapping a round cushion, on
-  // splayed gold legs. The old one was three boxes in the same deep red as
-  // the carpet and the walls, so five pieces of furniture simply dissolved
-  // into the room. Black leather against burgundy is the strongest contrast
-  // the house livery allows, and the curve is what makes it read as a
-  // designed chair rather than a crate.
+  // A high-backed casino dining chair: a tall framed back panel standing
+  // behind a padded seat, on four tapered legs, facing local +Z toward the
+  // table.
+  //
+  // Two earlier attempts missed. Boxes in the carpet's own deep red
+  // dissolved into the room; wrapping the back right around the cushion in
+  // a cylinder turned it into a drum. What makes a chair read as a chair at
+  // a glance is a back that is plainly a *back* — taller than it is wide,
+  // flat, and clearly behind the sitter — with daylight under the seat.
   const leatherMat = new THREE.MeshStandardMaterial({
-    color: 0x16161a, roughness: 0.42, metalness: 0.12,
+    color: 0x17171c, roughness: 0.45, metalness: 0.1,
   });
   const goldMat = new THREE.MeshStandardMaterial({
-    color: 0xe8c266, roughness: 0.2, metalness: 0.9,
+    color: 0xe8c266, roughness: 0.22, metalness: 0.88,
   });
 
   const seatY = SEAT_TOP_Y;
-  const seatR = m(0.27);
+  const seatW = m(0.46);
+  const seatD = m(0.44);
+  const backW = seatW * 0.92;
+  const backH = m(0.62);
+  const backLean = -0.1;
+  const backZ = -seatD / 2 + m(0.03);
 
-  // Round cushion, slightly tapered like a real upholstered pad.
+  // Padded seat.
   const seat = new THREE.Mesh(
-    new THREE.CylinderGeometry(seatR, seatR * 0.92, m(0.11), 28),
-    leatherMat
+    new THREE.BoxGeometry(seatW, m(0.09), seatD), leatherMat
   );
-  seat.position.set(0, seatY - m(0.055), 0);
+  seat.position.set(0, seatY - m(0.045), 0);
   seat.castShadow = true;
   seat.receiveShadow = true;
   group.add(seat);
 
-  // Gold piping around the cushion's edge.
-  const piping = new THREE.Mesh(
-    new THREE.TorusGeometry(seatR, m(0.012), 8, 32),
-    goldMat
+  // Gold edging around the seat's front lip.
+  const lip = new THREE.Mesh(
+    new THREE.BoxGeometry(seatW + m(0.015), m(0.02), m(0.02)), goldMat
   );
-  piping.rotation.x = Math.PI / 2;
-  piping.position.set(0, seatY - m(0.11), 0);
-  group.add(piping);
+  lip.position.set(0, seatY - m(0.085), seatD / 2);
+  group.add(lip);
 
-  // The wrap-around back: an open cylinder arc behind and around the sides,
-  // leaning back a little. thetaStart puts the opening toward the table.
-  const BACK_SWEEP = Math.PI * 1.08;
-  const back = new THREE.Mesh(
-    new THREE.CylinderGeometry(seatR * 1.04, seatR * 1.04, m(0.46), 28, 1, true,
-      Math.PI / 2 - BACK_SWEEP / 2, BACK_SWEEP),
-    leatherMat
+  // The back: a padded panel inside a gold frame, leaning back slightly.
+  const backGroup = new THREE.Group();
+  backGroup.position.set(0, seatY + backH / 2 + m(0.03), backZ);
+  backGroup.rotation.x = backLean;
+  group.add(backGroup);
+
+  const panel = new THREE.Mesh(
+    new THREE.BoxGeometry(backW, backH, m(0.06)), leatherMat
   );
-  back.position.set(0, seatY + m(0.2), -m(0.03));
-  back.rotation.x = -0.07;
-  back.material.side = THREE.DoubleSide;
-  back.castShadow = true;
-  group.add(back);
+  panel.castShadow = true;
+  backGroup.add(panel);
 
-  // Gold rail capping the back's top edge, following the same arc.
-  const rail = new THREE.Mesh(
-    new THREE.TorusGeometry(seatR * 1.04, m(0.016), 8, 32, BACK_SWEEP),
-    goldMat
+  // Gold uprights either side and a cap rail across the top — the frame is
+  // what stops the panel reading as a floating slab.
+  [-1, 1].forEach((side) => {
+    const post = new THREE.Mesh(
+      new THREE.BoxGeometry(m(0.028), backH + m(0.06), m(0.055)), goldMat
+    );
+    post.position.set(side * (backW / 2 + m(0.012)), 0, 0);
+    post.castShadow = true;
+    backGroup.add(post);
+  });
+
+  const cap = new THREE.Mesh(
+    new THREE.BoxGeometry(backW + m(0.075), m(0.035), m(0.07)), goldMat
   );
-  rail.rotation.x = Math.PI / 2;
-  rail.rotation.z = Math.PI / 2 - BACK_SWEEP / 2;
-  rail.position.set(0, seatY + m(0.43), -m(0.03));
-  group.add(rail);
+  cap.position.set(0, backH / 2 + m(0.03), 0);
+  backGroup.add(cap);
 
-  // Four splayed gold legs.
-  const legH = seatY - FLOOR_Y - m(0.11);
+  // A buttoned seam down the middle of the padding.
+  [-0.14, 0, 0.14].forEach((t) => {
+    const stud = new THREE.Mesh(new THREE.SphereGeometry(m(0.012), 8, 6), goldMat);
+    stud.position.set(0, backH * t, m(0.032));
+    backGroup.add(stud);
+  });
+
+  // Four tapered legs, splayed just enough to look designed.
+  const legH = seatY - FLOOR_Y - m(0.09);
   [[1, 1], [1, -1], [-1, 1], [-1, -1]].forEach(([sx, sz]) => {
     const leg = new THREE.Mesh(
-      new THREE.CylinderGeometry(m(0.016), m(0.011), legH, 10),
-      goldMat
+      new THREE.CylinderGeometry(m(0.018), m(0.012), legH, 10), goldMat
     );
-    leg.position.set(sx * seatR * 0.62, FLOOR_Y + legH / 2, sz * seatR * 0.62);
-    leg.rotation.z = -sx * 0.1;
-    leg.rotation.x = sz * 0.1;
+    leg.position.set(sx * seatW * 0.4, FLOOR_Y + legH / 2, sz * seatD * 0.38);
+    leg.rotation.z = -sx * 0.08;
+    leg.rotation.x = sz * 0.08;
     leg.castShadow = true;
     group.add(leg);
   });
 
   return group;
 }
+
 
