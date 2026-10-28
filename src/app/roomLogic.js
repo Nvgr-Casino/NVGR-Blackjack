@@ -471,3 +471,19 @@ export function chipLadderForTable(min, max) {
   out.push(max);
   return [...new Set(out)].slice(0, 6);
 }
+
+// The words on the table's countdown pill. The table screen draws it and
+// session.js rewrites the same element once a second, both from here, so
+// the two can never disagree.
+export function countdownLabel(r, myTurn) {
+  if (r.phase === 'betting' && r.bettingDeadline) {
+    return 'Bets close in ' + Math.max(0, Math.ceil((r.bettingDeadline - Date.now()) / 1000)) + 's';
+  }
+  if (r.phase === 'insurance' && r.insuranceDeadline) {
+    return 'Insurance closes in ' + Math.max(0, Math.ceil((r.insuranceDeadline - Date.now()) / 1000)) + 's';
+  }
+  if (r.phase === 'playing' && myTurn && r.turnDeadline) {
+    return 'Your turn · ' + Math.max(0, Math.ceil((r.turnDeadline - Date.now()) / 1000)) + 's';
+  }
+  return '';
+}

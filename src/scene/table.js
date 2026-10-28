@@ -1,49 +1,60 @@
 import * as THREE from 'three';
-import { drawCasinoCrest } from './crest.js';
 import { FLOOR_Y, m } from './scale.js';
 
 // A real casino "D" table: a semicircular front for the players plus a pair
 // of straight parallel sides running back to a flat rear edge for the
-// dealer — an actual capital-D silhouette, not just a circle with a corner
-// snipped off. TABLE_RADIUS is the semicircle's radius (and so the felt's
-// full width, held constant all the way back rather than tapering like a
-// circle would); SIDE_LENGTH is how far those straight sides run before the
-// flat back edge closes the shape off.
-// Both shrunk: the straight back stretch used to leave a big dead zone of
-// empty felt between the dealer's rail and where their cards actually land
-// — SIDE_LENGTH is cut down to just enough depth for the rail/shoe/tray to
-// sit behind the dealer without that gap, and the whole table is a little
-// smaller overall so the dealer reads as close instead of far across an
-// empty table.
+// dealer. TABLE_RADIUS is the semicircle's radius (and so the felt's full
+// width, held constant all the way back); SIDE_LENGTH is how far the
+// straight sides run before the flat back edge closes the shape off.
 export const TABLE_RADIUS = 2.6;
 const SIDE_LENGTH = 1.0;
 export const TABLE_BACK_Z = -SIDE_LENGTH;
 
+// How far the wooden apron and padded rail reach past the felt.
+const SKIRT = 0.45;
+
 // Builds the D-shaped outline: up the left straight side, across the front
 // semicircle, down the right straight side, then THREE.Shape auto-closes
-// with one final straight line back to the start — that's the flat back
-// edge. Angle 0 = +Z = the player-facing front, matching seats.js.
+// with one final straight line back to the start — the flat back edge.
+// Angle 0 = +Z = the player-facing front, matching seats.js.
 function buildTableShape(radius, sideLength) {
   const shape = new THREE.Shape();
-  const segments = 48;
+  const segments = 64;
   shape.moveTo(-radius, -sideLength);
   shape.lineTo(-radius, 0);
   for (let i = 0; i <= segments; i++) {
-    const deg = -90 + 180 * (i / segments);
-    const rad = THREE.MathUtils.degToRad(deg);
+    const rad = THREE.MathUtils.degToRad(-90 + 180 * (i / segments));
     shape.lineTo(Math.sin(rad) * radius, Math.cos(rad) * radius);
   }
   shape.lineTo(radius, -sideLength);
   return shape;
 }
 
-// THREE.ShapeGeometry does not normalize UVs to the shape's bounding box —
-// it uses the raw shape-space (x, y) coordinates directly. For a shape sized
-// in real world units (here, roughly -3..3.5) that puts almost every vertex
-// outside the [0,1] UV range, so the texture sampler clamps nearly the whole
-// surface to a single edge pixel — which is exactly the "empty with a
-// stray stripe" look the felt had. This remaps UVs to the shape's actual
-// bounding box so the full texture spreads across the full surface.
+// The padded rail: a band following the front and both sides between two
+// radii, open along the dealer's back edge — a real table has no armrest
+// where the dealer stands.
+function buildRailShape(inner, outer, sideLength) {
+  const shape = new THREE.Shape();
+  const segments = 64;
+  shape.moveTo(-outer, -sideLength);
+  shape.lineTo(-outer, 0);
+  for (let i = 0; i <= segments; i++) {
+    const rad = THREE.MathUtils.degToRad(-90 + 180 * (i / segments));
+    shape.lineTo(Math.sin(rad) * outer, Math.cos(rad) * outer);
+  }
+  shape.lineTo(outer, -sideLength);
+  shape.lineTo(inner, -sideLength);
+  shape.lineTo(inner, 0);
+  for (let i = segments; i >= 0; i--) {
+    const rad = THREE.MathUtils.degToRad(-90 + 180 * (i / segments));
+    shape.lineTo(Math.sin(rad) * inner, Math.cos(rad) * inner);
+  }
+  shape.lineTo(-inner, -sideLength);
+  return shape;
+}
+
+// THREE.ShapeGeometry uses raw shape coordinates as UVs; this remaps them
+// to the shape's bounding box so the felt texture spans the whole surface.
 function normalizeShapeUVs(geometry) {
   geometry.computeBoundingBox();
   const { min, max } = geometry.boundingBox;
@@ -61,25 +72,37 @@ function normalizeShapeUVs(geometry) {
   uv.needsUpdate = true;
 }
 
-const FELT_W = 1000;
-const FELT_H = 1900;
-
-// Each table picks a cloth. Every one of these is a deep, saturated colour,
-// so the single bright gold ink used for the rules text and the house crest
-// keeps its contrast on all of them — the lettering is never restyled per
-// table, only the cloth underneath it changes.
+// Each table picks a cloth. Real baize is a deep, slightly dusty colour,
+// never a bright one — the old reds and blues were closer to a poster than
+// a fabric, and under the light pool they glowed. These sit lower and
+// greyer, and the one cream ink used for the markings reads on all of them.
 export const FELT_THEMES = {
-  red: { hi: '#cc2c42', lo: '#7d1420' },
-  green: { hi: '#127a4f', lo: '#06371f' },
-  blue: { hi: '#1b5fa8', lo: '#0a2647' },
-  purple: { hi: '#5b3a8a', lo: '#24123f' },
-  black: { hi: '#33333a', lo: '#0d0d10' },
+  red: { hi: '#7c2633', lo: '#3d1219' },
+  green: { hi: '#24624a', lo: '#0f3022' },
+  blue: { hi: '#24496e', lo: '#10233a' },
+  purple: { hi: '#4d3a66', lo: '#231a33' },
+  black: { hi: '#2e2d2f', lo: '#131314' },
 };
 export const FELT_THEME_KEYS = Object.keys(FELT_THEMES);
 export function feltTheme(key) { return FELT_THEMES[key] || FELT_THEMES.red; }
 
-// Canvas-painted felt: a warm radial vignette, the house-rules text placed
-// where the dealer's rail props won't cover it, and a subtle branding line.
+// The felt canvas is sized in proportion to the felt itself, so a circle
+// drawn on it is a circle on the table. It used to be 1000x1900 for a
+// 5.2x3.6 surface — every arc came out an ellipse and every letter
+// stretched. Markings are now placed in world units through toPx.
+const FELT_SPAN_X = TABLE_RADIUS * 2;
+const FELT_SPAN_Z = TABLE_RADIUS + SIDE_LENGTH;
+const FELT_W = 2048;
+const FELT_H = Math.round((FELT_W * FELT_SPAN_Z) / FELT_SPAN_X);
+const PX = FELT_W / FELT_SPAN_X;
+// World (x, z) on the felt to canvas pixels. The canvas's top edge is the
+// dealer's back edge.
+const toPx = (x, z) => [(x + TABLE_RADIUS) * PX, (z + SIDE_LENGTH) * PX];
+
+// A player reads the felt at a shallow angle, which squashes lettering
+// along the table; drawing it taller by this much cancels that out.
+const FORESHORTEN = 1.5;
+
 function createFeltTexture(themeKey) {
   const theme = feltTheme(themeKey);
   const canvas = document.createElement('canvas');
@@ -87,147 +110,131 @@ function createFeltTexture(themeKey) {
   canvas.height = FELT_H;
   const ctx = canvas.getContext('2d');
 
-  const gradient = ctx.createRadialGradient(
-    FELT_W / 2, FELT_H * 0.38, FELT_H * 0.06,
-    FELT_W / 2, FELT_H * 0.5, FELT_H * 0.62
-  );
+  // The cloth: lit a little brighter in the middle, the way it is under
+  // the light above it, falling off toward the rail.
+  const [gx, gy] = toPx(0, 0.4);
+  const gradient = ctx.createRadialGradient(gx, gy, PX * 0.3, gx, gy, PX * 3.2);
   gradient.addColorStop(0, theme.hi);
   gradient.addColorStop(1, theme.lo);
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, FELT_W, FELT_H);
 
-  // Break up tone-mapping banding on the smooth gradient with a little
-  // grain — without this a visible hard ring/streak shows up where the
-  // gradient's slope changes, especially under ACES tone mapping.
+  // Grain, so the smooth gradient doesn't band under tone mapping and the
+  // cloth reads as woven.
   const grain = ctx.getImageData(0, 0, FELT_W, FELT_H);
   const px = grain.data;
   for (let i = 0; i < px.length; i += 4) {
-    const n = (Math.random() - 0.5) * 10;
-    px[i] += n;
-    px[i + 1] += n;
-    px[i + 2] += n;
+    const n = (Math.random() - 0.5) * 9;
+    px[i] += n; px[i + 1] += n; px[i + 2] += n;
   }
   ctx.putImageData(grain, 0, 0);
 
-  ctx.strokeStyle = 'rgba(234,195,94,0.32)';
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.arc(FELT_W / 2, FELT_H * 0.62, FELT_W * 0.42, Math.PI * 0.06, Math.PI * 0.94);
-  ctx.stroke();
-
-  // Plain fill, no stroke/shadow — every "make it fancier" attempt at a
-  // drop shadow or outline came out looking worse (too dark, too harsh, or
-  // just messy at this texture resolution). A clean, opaque, high-contrast
-  // fill in one consistent font reads better than any of them did.
-  function inkedText(text, x, y, font, fillStyle) {
-    ctx.font = font;
-    ctx.fillStyle = fillStyle;
-    ctx.fillText(text, x, y);
-  }
-
-  // One font for everything on the felt (mixing an italic script with a
-  // blocky engraved caps font read as cluttered) — Cinzel, a clean classic
-  // Roman-inscription-style serif, at full opacity for real contrast.
-  const FELT_FONT = (px, weight = 600) => `${weight} ${px}px 'Cinzel', Georgia, serif`;
-
+  // The markings a real table carries, and nothing else: the payout line,
+  // the dealer's rule, and the insurance band. One cream ink, one typeface.
+  // The old felt also carried five crests and a ring of suit pips; on a
+  // table this size that read as wallpaper and fought the cards for
+  // attention.
+  const INK = 'rgba(232,220,192,0.80)';
+  const INK_SOFT = 'rgba(232,220,192,0.45)';
+  const font = (worldSize, weight = 600) => `${weight} ${worldSize * PX}px 'Cinzel', Georgia, serif`;
   ctx.textAlign = 'center';
-  inkedText('BLACKJACK PAYS 3 TO 2', FELT_W / 2, FELT_H * 0.335, FELT_FONT(FELT_W * 0.044, 700), '#fff6d4');
-  inkedText(
-    'DEALER MUST HIT ON 16 · STAND ON ALL 17s', FELT_W / 2, FELT_H * 0.4,
-    FELT_FONT(FELT_W * 0.022, 700), '#ffeec0'
-  );
+  ctx.textBaseline = 'middle';
 
-  // The NVGR Casino house crest, inked into the felt the way a real house
-  // mark is. Drawn from src/scene/crest.js so the felt, the room's walls and
-  // the site all paint the same lockup — the felt only differs in asking for
-  // the foreshortening that its shallow viewing angle needs.
-  const FELT_FORESHORTEN = 1.65;
-  const crestSpots = [
-    { x: 0.5, y: 0.55, rot: 0, scale: 1.15, alpha: 0.92 },
-    { x: 0.23, y: 0.63, rot: -0.3, scale: 0.62, alpha: 0.72 },
-    { x: 0.77, y: 0.63, rot: 0.3, scale: 0.62, alpha: 0.72 },
-    { x: 0.17, y: 0.83, rot: -0.15, scale: 0.5, alpha: 0.66 },
-    { x: 0.83, y: 0.83, rot: 0.15, scale: 0.5, alpha: 0.66 },
-  ];
-  crestSpots.forEach(({ x, y, rot, scale, alpha }) => {
+  const label = (text, z, size, fill, weight) => {
+    const [x, y] = toPx(0, z);
     ctx.save();
-    ctx.translate(FELT_W * x, FELT_H * y);
-    ctx.rotate(rot);
-    drawCasinoCrest(ctx, {
-      x: 0, y: 0, width: FELT_W * 0.2 * scale, alpha, foreshorten: FELT_FORESHORTEN,
-    });
+    ctx.translate(x, y);
+    ctx.scale(1, FORESHORTEN);
+    ctx.fillStyle = fill;
+    ctx.font = font(size, weight);
+    ctx.fillText(text, 0, 0);
     ctx.restore();
-  });
+  };
+  label('BLACKJACK PAYS 3 TO 2', 0.56, 0.12, INK, 700);
+  label('DEALER MUST DRAW TO 16 AND STAND ON ALL 17s', 0.75, 0.055, INK_SOFT, 600);
 
-  const suits = ['♠', '♥', '♦', '♣'];
-  ctx.font = `${FELT_W * 0.045}px Georgia, serif`;
-  ctx.fillStyle = 'rgba(234,195,94,0.1)';
-  suits.forEach((s, i) => {
-    const angle = (i / suits.length) * Math.PI * 2;
-    const r = FELT_W * 0.34;
-    ctx.fillText(s, FELT_W / 2 + Math.cos(angle) * r, FELT_H * 0.58 + Math.sin(angle) * r * 0.55);
+  // Insurance band: two printed arcs concentric with the table's own front
+  // edge, with the line set between them, letter by letter.
+  const [ox, oy] = toPx(0, 0);
+  const INNER = 1.0;
+  const OUTER = 1.2;
+  const ARC_FROM = THREE.MathUtils.degToRad(28);
+  const ARC_TO = THREE.MathUtils.degToRad(152);
+  ctx.strokeStyle = INK_SOFT;
+  ctx.lineWidth = 0.012 * PX;
+  [INNER, OUTER].forEach((r) => {
+    ctx.beginPath();
+    ctx.arc(ox, oy, r * PX, ARC_FROM, ARC_TO);
+    ctx.stroke();
+  });
+  const band = 'INSURANCE PAYS 2 TO 1';
+  const bandR = ((INNER + OUTER) / 2) * PX;
+  const spread = THREE.MathUtils.degToRad(46);
+  ctx.fillStyle = INK_SOFT;
+  ctx.font = font(0.075, 700);
+  [...band].forEach((ch, i) => {
+    // Left to right as the player reads it: canvas angles grow clockwise,
+    // and +90deg points at the players.
+    const a = Math.PI / 2 + spread / 2 - (spread * i) / (band.length - 1);
+    ctx.save();
+    ctx.translate(ox + Math.cos(a) * bandR, oy + Math.sin(a) * bandR);
+    ctx.rotate(a - Math.PI / 2);
+    ctx.fillText(ch, 0, 0);
+    ctx.restore();
   });
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  // The felt is viewed at a steep, near-grazing angle from this camera —
-  // without anisotropic filtering, mipmapping blurs fine text into an
-  // indistinct bright smear (this, not lighting, was the real cause of the
-  // "stripe with no visible text").
+  // Read at a near-grazing angle: without anisotropic filtering, mipmapping
+  // blurs the lettering into a smear.
   texture.anisotropy = 16;
   return texture;
 }
 
-// Simple procedural wood-grain stripes for the table's outer skirt.
+// Dark walnut for the apron: long soft grain on a deep brown.
 function createWoodTexture() {
-  const w = 512, h = 128;
+  const w = 1024, h = 128;
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#2b140c';
+  ctx.fillStyle = '#2a1a11';
   ctx.fillRect(0, 0, w, h);
-  for (let i = 0; i < 40; i++) {
-    ctx.strokeStyle = `rgba(90,50,26,${0.15 + Math.random() * 0.2})`;
-    ctx.lineWidth = 1 + Math.random() * 2;
+  for (let i = 0; i < 60; i++) {
+    ctx.strokeStyle = `rgba(${70 + Math.random() * 20},${44 + Math.random() * 12},${26},${0.12 + Math.random() * 0.18})`;
+    ctx.lineWidth = 1 + Math.random() * 2.5;
     ctx.beginPath();
     const y = Math.random() * h;
     ctx.moveTo(0, y);
-    ctx.bezierCurveTo(w * 0.3, y + (Math.random() - 0.5) * 14, w * 0.7, y + (Math.random() - 0.5) * 14, w, y);
+    ctx.bezierCurveTo(w * 0.3, y + (Math.random() - 0.5) * 10, w * 0.7, y + (Math.random() - 0.5) * 10, w, y);
     ctx.stroke();
   }
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(6, 2);
+  texture.repeat.set(4, 1);
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
 }
 
+// Shared finishes, matte throughout. Brass is brushed rather than polished:
+// rough enough that it takes the light softly instead of flashing.
+export const BRASS = new THREE.MeshStandardMaterial({ color: 0x9c7d4a, roughness: 0.42, metalness: 0.75 });
+// Dark brown rather than black: pure black reads as a hole in the picture,
+// and brown lets the cushion's curve show where the light rolls off it.
+export const LEATHER = new THREE.MeshStandardMaterial({ color: 0x241a14, roughness: 0.55, metalness: 0 });
+
 export function createTable() {
   const group = new THREE.Group();
 
-  // A slightly larger gold D-shape sits under a slightly smaller felt
-  // D-shape, so its exposed edge reads as the table's rim/border — simpler
-  // and more robust than mitering a torus around a non-circular outline.
-  const goldGeo = new THREE.ShapeGeometry(buildTableShape(TABLE_RADIUS + 0.16, SIDE_LENGTH + 0.16), 1);
-  normalizeShapeUVs(goldGeo);
-  const goldMat = new THREE.MeshStandardMaterial({ color: 0xd4af52, roughness: 0.28, metalness: 0.7, side: THREE.DoubleSide });
-  const goldBorder = new THREE.Mesh(goldGeo, goldMat);
-  goldBorder.rotation.x = Math.PI / 2;
-  goldBorder.receiveShadow = true;
-  group.add(goldBorder);
-
   const feltGeo = new THREE.ShapeGeometry(buildTableShape(TABLE_RADIUS, SIDE_LENGTH), 1);
   normalizeShapeUVs(feltGeo);
-  // Lambert, not Standard: felt is matte fabric with zero specular, and
-  // MeshStandardMaterial keeps a thin specular lobe even at roughness=1,
-  // which showed up as a visible highlight streak from the key light on
-  // this large flat surface.
+  // Lambert: felt is matte fabric with no specular at all. Double-sided
+  // because the +90deg turn that maps the shape's y onto world z (keeping
+  // the front of the D toward the players) leaves its face pointing down.
   const feltMat = new THREE.MeshLambertMaterial({ map: createFeltTexture('red'), side: THREE.DoubleSide });
-  // Repainting the cloth means regenerating the whole texture (the rules
-  // text and crest are baked into it), so it is done only when a table
-  // actually asks for a different colour — never per frame.
+  // Repainting the cloth regenerates the whole texture, so it happens only
+  // when a table asks for a different colour — never per frame.
   let feltThemeKey = 'red';
   group.userData.setFeltTheme = (key) => {
     const next = FELT_THEMES[key] ? key : 'red';
@@ -243,42 +250,66 @@ export function createTable() {
   felt.receiveShadow = true;
   group.add(felt);
 
-  // Wood skirt below, extruded from the same D outline (a plain circular
-  // cylinder no longer matches now that the felt has straight sides and a
-  // flat back — its corners would overhang past a round base).
-  //
-  // A real casino table is a shallow padded apron — about 15 cm — over a
-  // pedestal set well back from the edge, so the players' knees go under
-  // it. The apron used to be a fixed 0.9 units deep, which was the whole
-  // height to the floor once; after the floor dropped to give the table its
-  // real height, the table was left hovering more than a unit above the
-  // carpet, a slab in mid-air.
-  const baseMat = new THREE.MeshStandardMaterial({ map: createWoodTexture(), roughness: 0.7 });
+  // The padded leather armrest every real table has, in place of the flat
+  // gold border. Extruded with a deep bevel so its cross-section is a
+  // rounded cushion rather than a slab.
+  const RAIL_BEVEL = m(0.022);
+  const railShape = buildRailShape(
+    TABLE_RADIUS - 0.02 + RAIL_BEVEL,
+    TABLE_RADIUS + SKIRT - RAIL_BEVEL,
+    SIDE_LENGTH
+  );
+  const rail = new THREE.Mesh(
+    new THREE.ExtrudeGeometry(railShape, {
+      depth: m(0.008),
+      bevelEnabled: true,
+      bevelThickness: RAIL_BEVEL,
+      bevelSize: RAIL_BEVEL,
+      bevelSegments: 5,
+      curveSegments: 32,
+    }),
+    LEATHER
+  );
+  rail.rotation.x = Math.PI / 2;
+  // Extrusion runs down from y; the bevel adds RAIL_BEVEL above and below.
+  rail.position.y = m(0.008) + RAIL_BEVEL + 0.01;
+  rail.castShadow = true;
+  rail.receiveShadow = true;
+  group.add(rail);
+
+  // A fine brass bead where the felt meets the rail.
+  const bead = new THREE.Mesh(
+    new THREE.ShapeGeometry(buildRailShape(TABLE_RADIUS - 0.035, TABLE_RADIUS - 0.005, SIDE_LENGTH), 1),
+    new THREE.MeshStandardMaterial({ color: 0x9c7d4a, roughness: 0.42, metalness: 0.75, side: THREE.DoubleSide })
+  );
+  bead.rotation.x = Math.PI / 2;
+  bead.position.y = 0.013;
+  group.add(bead);
+
+  // Wooden apron below the rail, and the dealer's ledge along the back.
+  const woodMat = new THREE.MeshStandardMaterial({ map: createWoodTexture(), roughness: 0.6, metalness: 0 });
   const APRON = m(0.15);
-  const apronShape = buildTableShape(TABLE_RADIUS + 0.45, SIDE_LENGTH + 0.45);
   const apron = new THREE.Mesh(
-    new THREE.ExtrudeGeometry(apronShape, { depth: APRON, bevelEnabled: false, curveSegments: 24 }),
-    baseMat
+    new THREE.ExtrudeGeometry(buildTableShape(TABLE_RADIUS + SKIRT, SIDE_LENGTH + SKIRT), {
+      depth: APRON, bevelEnabled: false, curveSegments: 32,
+    }),
+    woodMat
   );
   apron.rotation.x = Math.PI / 2;
-  apron.position.y = -0.01;
+  apron.position.y = 0.005;
   apron.receiveShadow = true;
   apron.castShadow = true;
   group.add(apron);
 
-  // Pedestal: the same D outline, inset ~0.6 m so seated knees clear it,
-  // running from under the apron to the floor, finished with a gold
-  // kickplate where it meets the carpet.
+  // Pedestal: the same outline set well in, so seated knees clear it.
   const INSET = m(0.6);
-  const pedestalTop = -0.01 - APRON;
-  const pedestalH = pedestalTop - FLOOR_Y;
-  const pedestalMat = new THREE.MeshStandardMaterial({ color: 0x1c0d08, roughness: 0.6, metalness: 0.15 });
+  const pedestalTop = 0.005 - APRON;
   const pedestal = new THREE.Mesh(
     new THREE.ExtrudeGeometry(
-      buildTableShape(TABLE_RADIUS + 0.45 - INSET, SIDE_LENGTH + 0.45 - INSET * 0.4),
-      { depth: pedestalH, bevelEnabled: false, curveSegments: 24 }
+      buildTableShape(TABLE_RADIUS + SKIRT - INSET, SIDE_LENGTH + SKIRT - INSET * 0.4),
+      { depth: pedestalTop - FLOOR_Y, bevelEnabled: false, curveSegments: 32 }
     ),
-    pedestalMat
+    new THREE.MeshStandardMaterial({ color: 0x120d0a, roughness: 0.7, metalness: 0 })
   );
   pedestal.rotation.x = Math.PI / 2;
   pedestal.position.y = pedestalTop;
@@ -286,15 +317,16 @@ export function createTable() {
   pedestal.receiveShadow = true;
   group.add(pedestal);
 
+  // A low brass kickplate where the pedestal meets the carpet.
   const kick = new THREE.Mesh(
     new THREE.ExtrudeGeometry(
-      buildTableShape(TABLE_RADIUS + 0.45 - INSET + m(0.02), SIDE_LENGTH + 0.45 - INSET * 0.4 + m(0.02)),
-      { depth: m(0.06), bevelEnabled: false, curveSegments: 24 }
+      buildTableShape(TABLE_RADIUS + SKIRT - INSET + m(0.015), SIDE_LENGTH + SKIRT - INSET * 0.4 + m(0.015)),
+      { depth: m(0.05), bevelEnabled: false, curveSegments: 32 }
     ),
-    new THREE.MeshStandardMaterial({ color: 0xd4af52, roughness: 0.3, metalness: 0.8 })
+    BRASS
   );
   kick.rotation.x = Math.PI / 2;
-  kick.position.y = FLOOR_Y + m(0.06);
+  kick.position.y = FLOOR_Y + m(0.05);
   group.add(kick);
 
   return group;

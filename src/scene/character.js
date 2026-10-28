@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { loadGltf } from './gltf.js';
-import { resolveRig, hasRoles, withoutRootMotion, useCutoutMaterials, SEAT_ROLES } from './rig.js';
+import { resolveRig, hasRoles, withoutRootMotion, prepareFigureMaterials, SEAT_ROLES } from './rig.js';
 import { SEAT_TOP_Y, PLAYER_HEIGHT } from './scale.js';
 
 // Player characters: real rigged models from Quaternius' Ultimate Modular
@@ -170,7 +170,7 @@ export function createCharacter(id) {
   loadModel(c.file).then((gltf) => {
     const model = cloneSkinned(gltf.scene);
     model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-    useCutoutMaterials(model);
+    prepareFigureMaterials(model);
 
     // A model that ships with its own seated animation gets to use it: real
     // mocap puts the arms, hands and weight where a person actually holds
@@ -255,7 +255,7 @@ export function buildCharacterPortraits(size = 192, onPortrait = null) {
       try {
         const gltf = await loadModel(c.file);
         const model = cloneSkinned(gltf.scene);
-        useCutoutMaterials(model);
+        prepareFigureMaterials(model);
         scene.add(model);
         model.updateMatrixWorld(true);
 

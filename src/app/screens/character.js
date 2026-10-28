@@ -3,39 +3,39 @@ import {
   CHARACTERS, characterPortraitDataURL, defaultCharacterFor,
   buildCharacterPortraits, hasPortraits,
 } from '../../scene/character.js';
-import { brandMark, esc } from '../uiHelpers.js';
+import { backBar, esc } from '../uiHelpers.js';
 import { safeKey } from '../roomLogic.js';
 import * as S from '../session.js';
 
 export function renderCharacter() {
   const current = S.session.character || defaultCharacterFor(S.session.uid ? safeKey(S.session.uid) : '');
   const group = (sex) => CHARACTERS.filter((c) => c.sex === sex).map((c) => `
-    <button class="char-card ${c.id === current ? 'chosen' : ''}" data-character="${esc(c.id)}">
-      <img class="char-portrait" src="${characterPortraitDataURL(c.id, 128)}" alt="${esc(c.name)}">
+    <button class="char-card ${c.id === current ? 'chosen' : ''}" data-character="${esc(c.id)}" aria-pressed="${c.id === current}">
+      <img class="char-portrait" src="${characterPortraitDataURL(c.id, 128)}" alt="">
       <span class="char-name">${esc(c.name)}</span>
       ${c.id === current ? '<span class="char-tick">Selected</span>' : ''}
     </button>`).join('');
 
   return `
-    <div class="brand-hero compact tight">${brandMark('lobby')}</div>
-    <p class="subtitle">Choose your character</p>
-    <p class="hint" style="margin-bottom:18px;">
-      This is who takes your seat at the table.${hasPortraits() ? '' : ' Loading portraits…'}
-    </p>
-    <div class="lobby-section-title">Men</div>
-    <div class="char-grid">${group('m')}</div>
-    <div class="lobby-section-title">Women</div>
-    <div class="char-grid">${group('f')}</div>
-    <div class="footer-link"><button id="charBackBtn">Back to tables</button></div>
+    ${backBar('charBackBtn', 'Character')}
+    <main class="page">
+      <div class="page-head">
+        <h1>Choose your character</h1>
+        <p>This is who sits in your seat at the table.${hasPortraits() ? '' : ' Portraits are loading…'}</p>
+      </div>
+      <div class="section-head"><h2>Men</h2></div>
+      <div class="char-grid">${group('m')}</div>
+      <div class="section">
+        <div class="section-head"><h2>Women</h2></div>
+        <div class="char-grid">${group('f')}</div>
+      </div>
+    </main>
   `;
 }
 
 export function attachCharacter() {
   // Portraits are rendered from the real models the first time this screen
-  // is opened; the redraw swaps the placeholder discs for the real ones.
-  // Redraw as each portrait lands rather than only at the end — each one
-  // costs a model download, so the grid fills in instead of sitting on
-  // placeholder discs until the whole cast has arrived.
+  // opens, and the grid redraws as each one lands.
   if (!hasPortraits()) buildCharacterPortraits(192, () => S.refresh()).catch(() => {});
   const back = document.getElementById('charBackBtn');
   if (back) back.onclick = () => S.goToScreen('home');

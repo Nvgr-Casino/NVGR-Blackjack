@@ -1,10 +1,9 @@
-// Lobby: public tables shown as mini blackjack tables in a grid (seats
-// drawn around each felt), plus a "create private table" tile, over a
-// fixed player bar. Actions are unchanged from index4.html's renderHome.
-import { MAX_PUBLIC_SEATS, avatarColor, initials, stakesLabel } from '../roomLogic.js';
+// The lobby: who you are, the three ways to sit down (play now, a code, or
+// your own table), and the open tables as a plain list.
+import { MAX_PUBLIC_SEATS, stakesLabel } from '../roomLogic.js';
 import { feltTheme } from '../../scene/table.js';
 import { characterPortraitDataURL, defaultCharacterFor } from '../../scene/character.js';
-import { brandMark, casinoMark, esc } from '../uiHelpers.js';
+import { brandMark, esc } from '../uiHelpers.js';
 import * as S from '../session.js';
 import * as Social from '../social.js';
 
@@ -15,118 +14,108 @@ const PHASE_LABEL = {
   results: 'Between rounds',
 };
 
-function shortChips(n) {
-  if (n >= 1000000) return (n / 1000000).toFixed(n % 1000000 ? 1 : 0) + 'M';
-  if (n >= 1000) return (n / 1000).toFixed(n % 1000 ? 1 : 0) + 'K';
-  return String(n);
-}
-
 function seatsHtml(seats) {
-  const inner = Array.from({ length: MAX_PUBLIC_SEATS }).map((_, i) => {
+  return Array.from({ length: MAX_PUBLIC_SEATS }).map((_, i) => {
     const p = seats[i];
-    if (!p) return `<div class="mini-seat s${i}"><div class="mini-avatar empty"></div></div>`;
-    return `
-      <div class="mini-seat s${i} filled">
-        <img class="mini-avatar" src="${characterPortraitDataURL(p.character || defaultCharacterFor(p.name), 64)}" alt="${esc(p.name)}" title="${esc(p.name)}">
-        <div class="mini-chips">${shortChips(p.chips)}</div>
-      </div>`;
+    if (!p) return '<span class="tr-seat empty"></span>';
+    return `<img class="tr-seat" src="${characterPortraitDataURL(p.character || defaultCharacterFor(p.name), 48)}" alt="${esc(p.name)}" title="${esc(p.name)}">`;
   }).join('');
-  return `<div class="mini-seats">${inner}</div>`;
 }
 
-function miniTable(inner, felt) {
-  // The tile's cloth matches the real table's, so the lobby previews the
-  // room you are about to sit at.
-  const t = felt ? feltTheme(felt) : null;
-  const style = t ? ` style="--felt-hi:${t.hi};--felt-lo:${t.lo};"` : '';
+function tableRow(t) {
+  const full = t.count >= MAX_PUBLIC_SEATS;
+  const felt = feltTheme(t.felt);
+  const open = t.phase === 'betting';
   return `
-    <div class="mini-table">
-      <div class="mini-felt"${style}>
-        <span class="mini-legend">BLACKJACK PAYS 3 TO 2</span>
-        <span class="mini-arc"></span>
+    <li class="table-row ${full ? 'is-full' : ''}" ${full ? '' : `data-join-table="${esc(t.code)}" tabindex="0" role="button"`}>
+      <span class="felt-swatch" style="background:linear-gradient(135deg, ${felt.hi}, ${felt.lo});"></span>
+      <div class="tr-main">
+        <span class="tr-name">Table ${esc(t.code)}</span>
+        <span class="tr-meta"><span class="${open ? 'live' : ''}">${PHASE_LABEL[t.phase] || 'Open'}</span> · ${stakesLabel(t.minBet || 100, t.maxBet || 2000)} · ${t.count}/${MAX_PUBLIC_SEATS} seated</span>
       </div>
-      ${inner}
-    </div>`;
+      <div class="tr-seats">${seatsHtml(t.seats || [])}</div>
+      <span class="btn btn-sm ${full ? '' : 'btn-primary'}">${full ? 'Full' : 'Join'}</span>
+    </li>`;
 }
 
 export function renderHome() {
-  let gridHtml = '';
+  let listHtml;
   if (S.lobbyLoading && !S.lobbyTables) {
-    gridHtml = '<p class="hint">Loading tables…</p>';
+    listHtml = '<div class="empty-state">Loading tables…</div>';
+  } else if (!S.lobbyTables || !S.lobbyTables.length) {
+    listHtml = '<div class="empty-state">No open tables right now. Play now and one will be set up for you.</div>';
   } else {
-    const createTile = `
-      <button class="table-tile tile-create" id="hostBtn">
-        <div class="tile-badge ghost">Private</div>
-        ${miniTable('<span class="create-label">Create a<br>private table</span>')}
-        <div class="tile-foot">
-          <div class="tile-info"><span class="tile-name">Your own table</span><span class="tile-meta">Invite friends by code</span></div>
-          <span class="btn btn-ghost btn-small">Create</span>
-        </div>
-      </button>`;
-
-    // The whole tile is the join target — clicking anywhere on a table
-    // takes that seat, with the button left as the visual affordance.
-    const tileHtml = (S.lobbyTables || []).map((t) => {
-      const full = t.count >= MAX_PUBLIC_SEATS;
-      return `
-        <div class="table-tile ${full ? 'is-full' : 'is-joinable'}" ${full ? '' : `data-join-table="${esc(t.code)}"`}>
-          <div class="tile-badge ${t.phase === 'betting' ? 'open' : ''}">${PHASE_LABEL[t.phase] || 'Open'}</div>
-          <div class="tile-stakes">${stakesLabel(t.minBet || 100, t.maxBet || 2000)}</div>
-          ${miniTable(seatsHtml(t.seats || []), t.felt)}
-          <div class="tile-foot">
-            <div class="tile-info"><span class="tile-name">Table ${esc(t.code)}</span><span class="tile-meta">${t.count}/${MAX_PUBLIC_SEATS} seated</span></div>
-            <span class="btn ${full ? 'btn-ghost' : 'btn-solid'} btn-small">${full ? 'Full' : 'Join'}</span>
-          </div>
-        </div>`;
-    }).join('');
-
-    gridHtml = `<div class="lobby-grid">${createTile}${tileHtml}</div>`;
+    listHtml = `<ul class="table-list">${S.lobbyTables.map(tableRow).join('')}</ul>`;
   }
+  const friendCount = Social.badgeCount();
+  const portrait = characterPortraitDataURL(S.session.character || defaultCharacterFor(''), 128);
 
   return `
-    <div class="lobby-head">
-      ${casinoMark('eyebrow')}
-      <div class="brand-hero compact">${brandMark('lobby')}</div>
-      <p class="subtitle">Pick a table, or start your own.</p>
-    </div>
-    ${S.formNotice ? '<p class="notice-text">' + esc(S.formNotice) + '</p>' : ''}
-    ${S.formError ? '<p class="error-text" style="text-align:center;">' + esc(S.formError) + '</p>' : ''}
+    <header class="nav">
+      <div class="nav-brand">${brandMark('nav-logo')}<span class="nav-name">Blackjack 21</span></div>
+      <nav class="nav-links">
+        <button class="nav-link" id="characterBtn">Character</button>
+        <button class="nav-link" id="friendsBtn">Friends${friendCount ? ` <span class="count">${friendCount}</span>` : ''}</button>
+        <button class="nav-link" id="signOutBtn">Sign out</button>
+      </nav>
+    </header>
 
-    <div class="lobby-actions">
-      <button class="btn btn-solid" id="playNowBtn">Play now</button>
-      <button class="btn btn-ghost" id="goJoinBtn">Join with a code</button>
-      <button class="btn btn-ghost" id="refreshLobbyBtn">${S.lobbyLoading ? 'Refreshing…' : 'Refresh'}</button>
-    </div>
+    <main class="page">
+      <section class="welcome">
+        <img class="avatar-lg" src="${portrait}" alt="">
+        <div>
+          <h1 class="welcome-name">${esc(S.session.name)}</h1>
+          <p class="balance"><span class="chip-dot"></span><b>${(S.session.chips || 0).toLocaleString()}</b> chips</p>
+        </div>
+      </section>
 
-    ${gridHtml}
+      ${S.formNotice ? '<p class="notice-text" style="margin-top:20px;">' + esc(S.formNotice) + '</p>' : ''}
 
-    <p class="house-credit">Blackjack 21 — a <b>NVGR Casino</b> game · more tables coming soon</p>
+      <section class="quick">
+        <div class="panel quick-play">
+          <button class="btn btn-primary btn-lg" id="playNowBtn">Play now</button>
+          <p>Takes the first free seat at a public table.</p>
+        </div>
+        <div class="panel quick-side">
+          <div class="join-inline">
+            <input id="joinCode" type="text" placeholder="Table code" maxlength="4" aria-label="Table code" autocomplete="off">
+            <button class="btn" id="joinBtn">Join</button>
+          </div>
+          ${S.formError ? '<p class="error-text" style="margin:0;">' + esc(S.formError) + '</p>' : ''}
+          <button class="btn btn-quiet" id="hostBtn">Create a private table</button>
+        </div>
+      </section>
 
-    <div class="player-bar">
-      <img class="pb-avatar" src="${characterPortraitDataURL(S.session.character || defaultCharacterFor(''), 72)}" alt="">
-      <div class="pb-info">
-        <span class="pb-name">${esc(S.session.name)}</span>
-        <span class="pb-chips">${(S.session.chips || 0).toLocaleString()}</span>
-      </div>
-      <button class="btn btn-ghost btn-small pb-friends" id="characterBtn">Character</button>
-      <button class="btn btn-ghost btn-small pb-friends" id="friendsBtn">Friends${Social.badgeCount() ? ` <span class="pb-badge">${Social.badgeCount()}</span>` : ''}</button>
-      <button id="signOutBtn">Sign out</button>
-    </div>
+      <section class="section">
+        <div class="section-head">
+          <h2>Open tables</h2>
+          <button class="link" id="refreshLobbyBtn">${S.lobbyLoading ? 'Refreshing…' : 'Refresh'}</button>
+        </div>
+        ${listHtml}
+      </section>
+
+      <p class="house-credit">NVGR Casino</p>
+    </main>
   `;
 }
 
 export function attachHome() {
-  // The create-table tile lives inside the grid, so it is absent while the
-  // lobby is still loading — every handler here is bound defensively.
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
   on('playNowBtn', S.playNow);
   on('hostBtn', S.createRoom);
-  on('goJoinBtn', () => S.goToScreen('join'));
   on('signOutBtn', S.doSignOut);
   on('friendsBtn', () => S.goToScreen('friends'));
   on('characterBtn', () => S.goToScreen('character'));
   on('refreshLobbyBtn', S.loadLobby);
-  document.querySelectorAll('[data-join-table]').forEach((btn) => {
-    btn.onclick = () => S.joinSpecificPublicTable(btn.getAttribute('data-join-table'));
+
+  const code = document.getElementById('joinCode');
+  const join = () => { if (code && code.value.trim()) S.joinRoom(code.value); };
+  on('joinBtn', join);
+  if (code) code.onkeydown = (e) => { if (e.key === 'Enter') join(); };
+
+  document.querySelectorAll('[data-join-table]').forEach((row) => {
+    const go = () => S.joinSpecificPublicTable(row.getAttribute('data-join-table'));
+    row.onclick = go;
+    row.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
   });
 }

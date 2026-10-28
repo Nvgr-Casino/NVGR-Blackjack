@@ -1,8 +1,7 @@
 import * as THREE from 'three';
 import { dealCard, revealCard, playShuffle } from '../scene/deal.js';
 import { CARD_WIDTH } from '../scene/card.js';
-import { createChip, createChipForValue, createChipStack, CHIP_HEIGHT, DENOMINATIONS } from '../scene/chip.js';
-import { createChipTray } from '../scene/props.js';
+import { createChip, createChipForValue, CHIP_HEIGHT, DENOMINATIONS } from '../scene/chip.js';
 import { createCharacter } from '../scene/character.js';
 import { focusOn, cameraOverride } from '../scene/cameraFocus.js';
 import { createHandBadge } from '../scene/handBadge.js';
@@ -77,17 +76,6 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
   dealerBadge.sprite.position.set(DEALER.handSpot.x, 0.34, DEALER.handSpot.z);
   scene.add(dealerBadge.sprite);
 
-  // A personal chip rack beside whichever seat you're currently viewing
-  // from — purely decorative (real chip totals show in the HTML HUD).
-  const chipRack = new THREE.Group();
-  chipRack.add(createChipTray(0.5));
-  [0, 1, 2].forEach((colorIndex, i) => {
-    const stack = createChipStack(4 + colorIndex, colorIndex);
-    stack.position.set(-0.15 + i * 0.15, 0.05, 0);
-    chipRack.add(stack);
-  });
-  scene.add(chipRack);
-
   function ensureSeat(seatIndex) {
     if (!seatMeshes[seatIndex]) seatMeshes[seatIndex] = [[]];
     if (!seatBadges[seatIndex]) seatBadges[seatIndex] = [];
@@ -95,19 +83,6 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
     if (pendingStack[seatIndex] === undefined) pendingStack[seatIndex] = 0;
   }
 
-  function positionChipRack() {
-    const seat = SEATS[viewSeatIndex];
-    const dir = seatOutwardDir(seat);
-    const right = new THREE.Vector3(dir.z, 0, -dir.x);
-    const base = seat.position;
-    chipRack.position.set(
-      base.x - dir.x * 0.5 + right.x * 0.55,
-      0,
-      base.z - dir.z * 0.5 + right.z * 0.55
-    );
-    chipRack.rotation.y = seat.facingAngle;
-  }
-  positionChipRack();
 
   // ---------- seated characters ----------
   // One figure per occupied seat, your own included.
@@ -206,7 +181,6 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
       camera.lookAt(lookAt);
       controls.target.copy(lookAt);
     }
-    positionChipRack();
   }
 
   // Puts the camera in the chair the player is actually sitting in, and

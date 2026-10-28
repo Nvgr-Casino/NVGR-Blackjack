@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { FLOOR_Y, SEAT_TOP_Y, m } from './scale.js';
+import { BRASS, LEATHER } from './table.js';
 
 // A flat circular "player card" — portrait circle + name + chip count —
 // matching how the reference casino game shows other players, instead of
@@ -84,12 +85,13 @@ export function createChair() {
   // a cylinder turned it into a drum. What makes a chair read as a chair at
   // a glance is a back that is plainly a *back* — taller than it is wide,
   // flat, and clearly behind the sitter — with daylight under the seat.
-  const leatherMat = new THREE.MeshStandardMaterial({
-    color: 0x17171c, roughness: 0.45, metalness: 0.1,
-  });
-  const goldMat = new THREE.MeshStandardMaterial({
-    color: 0xe8c266, roughness: 0.22, metalness: 0.88,
-  });
+  // The same matte leather and brushed brass the table's rail and trim
+  // use, so chairs and table read as one set of furniture.
+  const leatherMat = LEATHER;
+  const goldMat = BRASS;
+  // The frame is dark walnut; brass is kept to the legs, so it accents the
+  // chair instead of outlining it.
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x2a1a11, roughness: 0.55, metalness: 0 });
 
   const seatY = SEAT_TOP_Y;
   const seatW = m(0.46);
@@ -108,14 +110,14 @@ export function createChair() {
   seat.receiveShadow = true;
   group.add(seat);
 
-  // Gold edging around the seat's front lip.
+  // Walnut edging along the seat's front lip.
   const lip = new THREE.Mesh(
-    new THREE.BoxGeometry(seatW + m(0.015), m(0.02), m(0.02)), goldMat
+    new THREE.BoxGeometry(seatW + m(0.015), m(0.02), m(0.02)), frameMat
   );
   lip.position.set(0, seatY - m(0.085), seatD / 2);
   group.add(lip);
 
-  // The back: a padded panel inside a gold frame, leaning back slightly.
+  // The back: a padded panel inside a walnut frame, leaning back slightly.
   const backGroup = new THREE.Group();
   backGroup.position.set(0, seatY + backH / 2 + m(0.03), backZ);
   backGroup.rotation.x = backLean;
@@ -127,11 +129,11 @@ export function createChair() {
   panel.castShadow = true;
   backGroup.add(panel);
 
-  // Gold uprights either side and a cap rail across the top — the frame is
-  // what stops the panel reading as a floating slab.
+  // Uprights either side and a cap rail across the top — the frame is what
+  // stops the panel reading as a floating slab.
   [-1, 1].forEach((side) => {
     const post = new THREE.Mesh(
-      new THREE.BoxGeometry(m(0.028), backH + m(0.06), m(0.055)), goldMat
+      new THREE.BoxGeometry(m(0.028), backH + m(0.06), m(0.055)), frameMat
     );
     post.position.set(side * (backW / 2 + m(0.012)), 0, 0);
     post.castShadow = true;
@@ -139,17 +141,10 @@ export function createChair() {
   });
 
   const cap = new THREE.Mesh(
-    new THREE.BoxGeometry(backW + m(0.075), m(0.035), m(0.07)), goldMat
+    new THREE.BoxGeometry(backW + m(0.075), m(0.035), m(0.07)), frameMat
   );
   cap.position.set(0, backH / 2 + m(0.03), 0);
   backGroup.add(cap);
-
-  // A buttoned seam down the middle of the padding.
-  [-0.14, 0, 0.14].forEach((t) => {
-    const stud = new THREE.Mesh(new THREE.SphereGeometry(m(0.012), 8, 6), goldMat);
-    stud.position.set(0, backH * t, m(0.032));
-    backGroup.add(stud);
-  });
 
   // Four tapered legs, splayed just enough to look designed.
   const legH = seatY - FLOOR_Y - m(0.09);

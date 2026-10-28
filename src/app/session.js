@@ -22,7 +22,7 @@ import {
   safeKey, genCode, shuffleShoe, drawCard, addPlayerToRoom, startRoundLogic, dealRoundCards,
   checkAutoDeal, processBettingTimeoutLogic, processTurnTimeoutLogic, resolveDealerAndPayouts,
   advanceTurnIn, rankOf, handValue, chipLadderForTable, stakesFor, TABLE_STAKES,
-  everyoneDecidedInsurance, resolveInsurance, processInsuranceTimeout, moveToSeat,
+  everyoneDecidedInsurance, resolveInsurance, processInsuranceTimeout, moveToSeat, countdownLabel,
 } from './roomLogic.js';
 
 export let session = { screen: 'loading', uid: null, name: null, photo: null, chips: 0, character: null, code: null, isAdmin: false, room: null };
@@ -271,17 +271,10 @@ function clearTick() { if (tickTimer) { clearInterval(tickTimer); tickTimer = nu
 function tickCountdownOnly() {
   const el = document.getElementById('countdownText');
   if (!el || !session.room) return;
-  const r = session.room;
-  if (r.phase === 'betting' && r.bettingDeadline) {
-    const remaining = Math.max(0, Math.ceil((r.bettingDeadline - Date.now()) / 1000));
-    el.textContent = 'Betting closes in ' + remaining + 's';
-  } else if (r.phase === 'insurance' && r.insuranceDeadline) {
-    const remaining = Math.max(0, Math.ceil((r.insuranceDeadline - Date.now()) / 1000));
-    el.textContent = 'Insurance closes in ' + remaining + 's';
-  } else if (r.phase === 'playing' && r.turnDeadline) {
-    const remaining = Math.max(0, Math.ceil((r.turnDeadline - Date.now()) / 1000));
-    el.textContent = 'Act within ' + remaining + 's or you’ll be stood';
-  }
+  // The pill only exists during your own turn once play starts, so it is
+  // always your turn whenever there is one to update.
+  const label = countdownLabel(session.room, true);
+  if (label) el.textContent = label;
 }
 
 // A player's chips can change because of someone else's action (a dealer

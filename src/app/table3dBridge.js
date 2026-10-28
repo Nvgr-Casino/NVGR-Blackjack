@@ -5,12 +5,12 @@
 // markup the 3D scene now draws instead.
 import { createTableDriver } from '../ui/gameController.js';
 import {
-  MAX_PUBLIC_SEATS, MAX_TIMEOUTS, DECKS_IN_SHOE, rankOf, suitOf, handValueLabel,
-  avatarColor, initials, chipLadderForTable, stakesFor, stakesLabel, safeKey, seatOf,
+  MAX_PUBLIC_SEATS, MAX_TIMEOUTS, rankOf, suitOf, handValueLabel,
+  chipLadderForTable, stakesFor, stakesLabel, safeKey, seatOf, countdownLabel,
 } from './roomLogic.js';
 import { chipButtonDataURL } from '../scene/chip.js';
 import { characterPortraitDataURL, defaultCharacterFor } from '../scene/character.js';
-import { brandMark, esc } from './uiHelpers.js';
+import { esc } from './uiHelpers.js';
 import * as S from './session.js';
 import * as Social from './social.js';
 
@@ -278,92 +278,84 @@ export function syncRoomToScene(room, myKey) {
   lastPhase = room.phase;
 }
 
-// How much of the shoe is left, the way a player reads it off the table:
-// the stack in the shoe, plus a moment of "just shuffled" after the cut
-// card comes out.
-function shoeBadge(r) {
+// How much of the shoe is left, as a few words for the table line.
+function shoeLabel(r) {
   if (!r.shoeSize) return '';
   const left = (r.deck || []).length;
   const pct = Math.max(0, Math.min(100, Math.round((left / r.shoeSize) * 100)));
   const justShuffled = r.shuffledAt && Date.now() - r.shuffledAt < 8000;
-  const label = justShuffled ? 'Shuffled' : 'Shoe ' + pct + '%';
-  return `<span class="badge shoe ${justShuffled ? 'fresh' : ''}" title="${left} cards left in a ${DECKS_IN_SHOE}-deck shoe">${label}</span>`;
+  return justShuffled ? 'Fresh shoe' : 'Shoe ' + pct + '%';
 }
 
-// ---------- HTML chrome (header, controls, admin, chat) ----------
+// ---------- HTML chrome (top bar, status, players, dock, sheets) ----------
 export function renderTableScreen() {
   const r = S.session.room;
-  if (!r) return '<p class="hint" style="margin-top:60px;">Loading table…</p>';
+  if (!r) return '<div class="loading"><p>Loading table…</p></div>';
   const myKey = safeKey(S.session.uid);
   const me = r.players ? r.players[myKey] : null;
   const phase = r.phase;
   const inviteUrl = location.origin + location.pathname + '?room=' + r.code;
-
-  const logHtml = (r.log || []).slice(-3).map(esc).join(' · ');
-  const connHtml = S.connLost ? '<div class="conn-banner">Connection hiccup — retrying automatically.</div>' : '';
+  const { min, max } = stakesFor(r);
 
   const cur = r.turnOrder && r.turnOrder[r.currentTurnIndex];
   const myTurn = phase === 'playing' && cur && cur.pid === myKey;
-
-  let countdownHtml = '';
-  if (phase === 'betting' && r.bettingDeadline) {
-    const remaining = Math.max(0, Math.ceil((r.bettingDeadline - Date.now()) / 1000));
-    countdownHtml = `<div class="countdown" id="countdownText">Betting closes in ${remaining}s</div>`;
-  } else if (phase === 'insurance' && r.insuranceDeadline) {
-    const remaining = Math.max(0, Math.ceil((r.insuranceDeadline - Date.now()) / 1000));
-    countdownHtml = `<div class="countdown" id="countdownText">Insurance closes in ${remaining}s</div>`;
-  } else if (myTurn && r.turnDeadline) {
-    const remaining = Math.max(0, Math.ceil((r.turnDeadline - Date.now()) / 1000));
-    countdownHtml = `<div class="countdown" id="countdownText">Act within ${remaining}s or you’ll be stood</div>`;
-  }
   const myHand = myTurn && me ? me.hands[cur.hi] : null;
 
-  let myControls = '';
+  // ----- status line: the clock when there is one, and the last thing that
+  // happened underneath it.
+  const countdown = countdownLabel(r, myTurn);
+  const lastLog = (r.log || []).slice(-1).map(esc).join('');
+  const statusHtml = (countdown || lastLog) ? `
+    <div class="hud-status">
+      ${countdown ? `<div class="status-pill ${myTurn ? 'urgent' : ''}" id="countdownText">${countdown}</div>` : ''}
+      ${lastLog ? `<div class="status-log">${lastLog}</div>` : ''}
+    </div>` : '';
+
+  // ----- the dock: only what this player can do right now.
+  let dock = '';
   if (me) {
     if (phase === 'betting' && me.status === 'betting') {
       S.syncPendingBetRound(r.round);
       if (S.pendingBet > me.chips) S.setPendingBetClamped(me.chips);
-      const { min, max } = stakesFor(r);
       const ladder = chipLadderForTable(min, max);
       const chipsHtml = ladder.map((v, i) => {
-        // A chip is offered only if it fits both the player's balance and
-        // the table ceiling.
+        // A chip is offered only if it fits both the balance and the ceiling.
         const allowed = (S.pendingBet + v) <= me.chips && (S.pendingBet + v) <= max;
-        const art = chipButtonDataURL(v, i);
-        return `<button class="chip-btn ${allowed ? '' : 'disabled'}" style="background-image:url(${art});" data-chip="${v}" data-chip-index="${i}" ${allowed ? '' : 'disabled'} aria-label="Bet ${v.toLocaleString()}" title="${v.toLocaleString()}"></button>`;
+        return `<button class="chip-btn ${allowed ? '' : 'disabled'}" style="background-image:url(${chipButtonDataURL(v, i)});" data-chip="${v}" data-chip-index="${i}" ${allowed ? '' : 'disabled'} aria-label="Add ${v.toLocaleString()}" title="${v.toLocaleString()}"></button>`;
       }).join('');
       const canRepeat = !!me.lastBet && me.lastBet <= me.chips && me.lastBet >= min && me.lastBet <= max;
       const belowMin = S.pendingBet > 0 && S.pendingBet < min;
       const betReady = S.pendingBet >= min && S.pendingBet <= max && S.pendingBet <= me.chips;
-      const betNote = belowMin
-        ? `Table minimum is ${min.toLocaleString()}`
-        : `Table limits ${stakesLabel(min, max)}`;
-      myControls = `
-        <div class="card-panel my-controls" style="max-width:460px;">
-          <div class="balance-display"><span class="chip-icon"></span><span class="balance-label">Your balance</span><span class="balance-value">${me.chips.toLocaleString()}</span></div>
-          <p class="hint ${belowMin ? 'warn' : ''}" style="margin:-2px 0 8px;">${betNote}</p>
-          <div class="chip-grid">${chipsHtml}</div>
-          <div class="row" style="margin-top:4px;">
-            <button class="btn btn-ghost btn-small" id="clearBetBtn" ${S.pendingBet <= 0 ? 'disabled' : ''}>Clear</button>
-            <button class="btn btn-ghost btn-small" id="repeatBetBtn" ${canRepeat ? '' : 'disabled'}>Repeat ${me.lastBet ? me.lastBet.toLocaleString() : ''}</button>
+      const betLabel = belowMin ? 'Minimum bet is ' + min.toLocaleString()
+        : S.pendingBet > 0 ? 'Place bet · ' + S.pendingBet.toLocaleString()
+        : 'Tap chips to bet';
+      dock = `
+        <div class="dock-panel">
+          <div class="dock-head">
+            <span class="dock-balance">Balance<b>${me.chips.toLocaleString()}</b></span>
+            <button class="link" id="sitOutBtn">Sit out this round</button>
           </div>
-          <button class="btn btn-solid" id="confirmBetBtn" style="margin-top:10px;" ${betReady ? '' : 'disabled'}>Place bet — ${S.pendingBet.toLocaleString()}</button>
-          <button class="btn btn-ghost btn-small" id="sitOutBtn" style="width:100%;margin-top:8px;">Sit out this round</button>
+          <div class="chip-row">${chipsHtml}</div>
+          <div class="dock-actions">
+            <button class="btn btn-sm btn-quiet" id="clearBetBtn" ${S.pendingBet <= 0 ? 'disabled' : ''}>Clear</button>
+            <button class="btn btn-sm btn-quiet" id="repeatBetBtn" ${canRepeat ? '' : 'disabled'}>${me.lastBet ? 'Repeat ' + me.lastBet.toLocaleString() : 'Repeat'}</button>
+            <button class="btn btn-primary grow" id="confirmBetBtn" ${betReady ? '' : 'disabled'}>${betLabel}</button>
+          </div>
         </div>`;
     } else if (phase === 'betting' && me.status === 'bet-placed') {
-      myControls = `<p class="log-line">Bet placed: ${me.bet.toLocaleString()}. Waiting for the table…</p>`;
+      dock = `<p class="dock-msg">Bet placed · ${me.bet.toLocaleString()}. Waiting for the table…</p>`;
     } else if (phase === 'insurance') {
       if (me.insuranceDecided) {
-        myControls = `<p class="log-line">${me.insurance ? 'Insurance taken.' : 'No insurance.'} Waiting for the table…</p>`;
+        dock = `<p class="dock-msg">${me.insurance ? 'Insurance taken.' : 'No insurance.'} Waiting for the table…</p>`;
       } else {
         const cost = Math.floor(((me.hands && me.hands[0] && me.hands[0].bet) || me.bet || 0) / 2);
         const canAfford = cost > 0 && me.chips >= cost;
-        myControls = `
-          <div class="card-panel my-controls" style="max-width:400px;">
-            <p class="hint" style="margin:0 0 10px;">Dealer shows an Ace. Insurance costs ${cost.toLocaleString()} and pays 2:1 if the dealer has blackjack.</p>
-            <div class="action-bar">
-              <button class="btn btn-solid" id="insureYesBtn" ${canAfford ? '' : 'disabled'}>Take insurance</button>
-              <button class="btn" id="insureNoBtn">No thanks</button>
+        dock = `
+          <div class="dock-panel">
+            <p class="dock-text">The dealer shows an ace. Insurance costs ${cost.toLocaleString()} and pays 2 to 1 if they have blackjack.</p>
+            <div class="dock-actions">
+              <button class="btn grow" id="insureNoBtn">No thanks</button>
+              <button class="btn btn-primary grow" id="insureYesBtn" ${canAfford ? '' : 'disabled'}>Take insurance</button>
             </div>
           </div>`;
       }
@@ -372,167 +364,168 @@ export function renderTableScreen() {
       const canSplit = myHand.cards.length === 2 && me.hands.length === 1 && me.chips >= myHand.bet && rankOf(myHand.cards[0]) === rankOf(myHand.cards[1]);
       // Late surrender: only on an untouched two-card hand that was never split.
       const canSurrender = myHand.cards.length === 2 && me.hands.length === 1;
-      myControls = `
-        <div class="action-bar my-controls">
-          <button class="btn btn-solid" id="hitBtn">Hit</button>
-          <button class="btn" id="standBtn">Stand</button>
-          <button class="btn" id="doubleBtn" ${canDouble ? '' : 'disabled'}>Double</button>
-          <button class="btn" id="splitBtn" ${canSplit ? '' : 'disabled'}>Split</button>
-          <button class="btn" id="surrenderBtn" ${canSurrender ? '' : 'disabled'}>Surrender</button>
+      dock = `
+        <div class="dock-panel">
+          <div class="action-row">
+            <button class="btn btn-primary" id="hitBtn">Hit</button>
+            <button class="btn" id="standBtn">Stand</button>
+            <button class="btn" id="doubleBtn" ${canDouble ? '' : 'disabled'}>Double</button>
+            <button class="btn" id="splitBtn" ${canSplit ? '' : 'disabled'}>Split</button>
+            <button class="btn" id="surrenderBtn" ${canSurrender ? '' : 'disabled'}>Surrender</button>
+          </div>
         </div>`;
     } else if (phase === 'playing') {
       const curPlayer = cur ? r.players[cur.pid] : null;
-      myControls = `<p class="log-line">Waiting on ${esc(curPlayer ? curPlayer.name : '…')}…</p>`;
+      dock = `<p class="dock-msg">Waiting on ${esc(curPlayer ? curPlayer.name : '…')}</p>`;
     } else if (phase === 'results' && r.isPublic) {
-      myControls = `<p class="log-line">Next round starts automatically…</p>`;
+      dock = '<p class="dock-msg">Next round starts in a moment</p>';
     }
   }
 
-  // A real seat picker, not a camera picker. Tapping a free chair moves you
-  // into it and the view follows, because you watch the table from wherever
-  // you are actually sitting. Chairs someone else is in, and any move while
-  // you are holding cards, are refused here as well as in the rules.
+  // ----- seat picker: tapping a free chair moves you into it, and the view
+  // follows. Chairs someone else is in, and any move while you hold cards,
+  // are refused here as well as in the rules.
   const mySeatNow = myKey ? seatOf(r, myKey) : -1;
   const holdingCards = !!(me && me.hands && me.hands.length);
   const seatOwner = new Map();
   (r.playerOrder || []).forEach((k) => seatOwner.set(seatOf(r, k), k));
-  const seatSwitcher = `
-    <div class="tbl-seatpicker" id="seatSwitchRow">
-      ${SEATS_LABELS.map((label, i) => {
+  const seatPicker = `
+    <div class="seat-dots" id="seatSwitchRow" role="group" aria-label="Seat">
+      ${Array.from({ length: MAX_PUBLIC_SEATS }).map((_, i) => {
         const owner = seatOwner.get(i);
         const mine = owner === myKey && myKey;
         const taken = owner && !mine;
         const blocked = taken || holdingCards || mySeatNow === -1;
         const title = mine ? 'Your seat'
           : taken ? esc(r.players[owner].name) + ' is in seat ' + (i + 1)
-          : holdingCards ? 'Finish the hand before moving seats'
+          : holdingCards ? 'Finish the hand before moving'
           : 'Move to seat ' + (i + 1);
-        return `<button class="seat-switch-btn${mine ? ' current' : ''}${taken ? ' taken' : ''}"
-          data-take-seat="${i}" ${blocked ? 'disabled' : ''} title="${title}">${i + 1}</button>`;
+        return `<button class="seat-dot${mine ? ' current' : ''}${taken ? ' taken' : ''}" data-take-seat="${i}" ${blocked ? 'disabled' : ''} title="${title}" aria-label="${title}">${i + 1}</button>`;
       }).join('')}
     </div>`;
 
-  // Who's who — the 3D scene shows cards/chips/badges in place, but not
-  // names, chip totals, or whose turn it is, so a slim stack of pills sits
-  // out of the way in the top-right corner, one per seated player.
-  const seatsStripHtml = (r.playerOrder || []).map((key) => {
+  // ----- players: who's who, their chips, and what they're doing.
+  const playersHtml = (r.playerOrder || []).map((key) => {
     const p = r.players[key];
     if (!p) return '';
     const isMe = key === myKey;
     const onTurn = phase === 'playing' && cur && cur.pid === key;
     let statusText = '';
     if (phase === 'lobby' || (phase === 'betting' && p.status === 'sitout')) statusText = p.chips > 0 ? 'Waiting' : 'Needs chips';
-    else if (phase === 'betting') statusText = p.status === 'bet-placed' ? 'Bet ' + p.bet.toLocaleString() : 'Choosing bet…';
+    else if (phase === 'betting') statusText = p.status === 'bet-placed' ? 'Bet ' + p.bet.toLocaleString() : 'Choosing a bet';
     else if (phase === 'insurance') {
       if (!p.hands || !p.hands.length) statusText = 'Sitting out';
-      else if (!p.insuranceDecided) statusText = 'Insurance?';
+      else if (!p.insuranceDecided) statusText = 'Deciding on insurance';
       else statusText = p.insurance ? 'Insured' : 'No insurance';
-    }
-    else if (phase === 'playing' || phase === 'dealer') {
+    } else if (phase === 'playing' || phase === 'dealer') {
       if (p.status === 'sitout') statusText = 'Sitting out';
       else if (!p.hands || !p.hands.length) statusText = 'Waiting';
       else statusText = p.hands.map((h, hi) => {
-        if (h.status === 'blackjack') return 'Blackjack!';
-        if (h.status === 'busted') return 'Busted';
-        if (h.status === 'stood') return 'Stood';
+        if (h.status === 'blackjack') return 'Blackjack';
+        if (h.status === 'busted') return 'Bust';
+        if (h.status === 'stood') return 'Stands';
         if (h.status === 'surrendered') return 'Surrendered';
-        if (onTurn && cur.hi === hi) return 'Their turn';
+        if (onTurn && cur.hi === hi) return 'Playing';
         return 'Waiting';
       }).join(' / ');
     } else if (phase === 'results') {
       if (p.status === 'sitout' || !p.hands || !p.hands.length) statusText = 'Sitting out';
       else statusText = p.hands.map((h) => (h.outcome ? OUTCOME_LABEL[h.outcome](h.bet) : '')).join(' / ');
     }
-    if (phase === 'betting' && p.timeouts > 0) statusText += ` (${p.timeouts}/${MAX_TIMEOUTS})`;
-    const color = avatarColor(p.name);
-    // Tapping another player offers a friend request — the only place in
-    // the app where you meet someone new.
+    if (phase === 'betting' && p.timeouts > 0) statusText += ` (${p.timeouts}/${MAX_TIMEOUTS} missed)`;
+    // Tapping another player offers a friend request.
     const addable = !isMe && !Social.isFriend(key);
     return `
-      <div class="seat-mini ${onTurn ? 'on-turn' : ''} ${addable ? 'addable' : ''}" ${addable ? `data-add-friend="${esc(key)}" data-add-name="${esc(p.name)}" title="Add ${esc(p.name)} as a friend"` : ''}>
-        <img class="avatar" src="${characterPortraitDataURL(p.character || defaultCharacterFor(key), 64)}" alt="">
-        <span class="sm-name">${esc(p.name)}${isMe ? ' (you)' : ''}</span>
-        <span class="sm-chips">${p.chips.toLocaleString()}</span>
-        <span class="sm-status">${esc(statusText)}</span>
-        ${addable ? '<span class="sm-add">+</span>' : ''}
+      <div class="player ${onTurn ? 'on-turn' : ''} ${addable ? 'addable' : ''}" ${addable ? `data-add-friend="${esc(key)}" data-add-name="${esc(p.name)}" title="Add ${esc(p.name)} as a friend"` : ''}>
+        <img class="player-avatar" src="${characterPortraitDataURL(p.character || defaultCharacterFor(key), 64)}" alt="">
+        <div class="player-info">
+          <span class="player-name">${esc(p.name)}${isMe ? ' <span class="you">(you)</span>' : ''}</span>
+          <span class="player-status">${esc(statusText)}</span>
+        </div>
+        <span class="player-chips">${p.chips.toLocaleString()}</span>
+        ${addable ? '<span class="player-add" aria-hidden="true">+</span>' : ''}
       </div>`;
   }).join('');
-  const seatsStrip = seatsStripHtml ? `<div class="tbl-seats-mini">${seatsStripHtml}</div>` : '';
 
+  // ----- host sheet (private tables only).
   let hostBtn = '';
-  let hostPanel = '';
+  let hostSheet = '';
   if (S.session.isAdmin && !r.isPublic) {
-    hostBtn = `<button class="tbl-icon-btn ${S.hostOpen ? 'active' : ''}" id="hostToggleBtn">Host</button>`;
+    hostBtn = `<button class="hud-btn ${S.hostOpen ? 'active' : ''}" id="hostToggleBtn">Host</button>`;
     if (S.hostOpen) {
       const giveRows = (r.playerOrder || []).map((key) => {
         const p = r.players[key];
-        return `<div class="admin-give-row">
-          <span>${esc(p.name)} <span style="color:var(--gold)">(${p.chips.toLocaleString()})</span></span>
-          <input type="number" min="1" value="1000" id="giveAmt-${key}">
-          <button class="btn btn-small" data-give="${key}">Give</button>
+        return `<div class="give-row">
+          <span>${esc(p.name)} · ${p.chips.toLocaleString()}</span>
+          <input type="number" min="1" value="1000" id="giveAmt-${key}" aria-label="Chips to give ${esc(p.name)}">
+          <button class="btn btn-sm" data-give="${key}">Give</button>
         </div>`;
       }).join('');
-
       let roundControl = '';
       if (phase === 'lobby' || phase === 'results') {
-        roundControl = `<button class="btn btn-solid" id="startRoundBtn">${phase === 'results' ? 'Next round' : 'Start round'}</button>`;
+        roundControl = `<button class="btn btn-primary btn-block" id="startRoundBtn">${phase === 'results' ? 'Next round' : 'Start round'}</button>`;
       } else if (phase === 'betting') {
         const anyBet = (r.playerOrder || []).some((key) => r.players[key].status === 'bet-placed');
-        roundControl = `<button class="btn btn-solid" id="dealBtn" ${anyBet ? '' : 'disabled'}>Deal cards</button>`;
+        roundControl = `<button class="btn btn-primary btn-block" id="dealBtn" ${anyBet ? '' : 'disabled'}>Deal cards</button>`;
       }
-
-      hostPanel = `
-        <div class="tbl-float-panel host">
-          <div class="admin-title">Host controls</div>
+      hostSheet = `
+        <div class="sheet host">
+          <div class="sheet-title">Host</div>
+          ${roundControl ? `<div style="margin-bottom:16px;">${roundControl}</div>` : ''}
           ${giveRows}
-          <div style="margin-top:14px;">${roundControl}</div>
-          <div class="invite-box">
-            <input type="text" readonly value="${esc(inviteUrl)}" id="inviteUrlInput">
-            <button class="btn btn-small" id="copyInviteBtn">Copy link</button>
+          <div class="invite">
+            <input type="text" readonly value="${esc(inviteUrl)}" id="inviteUrlInput" aria-label="Invite link">
+            <button class="btn btn-sm" id="copyInviteBtn">Copy link</button>
           </div>
         </div>`;
     }
   }
 
+  // ----- chat sheet.
   const chatMsgs = r.chat || [];
-  const chatBtn = `<button class="tbl-icon-btn ${S.chatOpen ? 'active' : ''}" id="chatToggleBtn">Chat${chatMsgs.length ? ' (' + chatMsgs.length + ')' : ''}</button>`;
-  const chatPanel = S.chatOpen ? `
-    <div class="tbl-float-panel chat">
+  const chatBtn = `<button class="hud-btn ${S.chatOpen ? 'active' : ''}" id="chatToggleBtn">Chat${chatMsgs.length ? ` <span class="count">${chatMsgs.length}</span>` : ''}</button>`;
+  const chatSheet = S.chatOpen ? `
+    <div class="sheet chat">
+      <div class="sheet-title">Table chat</div>
       <div class="chat-log" id="chatLog">
-        ${chatMsgs.length ? chatMsgs.map((m) => '<div class="chat-msg"><b>' + esc(m.name) + ':</b> ' + esc(m.text) + '</div>').join('') : '<div class="chat-empty">No messages yet — say hi!</div>'}
+        ${chatMsgs.length ? chatMsgs.map((m) => '<div class="chat-msg"><b>' + esc(m.name) + '</b> ' + esc(m.text) + '</div>').join('') : '<div class="chat-empty">No messages yet. Say hi.</div>'}
       </div>
-      <div class="chat-input-row">
-        <input type="text" id="chatInput" placeholder="Say something…" maxlength="200">
-        <button class="btn btn-solid btn-small" id="chatSendBtn">Send</button>
+      <div class="compose" style="margin-top:0;">
+        <input type="text" id="chatInput" placeholder="Message the table" maxlength="200">
+        <button class="btn btn-primary" id="chatSendBtn">Send</button>
       </div>
     </div>` : '';
 
+  const tableSub = [
+    stakesLabel(min, max),
+    r.isPublic ? 'Public · ' + (r.playerOrder || []).length + '/' + MAX_PUBLIC_SEATS : 'Private',
+    shoeLabel(r),
+  ].filter(Boolean).join(' · ');
+
   return `
-    <div class="tbl-topbar">
-      <div class="tbl-topbar-left">
-        ${brandMark('topbar')}
-        <span class="tbl-code">Code: <b>${esc(r.code)}</b></span>
-        <span class="badge ${r.isPublic ? 'pub' : 'priv'}">${r.isPublic ? 'Public · ' + (r.playerOrder || []).length + '/' + MAX_PUBLIC_SEATS : 'Private'}</span>
-        <span class="badge stakes">${stakesLabel(stakesFor(r).min, stakesFor(r).max)}</span>
-        ${shoeBadge(r)}
+    <div class="hud-top">
+      <div class="hud-left">
+        <button class="hud-btn" id="leaveBtn">← Leave</button>
+        <div class="hud-table">
+          <span class="hud-code">Table ${esc(r.code)}</span>
+          <span class="hud-sub">${tableSub}</span>
+        </div>
       </div>
-      <div class="tbl-topbar-right">
-        ${seatSwitcher}
+      <div class="hud-right">
+        ${seatPicker}
         ${hostBtn}
         ${chatBtn}
-        <button class="tbl-icon-btn" id="leaveBtn">Leave</button>
       </div>
     </div>
-    ${connHtml}
-    ${(countdownHtml || logHtml) ? `<div class="tbl-status">${countdownHtml}${logHtml ? `<div class="log-line-mini">${logHtml}</div>` : ''}</div>` : ''}
-    ${seatsStrip}
-    ${hostPanel}
-    ${chatPanel}
-    ${myControls ? `<div class="tbl-bottom-hud">${myControls}</div>` : ''}
+    ${S.connLost ? '<div class="conn-banner">Connection lost — reconnecting…</div>' : ''}
+    ${statusHtml}
+    ${playersHtml ? `<aside class="hud-players">${playersHtml}</aside>` : ''}
+    ${hostSheet}
+    ${chatSheet}
+    ${dock ? `<div class="hud-dock">${dock}</div>` : ''}
   `;
 }
 
-const SEATS_LABELS = ['Seat 1', 'Seat 2', 'Seat 3', 'Seat 4', 'Seat 5'];
 
 export function attachTableScreen() {
   const r = S.session.room;

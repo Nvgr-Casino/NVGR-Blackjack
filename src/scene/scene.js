@@ -8,7 +8,8 @@ import { createChair } from './avatar.js';
 import { updateSeatedCharacters } from './character.js';
 import { createDealerFigure, setDealerModel, startDealerIdle, updateDealerAnimations } from './dealer.js';
 import { createBetRing, createCardShoe, createChipTray } from './props.js';
-import { createRoom, ROOM_HALF } from './room.js';
+import { createRoom, ROOM_HALF, CEILING_Y } from './room.js';
+import { FLOOR_Y } from './scale.js';
 import { TABLE_BACK_Z } from './table.js';
 import { SEATS, DEALER, cameraPositionForSeat, cameraLookAtForSeat } from './seats.js';
 import { tickAnimations } from './animator.js';
@@ -20,11 +21,9 @@ import { cameraOverride } from './cameraFocus.js';
 // which seat is yours at runtime, and only that seat's chair gets hidden.
 export function initScene(canvas) {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x140407);
-  // Fog now only has to soften the far corners of a real room, not stand in
-  // for a horizon — pulled back from 9–20, which at these distances would
-  // have greyed the far wall (and the house sign on it) into nothing.
-  scene.fog = new THREE.Fog(0x140407, 16, 44);
+  scene.background = new THREE.Color(0x0b0908);
+  // Softens only the far corners; the room's darkness does the rest.
+  scene.fog = new THREE.Fog(0x0b0908, 18, 44);
 
   const camera = new THREE.PerspectiveCamera(
     54,
@@ -71,17 +70,19 @@ export function initScene(canvas) {
   // Plain PCF everywhere: the soft variant's extra taps cost about a quarter
   // of the frame on integrated graphics, for edges hardly anyone notices.
   renderer.shadowMap.type = THREE.PCFShadowMap;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  // Lifted from 0.82. The whole room was reading as dull and murky — ACES
-  // rolls highlights off hard, and at that exposure the felt, the gold and
-  // the figures all sat in the bottom of the curve together with nothing
-  // bright enough to give the picture any snap.
-  renderer.toneMappingExposure = 1.15;
+  // AgX rather than ACES: ACES pushes saturated colours toward neon as they
+  // brighten, which is a good part of why the red felt and the gold glared.
+  // AgX rolls them off toward white the way film does, so the felt stays
+  // cloth-coloured under the light.
+  renderer.toneMapping = THREE.AgXToneMapping;
+  renderer.toneMappingExposure = 1.0;
 
-  // PBR environment lighting so the gold rim and chip metal actually pick up
-  // reflections instead of looking flat-lit.
+  // A faint environment, so metal and leather have something soft to
+  // reflect. At full strength it put a white sheen on every surface — the
+  // "shiny" look — so it is kept well down.
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environmentIntensity = 0.3;
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -96,40 +97,26 @@ export function initScene(canvas) {
   controls.maxDistance = ROOM_HALF - 2;
   controls.target.copy(cameraLookAtForSeat(openingSeat));
 
-  // Ambient is the one light that costs essentially nothing per fragment —
-  // no position, no attenuation, no shadow. So the mobile tier spends its
-  // savings here: dropping three point lights left the carpet and the far
-  // corners nearly black, and this buys that brightness back without
-  // buying back the cost.
-  // Raised a little on desktop too, to stand in for the rim light and the
-  // two sconce lamps that no longer exist.
-  const ambient = new THREE.AmbientLight(0xfff2d0, lowPower ? 0.95 : 0.85);
-  scene.add(ambient);
+  // Lighting is how a real table is lit: one pool of warm light from the
+  // ceiling panel straight above the felt, falling off into a dim room,
+  // plus a low fill so faces in the chairs never go black. Two lights in
+  // all, no point lights — cheaper than the five it replaces, and it is the
+  // falloff, not more light, that makes the table the thing you look at.
+  const fill = new THREE.HemisphereLight(0xf3e6d2, 0x2a1d16, lowPower ? 1.1 : 0.9);
+  scene.add(fill);
 
-  const key = new THREE.DirectionalLight(0xfff2d0, 1.25);
-  key.position.set(3, 8, 4);
+  const key = new THREE.SpotLight(0xffe7c8, 60, 0, 0.78, 0.65, 2);
+  key.position.set(0, CEILING_Y - 0.2, -0.4);
+  key.target.position.set(0, FLOOR_Y, -0.2);
+  scene.add(key.target);
   key.castShadow = true;
-  // The frustum only has to hold the table, the chairs and the dealer — at
-  // ±9 most of the map was spent on empty carpet. Tightened, 1536 texels is
-  // sharper than the old 2048 and cheaper to draw.
   const SHADOW_MAP = lowPower ? 1024 : 1536;
   key.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);
-  key.shadow.camera.left = -6.5;
-  key.shadow.camera.right = 6.5;
-  key.shadow.camera.top = 6.5;
-  key.shadow.camera.bottom = -6.5;
-  key.shadow.camera.near = 1;
-  key.shadow.camera.far = 20;
-  key.shadow.bias = -0.0015;
+  key.shadow.camera.near = 2;
+  key.shadow.camera.far = 12;
+  key.shadow.bias = -0.0008;
+  key.shadow.normalBias = 0.02;
   scene.add(key);
-
-  // No decorative rim light any more: every point light is paid for by every
-  // lit fragment on screen, and on integrated graphics the scene could not
-  // afford five. The pendant and the sign's glow are the two that earn it.
-
-  // Overhead pendant lamp — a casino-style hanging light over the table.
-  const pendant = createPendantLamp();
-  scene.add(pendant);
 
   // The room the table stands in — carpet, panelled walls, ceiling and the
   // house signage. Static, so it is built once and never touched again.
@@ -304,45 +291,3 @@ export function initScene(canvas) {
   };
 }
 
-function createPendantLamp() {
-  const group = new THREE.Group();
-  group.position.set(0, 4.2, -1.6);
-
-  const cordMat = new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.6 });
-  const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 2.2, 8), cordMat);
-  cord.position.y = 1.1;
-  group.add(cord);
-
-  const shadeMat = new THREE.MeshStandardMaterial({
-    color: 0x2a0e12,
-    roughness: 0.5,
-    metalness: 0.2,
-    emissive: 0x3a1010,
-    emissiveIntensity: 0.3,
-  });
-  const shade = new THREE.Mesh(new THREE.ConeGeometry(0.55, 0.4, 24, 1, true), shadeMat);
-  shade.position.y = -0.05;
-  // Deliberately no castShadow: this hangs directly over the table and its
-  // shadow was the mystery "stripe" across the felt that survived every
-  // material/lighting fix — a decorative shade doesn't need a real shadow.
-  group.add(shade);
-
-  const rimMat = new THREE.MeshStandardMaterial({ color: 0xd4af52, roughness: 0.3, metalness: 0.7 });
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.025, 8, 32), rimMat);
-  rim.rotation.x = Math.PI / 2;
-  rim.position.y = -0.25;
-  group.add(rim);
-
-  const bulb = new THREE.PointLight(0xffdc9a, 1.6, 9, 2);
-  bulb.position.y = -0.3;
-  group.add(bulb);
-
-  const bulbMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(0.07, 12, 10),
-    new THREE.MeshStandardMaterial({ color: 0xfff2c2, emissive: 0xffdc9a, emissiveIntensity: 1.2 })
-  );
-  bulbMesh.position.y = -0.28;
-  group.add(bulbMesh);
-
-  return group;
-}

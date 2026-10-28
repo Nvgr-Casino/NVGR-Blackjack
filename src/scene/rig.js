@@ -86,32 +86,36 @@ export function withoutRootMotion(clip, hipsBone) {
 }
 
 /**
- * Turns a model's blended materials into alpha cut-outs.
+ * Readies an imported figure's materials for the table.
  *
- * Mixamo's FBX arrives with its hair and eyelashes marked transparent at
- * opacity 0, and fbx2gltf carries that across faithfully. So nobody's hair
- * was ever visible, but every strand card was still shaded and blended —
+ * Two things arrive wrong from Mixamo's FBX by way of fbx2gltf.
+ *
+ * Hair and eyelashes come marked transparent at opacity 0. Nobody's hair
+ * was ever visible, yet every strand card was still shaded and blended —
  * measured at a quarter of the frame on integrated graphics with five
- * players seated, for nothing on screen. One body mesh came through
- * transparent at full opacity too, which also cost it depth sorting.
+ * players seated, for nothing on screen. They become alpha cut-outs: opaque
+ * to the renderer, so they write depth and whatever lies behind them is
+ * never shaded, with alpha-to-coverage feathering the edge through the
+ * MSAA the renderer already pays for.
  *
- * A cut-out is opaque to the renderer: it writes depth, so whatever lies
- * behind it is never shaded, and alpha-to-coverage feathers the edge
- * through the MSAA the renderer already pays for. Hair cards come out
- * glossy as plastic at the exported roughness, so they are dulled to
- * something closer to hair.
+ * And every material comes through at metalness 0.4 with no metalness map.
+ * Skin, wool and cotton are not metal; at 0.4 they mirror the room, which
+ * is the plastic sheen the figures had. Anything without its own map is set
+ * to fully non-metallic and given at least a cloth-like roughness.
  */
-export function useCutoutMaterials(model) {
+export function prepareFigureMaterials(model) {
   model.traverse((o) => {
     if (!o.isMesh) return;
     for (const mat of [].concat(o.material)) {
-      if (!mat.transparent) continue;
-      mat.transparent = false;
-      mat.opacity = 1;
-      mat.depthWrite = true;
-      mat.alphaTest = 0.25;
-      mat.alphaToCoverage = true;
+      if (!mat.metalnessMap) mat.metalness = 0;
       if (!mat.roughnessMap) mat.roughness = Math.max(mat.roughness, 0.6);
+      if (mat.transparent) {
+        mat.transparent = false;
+        mat.opacity = 1;
+        mat.depthWrite = true;
+        mat.alphaTest = 0.25;
+        mat.alphaToCoverage = true;
+      }
       mat.needsUpdate = true;
     }
   });

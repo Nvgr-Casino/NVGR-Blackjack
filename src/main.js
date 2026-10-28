@@ -11,7 +11,7 @@ import { renderHome, attachHome } from './app/screens/home.js';
 import { renderJoin, attachJoin } from './app/screens/join.js';
 import { renderFriends, attachFriends, renderDm, attachDm } from './app/screens/friends.js';
 import { renderCharacter, attachCharacter } from './app/screens/character.js';
-import { SUIT_FLOAT_HTML, brandMark } from './app/uiHelpers.js';
+import { brandMark } from './app/uiHelpers.js';
 
 const canvas = document.getElementById('scene');
 const root = document.getElementById('root');
@@ -25,16 +25,16 @@ function render() {
   lastScreen = session.screen;
 
   if (session.screen === 'loading') {
-    root.innerHTML = `<div class="brand-hero compact">${brandMark('loading')}</div><p class="hint">Loading…</p>`;
+    root.innerHTML = `<div class="loading">${brandMark()}<p>Loading…</p></div>`;
     return;
   }
   if (session.screen === 'auth') {
-    root.innerHTML = SUIT_FLOAT_HTML + renderAuth();
+    root.innerHTML = renderAuth();
     attachAuth();
     return;
   }
   if (session.screen === 'home') {
-    root.innerHTML = SUIT_FLOAT_HTML + '<div class="brand-watermark"></div>' + renderHome();
+    root.innerHTML = renderHome();
     attachHome();
     return;
   }
