@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { dealCard, revealCard, playShuffle } from '../scene/deal.js';
 import { CARD_WIDTH, CARD_HEIGHT } from '../scene/card.js';
-import { createChip, createChipForValue, CHIP_HEIGHT, DENOMINATIONS } from '../scene/chip.js';
-import { createCharacter } from '../scene/character.js';
+import { createChip, createChipForValue, createChipStack, CHIP_HEIGHT, DENOMINATIONS } from '../scene/chip.js';
+import { CHANNEL_RADIUS, CHANNEL_Y } from '../scene/table.js';
+import { createCharacter, playerReach, playerHandPosition } from '../scene/character.js';
+import { dealerReach } from '../scene/dealer.js';
 import { cameraOverride } from '../scene/cameraFocus.js';
 import { createHandBadge } from '../scene/handBadge.js';
 import { SEATS, DEALER, cameraPositionForSeat, cameraLookAtForSeat, isTallScreen } from '../scene/seats.js';
@@ -96,6 +98,32 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
   // camera is right behind it (below).
   const seatCharacters = new Map(); // seatIndex -> { id, group }
 
+  // A seated player's own chips, in the rim's channel in front of their
+  // place, as at a real table. Where their bets come from and their
+  // winnings go back to.
+  const stashes = new Map(); // seatIndex -> group
+  function channelPoint(seat, offsetDeg = 0) {
+    const a = Math.atan2(seat.position.x, seat.position.z) + THREE.MathUtils.degToRad(offsetDeg);
+    return new THREE.Vector3(Math.sin(a) * CHANNEL_RADIUS, CHANNEL_Y, Math.cos(a) * CHANNEL_RADIUS);
+  }
+  function placeStash(seatIndex) {
+    if (stashes.has(seatIndex)) return;
+    const seat = SEATS[seatIndex];
+    const group = new THREE.Group();
+    [[-4.5, 6, 0], [-1.5, 9, 1], [1.5, 4, 2]].forEach(([deg, count, color]) => {
+      const stack = createChipStack(count, color);
+      stack.position.copy(channelPoint(seat, deg));
+      group.add(stack);
+    });
+    scene.add(group);
+    stashes.set(seatIndex, group);
+  }
+  function removeStash(seatIndex) {
+    const group = stashes.get(seatIndex);
+    if (group) scene.remove(group);
+    stashes.delete(seatIndex);
+  }
+
   // A seated figure leans in over the felt, so from your own chair the back
   // of your own head sits squarely between the camera and your cards. Any
   // head the camera is right behind isn't drawn; the body still is, so your
@@ -123,11 +151,12 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
       existing.group.visible = true;
       return;
     }
-    if (existing) scene.remove(existing.group);
+    if (existing) releaseFigure(existing.group);
     if (!characterId) { seatCharacters.delete(seatIndex); return; }
 
     const seat = SEATS[seatIndex];
     if (!seat) return;
+    placeStash(seatIndex);
     const group = createCharacter(characterId);
     group.position.copy(seat.position);
     group.rotation.y = seat.facingAngle;
@@ -135,11 +164,17 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
     seatCharacters.set(seatIndex, { id: characterId, group });
   }
 
+  function releaseFigure(group) {
+    scene.remove(group);
+    if (group.userData.release) group.userData.release();
+  }
+
   function clearSeatCharacter(seatIndex) {
     const existing = seatCharacters.get(seatIndex);
     if (!existing) return;
-    scene.remove(existing.group);
+    releaseFigure(existing.group);
     seatCharacters.delete(seatIndex);
+    removeStash(seatIndex);
   }
 
   // ---------- camera / seat viewpoint ----------
@@ -317,33 +352,69 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
   function setDealerBadge(valueText) { dealerBadge.setValue(valueText); }
   function hideDealerBadge() { dealerBadge.hide(); }
 
-  // ---------- bet chips ----------
+  // ---------- chips, moved by hand ----------
+  // Every chip on the table is put there by somebody's hand. A player
+  // carries their bet out to their circle; the dealer sweeps a losing bet
+  // back to the rack, or takes a stack from the rack and sets it beside a
+  // winning one; then the winner draws it all back to their own place.
+  // Chips used to be tossed through the air, from nobody, to and from the
+  // dealer's chest.
+  //
+  // The dealer settles one seat at a time, from their right round to their
+  // left — the reverse of the deal — as a real one does; dealerTask queues
+  // each settlement behind the last.
+  let dealerFreeAt = 0;
+  function dealerTask(durationMs, run) {
+    const now = performance.now();
+    const wait = Math.max(0, dealerFreeAt - now);
+    dealerFreeAt = now + wait + durationMs;
+    setTimeout(run, wait);
+  }
+
+  // Slides a chip to `to` after `delay` ms, kept low over the felt with
+  // only a small lift — carried, not thrown.
+  function slideChip(mesh, to, delay, duration, lift = 0.06) {
+    setTimeout(() => {
+      const from = mesh.position.clone();
+      animate({
+        duration,
+        easing: easeInOutCubic,
+        onUpdate: (t) => {
+          mesh.position.lerpVectors(from, to, t);
+          mesh.position.y += Math.sin(t * Math.PI) * lift;
+        },
+      });
+    }, delay);
+  }
+
+  const stackHeight = (n) => CHIP_HEIGHT * n + CHIP_HEIGHT / 2;
+  const seatFigure = (seatIndex) => {
+    const entry = seatCharacters.get(seatIndex);
+    return entry ? entry.group : null;
+  };
+
   // `value`, when given, spawns a chip labeled/colored for that exact
   // bet-ladder amount (see chip.js's LADDER_COLORS) instead of one of the
   // 4 fixed on-table denominations — used both for the local player's own
   // tap-to-bet chips and for showing another seat's already-confirmed bet.
+  const PLACE_MS = 380;
   function addBetChipVisual(seatIndex, colorIndex, value) {
     ensureSeat(seatIndex);
     const seat = SEATS[seatIndex];
-    const dir = seatOutwardDir(seat);
     const chip = value != null ? createChipForValue(value, colorIndex) : createChip(colorIndex);
-    const from = new THREE.Vector3(seat.betSpot.x + dir.x * 1.3, 0.35, seat.betSpot.z + dir.z * 1.3);
+    const to = seat.betSpot.clone().setY(stackHeight(pendingStack[seatIndex]));
+    pendingStack[seatIndex]++;
+
+    // From the player's own hand, which goes out to the circle with it.
+    const figure = seatFigure(seatIndex);
+    const hand = playerHandPosition(figure);
+    const from = hand || channelPoint(seat).setY(0.1);
+    if (hand) playerReach(figure, [{ at: PLACE_MS, pos: to.clone().setY(to.y + 0.08) }], { returnMs: 380 });
+
     chip.position.copy(from);
     scene.add(chip);
     betChipMeshes[seatIndex].push(chip);
-
-    const to = seat.betSpot.clone();
-    to.y = CHIP_HEIGHT * pendingStack[seatIndex] + CHIP_HEIGHT / 2;
-    pendingStack[seatIndex]++;
-
-    animate({
-      duration: 420,
-      easing: easeOutCubic,
-      onUpdate: (t) => {
-        chip.position.lerpVectors(from, to, t);
-        chip.position.y += Math.sin(t * Math.PI) * 0.4;
-      },
-    });
+    slideChip(chip, to, 0, PLACE_MS, 0.12);
     return chip;
   }
 
@@ -354,46 +425,87 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
     pendingStack[seatIndex] = 0;
   }
 
-  function tossChip(mesh, from, to, duration) {
-    mesh.position.copy(from);
-    animate({
-      duration,
-      easing: easeOutCubic,
-      onUpdate: (t) => {
-        mesh.position.lerpVectors(from, to, t);
-        mesh.position.y += Math.sin(t * Math.PI) * 0.35;
-      },
-    });
-  }
-
+  // The dealer reaches out to a losing bet and sweeps it back to the rack.
+  const REACH_OUT_MS = 420;
+  const SWEEP_MS = 560;
   function collectBetChipsForSeat(seatIndex) {
     ensureSeat(seatIndex);
-    const from = DEALER.position.clone();
-    from.y = 0.4;
+    const seat = SEATS[seatIndex];
     const meshes = betChipMeshes[seatIndex].splice(0, betChipMeshes[seatIndex].length);
-    meshes.forEach((mesh, i) => {
-      const start = mesh.position.clone();
-      tossChip(mesh, start, from, 420 + i * 60);
-      setTimeout(() => scene.remove(mesh), 420 + i * 60 + 20);
-    });
     pendingStack[seatIndex] = 0;
+    dealerTask(REACH_OUT_MS + SWEEP_MS + 200, () => {
+      const rack = DEALER.trayPosition.clone().setY(0.08);
+      dealerReach(dealer, [
+        { at: REACH_OUT_MS, pos: seat.betSpot },
+        { at: REACH_OUT_MS + SWEEP_MS, pos: rack },
+      ]);
+      meshes.forEach((mesh, i) => {
+        slideChip(mesh, rack.clone().setY(stackHeight(i)), REACH_OUT_MS, SWEEP_MS, 0.04);
+        setTimeout(() => scene.remove(mesh), REACH_OUT_MS + SWEEP_MS + 60);
+      });
+    });
   }
 
+  // Where a payout is set down: beside the bet, on the dealer's side of it.
+  function payoutSpot(seat) {
+    const dir = seatOutwardDir(seat);
+    const across = new THREE.Vector3(dir.z, 0, -dir.x);
+    return seat.betSpot.clone().addScaledVector(across, 0.3).addScaledVector(dir, -0.12);
+  }
+
+  // The dealer takes a stack from the rack and sets it beside a winning bet;
+  // the player then draws bet and winnings back to their place.
+  const TAKE_MS = 360;
+  const CARRY_MS = 600;
   function payoutChipsForSeat(seatIndex, count) {
     ensureSeat(seatIndex);
     const seat = SEATS[seatIndex];
-    const from = DEALER.position.clone();
-    from.y = 0.4;
-    for (let i = 0; i < count; i++) {
-      const colorIndex = i % DENOMINATIONS.length;
-      const chip = createChip(colorIndex);
-      scene.add(chip);
-      betChipMeshes[seatIndex].push(chip);
-      const to = seat.betSpot.clone();
-      to.y = CHIP_HEIGHT * (pendingStack[seatIndex] + i) + CHIP_HEIGHT / 2;
-      tossChip(chip, from, to, 420 + i * 90);
+    dealerTask(TAKE_MS + CARRY_MS + 200, () => {
+      const rack = DEALER.trayPosition.clone().setY(0.08);
+      const spot = payoutSpot(seat);
+      dealerReach(dealer, [
+        { at: TAKE_MS, pos: rack },
+        { at: TAKE_MS + CARRY_MS, pos: spot },
+      ]);
+      const paid = [];
+      setTimeout(() => {
+        for (let i = 0; i < count; i++) {
+          const chip = createChip(i % DENOMINATIONS.length);
+          chip.position.copy(rack).setY(stackHeight(i));
+          scene.add(chip);
+          paid.push(chip);
+          betChipMeshes[seatIndex].push(chip);
+          slideChip(chip, spot.clone().setY(stackHeight(i)), 0, CARRY_MS, 0.1);
+        }
+      }, TAKE_MS);
+      setTimeout(() => drawChipsHome(seatIndex), TAKE_MS + CARRY_MS + 650);
+    });
+  }
+
+  // The player reaches out and draws everything on their spot back to their
+  // own place at the rail, where it joins their stack. Also how a pushed bet
+  // goes home.
+  const DRAW_REACH_MS = 380;
+  const DRAW_BACK_MS = 520;
+  function drawChipsHome(seatIndex) {
+    ensureSeat(seatIndex);
+    const seat = SEATS[seatIndex];
+    const meshes = betChipMeshes[seatIndex].splice(0, betChipMeshes[seatIndex].length);
+    pendingStack[seatIndex] = 0;
+    if (!meshes.length) return;
+    // Back into the channel, beside the player's own chips.
+    const home = channelPoint(seat, 4.5).setY(CHANNEL_Y);
+    const figure = seatFigure(seatIndex);
+    if (figure) {
+      playerReach(figure, [
+        { at: DRAW_REACH_MS, pos: seat.betSpot.clone().setY(0.12) },
+        { at: DRAW_REACH_MS + DRAW_BACK_MS, pos: home },
+      ]);
     }
-    pendingStack[seatIndex] += count;
+    meshes.forEach((mesh, i) => {
+      slideChip(mesh, home.clone().setY(CHANNEL_Y + stackHeight(i)), DRAW_REACH_MS, DRAW_BACK_MS, 0.03);
+      setTimeout(() => scene.remove(mesh), DRAW_REACH_MS + DRAW_BACK_MS + 80);
+    });
   }
 
   return {
@@ -417,5 +529,6 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
     clearBetChipsForSeat,
     collectBetChipsForSeat,
     payoutChipsForSeat,
+    drawChipsHome,
   };
 }

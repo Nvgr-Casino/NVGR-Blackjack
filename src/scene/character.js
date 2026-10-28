@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { loadGltf } from './gltf.js';
-import { resolveRig, withoutRootMotion, prepareFigureMaterials } from './rig.js';
+import { resolveRig, withoutRootMotion, prepareFigureMaterials, fitClipToRig } from './rig.js';
+import { createReach } from './reach.js';
 import { SEAT_TOP_Y, PLAYER_HEIGHT } from './scale.js';
 
 // Player characters.
@@ -63,10 +64,27 @@ function modelUrl(file) {
 
 const loadModel = (file) => loadGltf(modelUrl(file));
 
-// Every seated figure's animation mixer, stepped from the render loop.
-const seatedMixers = new Set();
+// Every seated figure, stepped from the render loop: its seated clip, and
+// over that whatever its hand is doing (see reach.js).
+const seated = new Set();
 export function updateSeatedCharacters(deltaSeconds) {
-  seatedMixers.forEach((m) => m.update(deltaSeconds));
+  seated.forEach(({ mixer, reach }) => {
+    if (reach) reach.before();
+    mixer.update(deltaSeconds);
+    if (reach) reach.after();
+  });
+}
+
+/** Moves a seated figure's right hand through `points`; see reach.js. */
+export function playerReach(group, points, options) {
+  const reach = group && group.userData.reach;
+  if (reach) reach.play(points, options);
+}
+
+/** Where a seated figure's right hand is, or null before it has loaded. */
+export function playerHandPosition(group) {
+  const reach = group && group.userData.reach;
+  return reach ? reach.handPosition() : null;
 }
 
 function pickSeatedClip(clips) {
@@ -118,17 +136,23 @@ export function createCharacter(id) {
       const mixer = new THREE.AnimationMixer(model);
       // Without this the clip's hips-position track drags the figure off
       // its chair to wherever the motion was captured — see rig.js.
-      mixer.clipAction(withoutRootMotion(clip, bones.hips)).play();
+      mixer.clipAction(withoutRootMotion(fitClipToRig(clip, (clipGltf || gltf).scene, model), bones.hips)).play();
       // Each figure is offset so a row of them doesn't breathe in unison.
       mixer.setTime(Math.random() * clip.duration);
-      seatedMixers.add(mixer);
+      const reach = createReach(model, bones);
+      const record = { mixer, reach };
+      seated.add(record);
       group.userData.mixer = mixer;
+      group.userData.reach = reach;
+      // Called when the figure leaves its seat, so it stops being animated.
+      group.userData.release = () => seated.delete(record);
     }
-    // The head and hair, which Rocketbox keeps as meshes of their own, so the
-    // table can stop drawing a head the camera is sitting right behind.
+    // The head, hair and glasses, which Rocketbox keeps as meshes of their
+    // own, so the table can stop drawing a head the camera is sitting right
+    // behind — glasses included, or they hang in the air in front of you.
     const head = [];
     model.traverse((o) => {
-      if (o.isMesh && [].concat(o.material).some((mt) => /_(head|opacity)$/i.test(mt.name))) head.push(o);
+      if (o.isMesh && [].concat(o.material).some((mt) => /_(head|opacity|glasses)$/i.test(mt.name))) head.push(o);
     });
     group.userData.headMeshes = head;
     group.add(model);

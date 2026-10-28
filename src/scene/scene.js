@@ -2,14 +2,13 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { createTable } from './table.js';
-import { createChipStack } from './chip.js';
 import { createDeckStack, playShuffle } from './deal.js';
-import { createChair } from './avatar.js';
+import { place } from './furniture.js';
 import { updateSeatedCharacters } from './character.js';
 import { createDealerFigure, setDealerModel, startDealerIdle, updateDealerAnimations } from './dealer.js';
-import { createBetRing, createCardShoe, createChipTray } from './props.js';
+import { createBetRing, createCardShoe, createChipRack } from './props.js';
 import { createRoom, ROOM_HALF, CEILING_Y } from './room.js';
-import { FLOOR_Y } from './scale.js';
+import { FLOOR_Y, m } from './scale.js';
 import { TABLE_BACK_Z } from './table.js';
 import { SEATS, DEALER, cameraPositionForSeat, cameraLookAtForSeat } from './seats.js';
 import { tickAnimations } from './animator.js';
@@ -120,6 +119,15 @@ export function initScene(canvas) {
   key.shadow.normalBias = 0.02;
   scene.add(key);
 
+  // A soft wash down the back wall, behind the dealer, so the consoles and
+  // paintings there read in the dark rather than disappearing into it. No
+  // shadow: it lights only the wall's dressing.
+  const wash = new THREE.SpotLight(0xffdcb4, 30, 0, 0.75, 0.9, 2);
+  wash.position.set(0, CEILING_Y - 0.3, -ROOM_HALF + 4);
+  wash.target.position.set(0, FLOOR_Y + m(1.2), -ROOM_HALF);
+  scene.add(wash.target);
+  scene.add(wash);
+
   // The room the table stands in — carpet, panelled walls, ceiling and the
   // house signage. Static, so it is built once and never touched again.
   scene.add(createRoom());
@@ -138,15 +146,9 @@ export function initScene(canvas) {
 
   // Shoe on the dealer's right, beside the hand that deals (see seats.js);
   // chip tray on the left.
-  const tray = createChipTray(1.1);
-  tray.position.set(0.75, 0.03, dealerGearZ);
-  scene.add(tray);
-
-  [0, 1, 2].forEach((colorIndex, i) => {
-    const stack = createChipStack(3 + colorIndex, colorIndex);
-    stack.position.set(0.45 + i * 0.32, 0.06, dealerGearZ);
-    scene.add(stack);
-  });
+  const rack = createChipRack();
+  rack.position.copy(DEALER.trayPosition);
+  scene.add(rack);
 
   const shoe = createCardShoe();
   shoe.position.set(-0.75, 0.03, dealerGearZ);
@@ -169,10 +171,10 @@ export function initScene(canvas) {
     ring.position.copy(seat.betSpot);
     scene.add(ring);
 
-    const chair = createChair();
-    chair.position.copy(seat.position);
-    chair.rotation.y = seat.facingAngle;
-    scene.add(chair);
+    // A tufted leather dining chair (Poly Haven), turned to face the table.
+    const chair = place(scene, 'dining_chair_02', {
+      x: seat.position.x, z: seat.position.z, yaw: seat.facingAngle, shadows: true,
+    });
     chairsBySeat.set(seat.index, chair);
   });
 

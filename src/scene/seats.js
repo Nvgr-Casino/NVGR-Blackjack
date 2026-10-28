@@ -102,6 +102,9 @@ export const DEALER = {
   // hand that deals — reaching across the body to a shoe on the left was
   // half of what made the dealing look wrong.
   deckPosition: new THREE.Vector3(-0.7, 0.05, TABLE_BACK_Z + 0.4),
+  // The chip rack, on the dealer's left; losing bets go in, payouts come
+  // out.
+  trayPosition: new THREE.Vector3(0.3, 0.01, TABLE_BACK_Z + 0.32),
   // Pulled just clear of the rail/tray/shoe cluster so the dealer's cards
   // (and hand-value badge) aren't lost in that clutter — with the back
   // stretch of felt shrunk down, this now lands right at the start of the

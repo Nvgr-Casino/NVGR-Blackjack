@@ -1,133 +1,40 @@
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { loadGltf } from './gltf.js';
-import { resolveRig, hasRoles, withoutRootMotion, prepareFigureMaterials, SEAT_ROLES, ARM_ROLES } from './rig.js';
+import { resolveRig, withoutRootMotion, prepareFigureMaterials, fitClipToRig } from './rig.js';
+import { createReach } from './reach.js';
 import { DEALER } from './seats.js';
-import { SEAT_TOP_Y, DEALER_HEIGHT, FLOOR_Y, m } from './scale.js';
+import { DEALER_HEIGHT, FLOOR_Y, m } from './scale.js';
 
-// A real rigged human model (CC0, Quaternius "Ultimate Modular Men Pack" —
-// public domain, free for commercial use) instead of a hand-built capsule
-// figure. It ships with a skeleton (down to individual finger bones) and a
-// library of animation clips we reuse for idle/dealing instead of hand
-// animating primitive meshes.
-// Served straight out of public/, so the URL has to be built from Vite's
-// base — hardcoding a leading "/" would look for the model at the domain
-// root and 404 on GitHub Pages, where the site lives under /NVGR-Blackjack/.
-// Two dealers, same rig and animation set, so a table can run either.
-// The dealers are two of the same realistic cast the players choose from,
-// carrying the same motion-captured seated clip. A croupier who looks like
-// a person is the point; that they share a wardrobe with the players is how
-// a real floor looks anyway.
+// The dealer: a Microsoft Rocketbox avatar, like the players, standing
+// behind the table on the library's own motion-captured standing idle —
+// one clip file, recorded on the same skeleton as every avatar. The man
+// wears a waistcoat, the woman a blouse and skirt: house uniform, and a
+// different wardrobe from anyone a player can sit down as.
+//
+// Two dealers so a table can run either; a room records which.
 export const DEALER_MODELS = {
-  male: 'dealer_male.glb',
-  female: 'dealer_female.glb',
+  male: { file: 'rb_dealer_m.glb', clip: 'rb_idle_m.glb' },
+  female: { file: 'rb_dealer_f.glb', clip: 'rb_idle_f.glb' },
 };
 export const DEALER_KEYS = Object.keys(DEALER_MODELS);
-const modelUrl = (file) => import.meta.env.BASE_URL + 'models/' + file;
-// Standing height used to scale the model. Bigger than a player (2.9) so
-// the arms still carry a reach toward each seat rather than gesturing
-// vaguely forward — but not the 4.2 this used to be: at that size the
-// seated thigh is thick enough that its top surface breached the felt
-// (hips land at -0.46, the felt is at +0.01), so a bare leg drew straight
-// across the table, and the dealer towered over the newly right-sized
-// players.
-const TARGET_HEIGHT = DEALER_HEIGHT;
 
-
-const WORLD_X = new THREE.Vector3(1, 0, 0);
-const HIP_ANGLE = -Math.PI / 2; // swings the thigh from hanging down to reaching forward, seated
-const KNEE_ANGLE = Math.PI / 2; // cancels the thigh's world-space swing so the shin hangs straight down again
-
-// Computes the constant LOCAL rotation delta a bone needs — on top of
-// whatever its CURRENT local rotation happens to be each frame — so its
-// WORLD orientation ends up rotated by `worldAngle` around the world X axis
-// (a left-right hinge, i.e. hip/knee flexion) relative to where it was when
-// this was computed. Bind-pose local rotations on a rig like this one are
-// arbitrary (whatever Blender's bone roll happened to be), so guessing a
-// plausible-looking local axis by hand produced a badly sheared leg the
-// first time this was tried — going via each bone's actual WORLD
-// orientation sidesteps that entirely.
-function computeHingeDelta(bone, worldAngle) {
-  const currentWorld = new THREE.Quaternion();
-  bone.getWorldQuaternion(currentWorld);
-  const hinge = new THREE.Quaternion().setFromAxisAngle(WORLD_X, worldAngle);
-  const desiredWorld = hinge.multiply(currentWorld);
-
-  const parentWorld = new THREE.Quaternion();
-  bone.parent.getWorldQuaternion(parentWorld);
-  const desiredLocal = parentWorld.invert().multiply(desiredWorld);
-
-  // desiredLocal = delta * currentLocal  =>  delta = desiredLocal * currentLocal^-1
-  return desiredLocal.multiply(bone.quaternion.clone().invert());
-}
-
-// Computed once, from the bones' bind pose, the first time a dealer model
-// loads — then re-applied every frame after that (see applySeatBend /
-// updateDealerAnimations).
-//
-// What comes back is the ABSOLUTE seated rotation of each leg bone, not the
-// delta that produced it. That distinction is the whole fix for the legs
-// twitching: a delta has to be premultiplied onto whatever the animation
-// mixer last wrote, which is only correct while the mixer actually writes
-// those bones every single frame. In the gap between a one-shot gesture
-// ending and the idle crossfading back in, it doesn't — and the delta then
-// compounds onto its own previous result, kicking the legs out. Copying an
-// absolute rotation cannot compound, and it holds the legs still whatever
-// the mixer does, which is what a seated dealer's legs should do anyway.
-// The idle clip still drives the torso, arms and head.
-function computeSeatBend(bones) {
-  bones.upperLegL.quaternion.premultiply(computeHingeDelta(bones.upperLegL, HIP_ANGLE));
-  bones.upperLegR.quaternion.premultiply(computeHingeDelta(bones.upperLegR, HIP_ANGLE));
-  bones.upperLegL.updateMatrixWorld(true);
-  bones.upperLegR.updateMatrixWorld(true);
-
-  // Measured against the now-bent thighs, so this cancels exactly the
-  // rotation the hip bend just added — not the original standing pose.
-  bones.lowerLegL.quaternion.premultiply(computeHingeDelta(bones.lowerLegL, KNEE_ANGLE));
-  bones.lowerLegR.quaternion.premultiply(computeHingeDelta(bones.lowerLegR, KNEE_ANGLE));
-
-  return {
-    upperLegL: bones.upperLegL.quaternion.clone(),
-    upperLegR: bones.upperLegR.quaternion.clone(),
-    lowerLegL: bones.lowerLegL.quaternion.clone(),
-    lowerLegR: bones.lowerLegR.quaternion.clone(),
-  };
-}
-
+// Served out of public/, so built from Vite's base (the site lives under
+// /NVGR-Blackjack/ on GitHub Pages).
+const modelUrl = (file) => import.meta.env.BASE_URL + 'models/characters/' + file;
 const loadModel = (file) => loadGltf(modelUrl(file));
 
-// Scales the model to a known standing height (the source file's own unit
-// scale isn't something to assume, so this measures the actual bounding box
-// rather than guessing a factor), then drops it so — once the seated bend
-// is layered on every frame — the hips land on the sofa's own seat height
-// instead of the floor.
-// Stands the dealer on the floor behind the table, pose untouched.
-//
-// A blackjack dealer stands. Sitting them down was the root of two
-// separate faults at once: the table's wooden skirt runs 0.45 further back
-// than the felt, so a seated body at the rail was literally inside the
-// table; and from a chair that far back the arms could never reach the
-// felt to deal. Standing solves both — the torso clears the skirt
-// entirely, and a standing reach crosses the table the way a real one does.
-//
-// Placed by the model's own feet rather than by the hips, because what
-// matters standing is that the soles meet the carpet.
+// Stands the dealer on the carpet behind the table, scaled to an average
+// adult. Scaled by the bind-pose bounding box — a standing T-pose, so its
+// height is the figure's height — but placed by the hips, the one landmark
+// every rig agrees on: Box3 reads a skinned mesh in bind space and knows
+// nothing about where the bones put it. A standing adult's hips sit about
+// 0.95 m up, which puts the soles on the floor.
 function standAtTable(model, bones) {
   model.updateMatrixWorld(true);
-  // The bounding box is only trustworthy for the overall *height*, and only
-  // because the bind pose is a standing T-pose. It cannot be used to find
-  // where the figure ends up: Box3 reads a skinned mesh in bind space and
-  // knows nothing about what the bones did with it, which is how an earlier
-  // attempt put the dealer two and a half metres under the carpet.
-  const box = new THREE.Box3().setFromObject(model);
-  const size = new THREE.Vector3();
-  box.getSize(size);
-  if (size.y > 0) model.scale.setScalar(TARGET_HEIGHT / size.y);
+  const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+  if (size.y > 0) model.scale.setScalar(DEALER_HEIGHT / size.y);
   model.updateMatrixWorld(true);
-
-  // Placed by the hips, the one landmark every rig agrees on. A standing
-  // adult's hips sit about 0.95m up, so putting them there puts the soles
-  // on the carpet.
   const hip = new THREE.Vector3();
   bones.hips.getWorldPosition(hip);
   model.position.y += (FLOOR_Y + m(0.95)) - hip.y;
@@ -137,391 +44,85 @@ function standAtTable(model, bones) {
   model.position.z -= hip.z;
 }
 
-function fitSeatedModel(model, bones) {
-  // Matrices first: the box is meaningless until the model's own transforms
-  // are applied. The .glb dealers carry a scaled root node, so measuring
-  // before this reads the raw authored geometry (tens of units tall) and
-  // shrinks the figure to a speck.
-  model.updateMatrixWorld(true);
-  const box = new THREE.Box3().setFromObject(model);
-  const size = new THREE.Vector3();
-  box.getSize(size);
-  if (size.y > 0) model.scale.setScalar(TARGET_HEIGHT / size.y);
-  model.updateMatrixWorld(true);
-
-  const seatPose = computeSeatBend(bones);
-  model.updateMatrixWorld(true);
-
-  // Placed by the hips bone rather than the bounding box. Box3 measures
-  // skinned meshes from their bind pose and every model carries its own
-  // root transform, so box-centring lands each character somewhere
-  // different — the female dealer ended up several units off the table.
-  // The hips are the same landmark in every rig.
-  const hipWorld = new THREE.Vector3();
-  bones.hips.getWorldPosition(hipWorld);
-  model.position.y += SEAT_TOP_Y + 0.05 - hipWorld.y;
-  model.updateMatrixWorld(true);
-
-  bones.hips.getWorldPosition(hipWorld);
-  model.position.x -= hipWorld.x;
-  model.position.z -= hipWorld.z;
-
-  return seatPose;
-}
-
-// Copy, not premultiply — see computeSeatBend. The mixer has just written
-// the idle clip's standing legs over these bones; this puts the seated pose
-// back, absolutely, so it can neither drift nor compound.
-function applySeatBend(bones, seated) {
-  bones.upperLegL.quaternion.copy(seated.upperLegL);
-  bones.upperLegR.quaternion.copy(seated.upperLegR);
-  bones.lowerLegL.quaternion.copy(seated.lowerLegL);
-  bones.lowerLegR.quaternion.copy(seated.lowerLegR);
-}
-
-const LOCAL_Y = new THREE.Vector3(0, 1, 0);
-
-// Finds the right-arm bone chain and measures each segment's actual length
-// in world units (via the bones' own bind-pose world positions) — the
-// source file's raw translation numbers are in whatever unit scale the
-// model shipped in, and get whatever uniform scale fitSeatedModel applied
-// on top, so measuring post-scale sidesteps needing to know either.
-function captureArmChain(model, bones) {
-  if (!hasRoles(bones, ARM_ROLES)) return null;
-  const { upperArmR: upperArm, lowerArmR: lowerArm, wristR: wrist } = bones;
-
-  model.updateMatrixWorld(true);
-  const p1 = new THREE.Vector3();
-  const p2 = new THREE.Vector3();
-  const p3 = new THREE.Vector3();
-  upperArm.getWorldPosition(p1);
-  lowerArm.getWorldPosition(p2);
-  wrist.getWorldPosition(p3);
-
-  return {
-    upperArm,
-    lowerArm,
-    wrist,
-    upperLen: p1.distanceTo(p2),
-    lowerLen: p2.distanceTo(p3),
-  };
-}
-
-// Rotates `bone` so its local +Y axis (how this rig's limb bones all point
-// toward their child joint — see the translation values in the source
-// file) faces `worldDir`, preserving whatever roll/twist its current
-// orientation already has. Same world-space technique as computeHingeDelta,
-// but solved fresh against a moving target every call instead of once
-// against a fixed angle.
-function alignBoneToDirection(bone, worldDir) {
-  const currentWorld = new THREE.Quaternion();
-  bone.getWorldQuaternion(currentWorld);
-  const currentDir = LOCAL_Y.clone().applyQuaternion(currentWorld);
-  const rot = new THREE.Quaternion().setFromUnitVectors(currentDir.normalize(), worldDir.clone().normalize());
-  const desiredWorld = rot.multiply(currentWorld);
-
-  const parentWorld = new THREE.Quaternion();
-  bone.parent.getWorldQuaternion(parentWorld);
-  bone.quaternion.copy(parentWorld.invert().multiply(desiredWorld));
-  bone.updateMatrixWorld(true);
-}
-
-// Analytic 2-bone IK (law of cosines) — bends the upper/lower arm so the
-// wrist reaches toward `targetWorld`. `poleDir` is a fixed "elbow points
-// this way" hint that resolves the otherwise-ambiguous bend direction, so
-// the elbow swings out and down like a real arm instead of through the body.
-const POLE_DIR = new THREE.Vector3(0.6, -0.5, 0.5).normalize();
-function solveArmIK(arm, targetWorld) {
-  const { upperArm, lowerArm, upperLen, lowerLen } = arm;
-  const shoulderWorld = new THREE.Vector3();
-  upperArm.getWorldPosition(shoulderWorld);
-
-  const toTarget = targetWorld.clone().sub(shoulderWorld);
-  const maxReach = upperLen + lowerLen - 0.001;
-  const minReach = Math.abs(upperLen - lowerLen) + 0.001;
-  const dist = THREE.MathUtils.clamp(toTarget.length(), minReach, maxReach);
-  const dir = toTarget.normalize();
-
-  const cosShoulder = (upperLen * upperLen + dist * dist - lowerLen * lowerLen) / (2 * upperLen * dist);
-  const shoulderOffset = Math.acos(THREE.MathUtils.clamp(cosShoulder, -1, 1));
-
-  let rotAxis = new THREE.Vector3().crossVectors(dir, POLE_DIR);
-  if (rotAxis.lengthSq() < 1e-6) rotAxis = new THREE.Vector3().crossVectors(dir, LOCAL_Y);
-  rotAxis.normalize();
-
-  const upperDir = dir.clone().applyAxisAngle(rotAxis, shoulderOffset);
-  alignBoneToDirection(upperArm, upperDir);
-
-  const elbowWorld = shoulderWorld.clone().addScaledVector(upperDir, upperLen);
-  const lowerDir = targetWorld.clone().sub(elbowWorld).normalize();
-  alignBoneToDirection(lowerArm, lowerDir);
-}
-
-// All active dealer figures, driven from scene.js's render loop
-// (THREE.AnimationMixer needs a real per-frame delta, unlike the project's
-// own lightweight tween scheduler in animator.js — and both the seated pose
-// and an in-progress reach need re-layering every frame for the same
-// reason: the idle/gesture clips drive the whole skeleton, so anything
-// applied once at the start would just get overwritten the next frame).
+// Every dealer figure, stepped from scene.js's render loop. The reach is
+// layered over the idle each frame (see reach.js).
 const activeDealers = new Set();
 export function updateDealerAnimations(deltaSeconds) {
   activeDealers.forEach((record) => {
-    // The mixer only writes a bone when its animated value has changed since
-    // it last wrote it, so a reach left on the arm would otherwise stay
-    // there: over a still stretch of the idle clip nothing puts the arm
-    // back, which is how the hand was left hanging out after a deal. The
-    // animated pose is kept and restored before the mixer runs each frame.
-    if (record.arm && record.armPose) restoreArmPose(record);
+    if (record.reach) record.reach.before();
     record.mixer.update(deltaSeconds);
-    if (record.arm) saveArmPose(record);
-    if (record.bones && record.seatPose) applySeatBend(record.bones, record.seatPose);
-    if (record.arm && record.reach) updateReach(record);
+    if (record.reach) record.reach.after();
   });
-}
-
-function saveArmPose(record) {
-  const { upperArm, lowerArm } = record.arm;
-  if (!record.armPose) record.armPose = [new THREE.Quaternion(), new THREE.Quaternion()];
-  record.armPose[0].copy(upperArm.quaternion);
-  record.armPose[1].copy(lowerArm.quaternion);
-}
-
-function restoreArmPose(record) {
-  const { upperArm, lowerArm } = record.arm;
-  upperArm.quaternion.copy(record.armPose[0]);
-  lowerArm.quaternion.copy(record.armPose[1]);
-}
-
-// The deal, as the hand moves through it: out to the shoe to take the card,
-// across toward the player as it is pitched, then back to rest. The arm is
-// blended between the idle pose and the reach by an eased weight, so it
-// leaves and returns smoothly — it used to snap back to idle the instant
-// a reach ended, and travel in straight unmodulated lines, which is what
-// made the dealer look mechanical.
-const PICK = 0.38;        // share of the deal spent taking the card
-const RETURN_MS = 420;    // easing back to rest once the card is away
-const smooth = (x) => x * x * (3 - 2 * x);
-
-function reachState(reach, now) {
-  const ms = now - reach.startTime;
-  const pickMs = reach.duration * PICK;
-  if (ms < pickMs) {
-    const t = smooth(ms / pickMs);
-    return {
-      weight: THREE.MathUtils.lerp(reach.fromWeight, 1, t),
-      target: reach.scratch.lerpVectors(reach.fromPos, reach.deckPos, t),
-      done: false,
-    };
-  }
-  if (ms < reach.duration) {
-    const t = smooth((ms - pickMs) / (reach.duration - pickMs));
-    return { weight: 1, target: reach.scratch.lerpVectors(reach.deckPos, reach.aimPos, t), done: false };
-  }
-  const t = Math.min(1, (ms - reach.duration) / RETURN_MS);
-  return { weight: 1 - smooth(t), target: reach.scratch.copy(reach.aimPos), done: t >= 1 };
-}
-
-const animUpper = new THREE.Quaternion();
-const animLower = new THREE.Quaternion();
-function updateReach(record) {
-  const { reach, arm } = record;
-  const state = reachState(reach, performance.now());
-  reach.weight = state.weight;
-  reach.target = state.target.clone();
-  if (state.done) { record.reach = null; return; }
-  // The mixer has just posed the arm; solve the reach, then settle between
-  // the two by the current weight.
-  animUpper.copy(arm.upperArm.quaternion);
-  animLower.copy(arm.lowerArm.quaternion);
-  solveArmIK(arm, state.target);
-  arm.upperArm.quaternion.copy(animUpper.slerp(arm.upperArm.quaternion, state.weight));
-  arm.lowerArm.quaternion.copy(animLower.slerp(arm.lowerArm.quaternion, state.weight));
-  arm.upperArm.updateMatrixWorld(true);
 }
 
 export function createDealerFigure(key = 'male') {
   const group = new THREE.Group();
   group.userData.ready = false;
-  group.userData.idleActive = false;
   populateDealer(group, key);
   return group;
 }
 
-// Swaps which dealer is standing at the table without replacing the group
-// itself — every other module holds a reference to that group (the card
-// dealing animations aim at it), so it has to survive the change.
+// Swaps which dealer stands at the table without replacing the group —
+// every other module holds a reference to it (the deal animations aim at it).
 export function setDealerModel(group, key) {
-  const file = DEALER_MODELS[key] || DEALER_MODELS.male;
-  if (group.userData.file === file) return;
+  const spec = DEALER_MODELS[key] || DEALER_MODELS.male;
+  if (group.userData.file === spec.file) return;
   populateDealer(group, key);
 }
 
 function populateDealer(group, key) {
-  const file = DEALER_MODELS[key] || DEALER_MODELS.male;
-  group.userData.file = file;
-
+  const spec = DEALER_MODELS[key] || DEALER_MODELS.male;
+  group.userData.file = spec.file;
   if (group.userData.model) group.remove(group.userData.model);
   if (group.userData.record) activeDealers.delete(group.userData.record);
   group.userData.ready = false;
 
-  loadModel(file)
-    .then((gltf) => {
-      // Cloned, not used directly: the seated bend mutates bone rotations,
-      // and the cached gltf is shared with any later swap back.
+  Promise.all([loadModel(spec.file), loadModel(spec.clip)])
+    .then(([gltf, clipGltf]) => {
+      if (group.userData.file !== spec.file) return; // swapped again meanwhile
       const model = cloneSkinned(gltf.scene);
-
-      // Resolved by role rather than by name, so a dealer from a different
-      // pack (Mixamo's "mixamorig7:LeftUpLeg", say) sits down just as well
-      // as the original one. See src/scene/rig.js.
       const bones = resolveRig(model);
-      const seated = hasRoles(bones, SEAT_ROLES);
-      let seatPose = null;
-      // A model carrying its own motion-captured seated clip is posed by
-      // that clip, not by the hinge bend. The bend would fight it every
-      // frame — it overwrites the leg rotations the animation just wrote —
-      // and the clip is the better pose anyway, since it has something to
-      // say about the torso and the left arm too.
-      const seatedClip = gltf.animations.find((c) => /sit|seat/i.test(c.name))
-        || (gltf.animations.length === 1 ? gltf.animations[0] : null);
-
-      if (seatedClip && bones.hips) {
-        standAtTable(model, bones);
-      } else if (seated) {
-        seatPose = fitSeatedModel(model, bones);
-      } else {
-        console.warn('Dealer model is missing expected leg bones — seated pose skipped.');
-      }
-
-      model.traverse((obj) => {
-        if (obj.isMesh) {
-          obj.castShadow = true;
-          obj.receiveShadow = true;
-        }
-      });
+      if (!bones.hips) { console.warn('Dealer model has no hips bone.'); return; }
+      standAtTable(model, bones);
+      model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
       prepareFigureMaterials(model);
       group.add(model);
 
       const mixer = new THREE.AnimationMixer(model);
-      const clips = {};
-      gltf.animations.forEach((clip) => {
-        clips[clip.name] = clip;
-      });
+      const idle = clipGltf.animations[0];
+      if (idle) mixer.clipAction(withoutRootMotion(fitClipToRig(idle, clipGltf.scene, model), bones.hips)).play();
+      const reach = createReach(model, bones);
+      if (!reach) console.warn('Dealer model is missing right-arm bones — reach skipped.');
 
-      const idleClip = seatedClip
-        ? withoutRootMotion(seatedClip, bones.hips)
-        : (clips.Idle_Neutral || clips.Idle);
-      const idleAction = idleClip ? mixer.clipAction(idleClip) : null;
-      if (idleAction) idleAction.play();
-
-      const arm = captureArmChain(model, bones);
-      if (!arm) console.warn('Dealer model is missing expected right-arm bones — reach gesture skipped.');
-
-      const record = { mixer, bones: seated ? bones : null, seatPose, arm, reach: null };
+      const record = { mixer, reach };
       activeDealers.add(record);
-      group.userData.model = model;
-      group.userData.mixer = mixer;
-      group.userData.clips = clips;
-      group.userData.idleAction = idleAction;
-      group.userData.activeAction = idleAction;
-      group.userData.record = record;
-      group.userData.ready = true;
+      Object.assign(group.userData, { model, mixer, record, ready: true });
     })
-    .catch((err) => {
-      console.error('Failed to load dealer model:', err);
-    });
+    .catch((err) => console.error('Failed to load dealer model:', err));
 }
 
-// Idle is just whatever's already looping once the model loads — kept as a
-// pair of functions so scene.js/gameController.js don't need to know
-// whether the model has finished loading yet.
+// Kept for scene.js, which starts the idle as soon as the figure exists; the
+// idle simply loops from the moment the model has loaded.
 export function startDealerIdle(dealer) {
   dealer.userData.idleActive = true;
 }
 
-export function stopDealerIdle(dealer) {
-  dealer.userData.idleActive = false;
+// Aims just above the felt rather than into it.
+const LIFT = 0.16;
+const lifted = (p) => p.clone().setY(Math.max(p.y, 0) + LIFT);
+
+/** Moves the dealer's hand through `points` ([{ at, pos }]); see reach.js. */
+export function dealerReach(dealer, points, options) {
+  const record = dealer.userData.record;
+  if (!record || !record.reach) return;
+  record.reach.play(points.map((p) => ({ at: p.at, pos: lifted(p.pos) })), options);
 }
 
-// A small lift above the felt so the reach aims at a point just over the
-// table surface, not literally into it — the card itself still lands flat
-// (see deal.js), this only affects where the hand appears to reach.
-const REACH_LIFT = new THREE.Vector3(0, 0.18, 0);
-// How far along a straight arm the hand goes when pitching. A dealer
-// doesn't lock the arm out toward the far seats — the card travels the
-// rest of the way on its own — and reaching to full length is what made
-// the arm look stretched and robotic.
-const PITCH_REACH = 0.85;
-
-// Crossfades from idle into a one-shot "handing something over" clip for
-// body language (torso/head), while the right arm itself is driven by a
-// real two-phase reach: from wherever it currently is, to the deck (as if
-// picking the card up), then on to wherever the card is actually headed —
-// a specific seat's hand spot swings the arm to that spot, not just a
-// generic forward push. Falls back to silently doing nothing if the model
-// hasn't finished loading yet (the very first card or two of a fast
-// session) or if the pack turns out not to have a suitable clip/bones.
+// Takes a card from the shoe and pitches it toward `target`.
 export function playDealGesture(dealer, target, duration = 550) {
-  const { mixer, clips, idleAction, record } = dealer.userData;
-  if (mixer && clips) {
-    const gestureClip = clips.Interact || clips.Wave || clips.HitRecieve;
-    if (gestureClip) {
-      const action = mixer.clipAction(gestureClip);
-      action.reset();
-      action.setLoop(THREE.LoopOnce, 1);
-      action.clampWhenFinished = true;
-      action.enabled = true;
-      action.setEffectiveWeight(1);
-      action.play();
-      if (idleAction) action.crossFadeFrom(idleAction, 0.1, false);
-      dealer.userData.activeAction = action;
-
-      const clipMs = gestureClip.duration * 1000;
-      const holdMs = Math.max(150, Math.min(duration, clipMs) - 120);
-      setTimeout(() => {
-        if (!idleAction) return;
-        idleAction.reset().play();
-        idleAction.crossFadeFrom(action, 0.15, false);
-        dealer.userData.activeAction = idleAction;
-      }, holdMs);
-    }
-  }
-
-  if (record && record.arm && target) {
-    const { arm } = record;
-    const shoulder = new THREE.Vector3();
-    arm.upperArm.getWorldPosition(shoulder);
-    // The pitching hand stays low over the felt. When the card's spot is out
-    // of reach the hand comes in across the table, not up toward shoulder
-    // height — reaching along the straight line to a far seat raised the arm
-    // into a point.
-    const aim = target.clone().add(REACH_LIFT);
-    const reachLen = (arm.upperLen + arm.lowerLen) * PITCH_REACH;
-    // Standing upright, the dealer's shoulder is further above the felt than
-    // a relaxed arm reaches, so the hand pitches from about waist height.
-    aim.y = Math.max(aim.y, shoulder.y - reachLen * 0.7);
-    const drop = shoulder.y - aim.y;
-    const across = Math.sqrt(Math.max(0, reachLen * reachLen - drop * drop));
-    const flat = new THREE.Vector3(aim.x - shoulder.x, 0, aim.z - shoulder.z);
-    if (flat.length() > across) {
-      flat.setLength(across);
-      aim.set(shoulder.x + flat.x, aim.y, shoulder.z + flat.z);
-    }
-
-    // A deal that begins while the hand is still out from the last one
-    // carries on from where the hand is, rather than jumping to rest.
-    const prior = record.reach;
-    const fromPos = prior && prior.target ? prior.target.clone() : new THREE.Vector3();
-    if (!prior) arm.wrist.getWorldPosition(fromPos);
-    record.reach = {
-      startTime: performance.now(),
-      duration,
-      fromPos,
-      fromWeight: prior ? prior.weight || 0 : 0,
-      deckPos: DEALER.deckPosition.clone().add(REACH_LIFT),
-      aimPos: aim,
-      scratch: new THREE.Vector3(),
-      weight: prior ? prior.weight || 0 : 0,
-      target: null,
-    };
-  }
+  if (!target) return;
+  dealerReach(dealer, [
+    { at: duration * 0.38, pos: DEALER.deckPosition },
+    { at: duration, pos: target },
+  ]);
 }

@@ -13,8 +13,24 @@ export const TABLE_RADIUS = m(0.885);
 const SIDE_LENGTH = 1.0;
 export const TABLE_BACK_Z = -SIDE_LENGTH;
 
-// How far the wooden apron and padded rail reach past the felt.
-const SKIRT = 0.45;
+// The border, from the felt outward, as a real table is built: a burl-wood
+// rim with a sunken channel for the players' own chips, then the padded
+// leather armrest. The apron's back edge runs a little past the felt as the
+// dealer's ledge.
+const RIM = m(0.11);            // wood rim, felt edge to armrest
+const RIM_LIP = m(0.02);        // wood between felt and channel
+const CHANNEL = m(0.06);        // the chip channel itself
+const RAIL_W = m(0.14);         // padded armrest
+const LEDGE = 0.45;             // apron past the felt along the dealer's side
+const RIM_TOP = 0.035;
+const CHANNEL_FLOOR = 0.014;
+export const RAIL_OUTER = TABLE_RADIUS + RIM + RAIL_W;
+// Where a player's chips sit, in the channel in front of their seat.
+export const CHANNEL_RADIUS = TABLE_RADIUS + RIM_LIP + CHANNEL / 2;
+export const CHANNEL_Y = CHANNEL_FLOOR;
+// Cup holders, set into the rim between the seats (seats.js puts the seats
+// at -95, -45, 0, 45 and 95 degrees).
+const HOLDER_ANGLES = [-70, -22.5, 22.5, 70];
 
 // Builds the D-shaped outline: up the left straight side, across the front
 // semicircle, down the right straight side, then THREE.Shape auto-closes
@@ -197,6 +213,59 @@ function createFeltTexture(themeKey) {
   return texture;
 }
 
+// Burl walnut for the rim: the swirled, figured grain casino tables are
+// finished in, built up from scattered knots and eyes over a warm ground.
+function createBurlTexture() {
+  const S = 1024;
+  const canvas = document.createElement('canvas');
+  canvas.width = S;
+  canvas.height = S;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#6a3a1a';
+  ctx.fillRect(0, 0, S, S);
+  const blot = (x, y, r, inner, outer) => {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, inner);
+    g.addColorStop(1, outer);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(x, y, r, r * (0.5 + Math.random() * 0.5), Math.random() * Math.PI, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  // Broad light and dark clouds, then the swirl of rings round each eye,
+  // then the small dark eyes themselves.
+  for (let i = 0; i < 70; i++) {
+    blot(Math.random() * S, Math.random() * S, 60 + Math.random() * 160,
+      Math.random() < 0.5 ? 'rgba(168,104,52,0.35)' : 'rgba(52,26,10,0.35)', 'rgba(0,0,0,0)');
+  }
+  for (let i = 0; i < 220; i++) {
+    const x = Math.random() * S, y = Math.random() * S, r = 8 + Math.random() * 40;
+    ctx.strokeStyle = `rgba(${40 + Math.random() * 40},${20 + Math.random() * 20},8,${0.15 + Math.random() * 0.2})`;
+    ctx.lineWidth = 1 + Math.random() * 2;
+    for (let k = 1; k <= 3; k++) {
+      ctx.beginPath();
+      ctx.ellipse(x, y, r * k * 0.6, r * k * 0.4, Math.random() * Math.PI, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+  for (let i = 0; i < 260; i++) {
+    blot(Math.random() * S, Math.random() * S, 2 + Math.random() * 6, 'rgba(30,14,4,0.8)', 'rgba(30,14,4,0)');
+  }
+  const img = ctx.getImageData(0, 0, S, S);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (Math.random() - 0.5) * 10;
+    img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n;
+  }
+  ctx.putImageData(img, 0, 0);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(0.45, 0.45);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  return texture;
+}
+
 // Dark walnut for the apron: long soft grain on a deep brown.
 function createWoodTexture() {
   const w = 1024, h = 128;
@@ -226,9 +295,9 @@ function createWoodTexture() {
 // Shared finishes, matte throughout. Brass is brushed rather than polished:
 // rough enough that it takes the light softly instead of flashing.
 export const BRASS = new THREE.MeshStandardMaterial({ color: 0x9c7d4a, roughness: 0.42, metalness: 0.75 });
-// Dark brown rather than black: pure black reads as a hole in the picture,
-// and brown lets the cushion's curve show where the light rolls off it.
-export const LEATHER = new THREE.MeshStandardMaterial({ color: 0x241a14, roughness: 0.55, metalness: 0 });
+// Near-black leather with a soft sheen, so the cushion's curve shows where
+// the light rolls off it; pure flat black read as a hole in the picture.
+export const LEATHER = new THREE.MeshStandardMaterial({ color: 0x1a1512, roughness: 0.42, metalness: 0 });
 
 export function createTable() {
   const group = new THREE.Group();
@@ -256,63 +325,86 @@ export function createTable() {
   felt.receiveShadow = true;
   group.add(felt);
 
-  // The padded leather armrest every real table has, in place of the flat
-  // gold border. Extruded with a deep bevel so its cross-section is a
-  // rounded cushion rather than a slab.
-  const RAIL_BEVEL = m(0.022);
-  const railShape = buildRailShape(
-    TABLE_RADIUS - 0.02 + RAIL_BEVEL,
-    TABLE_RADIUS + SKIRT - RAIL_BEVEL,
-    SIDE_LENGTH
-  );
-  const rail = new THREE.Mesh(
-    new THREE.ExtrudeGeometry(railShape, {
-      depth: m(0.008),
-      bevelEnabled: true,
-      bevelThickness: RAIL_BEVEL,
-      bevelSize: RAIL_BEVEL,
-      bevelSegments: 5,
-      curveSegments: 32,
-    }),
-    LEATHER
-  );
-  rail.rotation.x = Math.PI / 2;
-  // Extrusion runs down from y; the bevel adds RAIL_BEVEL above and below.
-  rail.position.y = m(0.008) + RAIL_BEVEL + 0.01;
-  rail.castShadow = true;
-  rail.receiveShadow = true;
-  group.add(rail);
+  // A band of the D outline between two radii, open along the dealer's
+  // back edge, extruded down from `top` by `depth`.
+  const band = (inner, outer, top, depth, mat, bevel = null) => {
+    const opts = bevel
+      ? { depth, bevelEnabled: true, bevelThickness: bevel.thickness, bevelSize: bevel.size, bevelSegments: 6, curveSegments: 48 }
+      : { depth, bevelEnabled: false, curveSegments: 48 };
+    const mesh = new THREE.Mesh(new THREE.ExtrudeGeometry(buildRailShape(inner, outer, SIDE_LENGTH), opts), mat);
+    mesh.rotation.x = Math.PI / 2;
+    mesh.position.y = top - (bevel ? bevel.thickness : 0);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+    return mesh;
+  };
 
-  // A fine brass bead where the felt meets the rail.
+  // The burl rim: a lip of wood at the felt's edge, the chip channel sunk
+  // into it, and the wider outer run of wood up to the armrest.
+  const burl = new THREE.MeshStandardMaterial({ map: createBurlTexture(), roughness: 0.38, metalness: 0 });
+  const channelMat = new THREE.MeshStandardMaterial({ color: 0x1c110a, roughness: 0.55, metalness: 0 });
+  band(TABLE_RADIUS - 0.01, TABLE_RADIUS + RIM_LIP, RIM_TOP, RIM_TOP, burl);
+  band(TABLE_RADIUS + RIM_LIP, TABLE_RADIUS + RIM_LIP + CHANNEL, CHANNEL_FLOOR, CHANNEL_FLOOR, channelMat);
+  band(TABLE_RADIUS + RIM_LIP + CHANNEL, TABLE_RADIUS + RIM + 0.02, RIM_TOP, RIM_TOP, burl);
+
+  // A fine brass bead where the felt meets the wood.
   const bead = new THREE.Mesh(
-    new THREE.ShapeGeometry(buildRailShape(TABLE_RADIUS - 0.035, TABLE_RADIUS - 0.005, SIDE_LENGTH), 1),
+    new THREE.ShapeGeometry(buildRailShape(TABLE_RADIUS - 0.03, TABLE_RADIUS - 0.008, SIDE_LENGTH), 1),
     new THREE.MeshStandardMaterial({ color: 0x9c7d4a, roughness: 0.42, metalness: 0.75, side: THREE.DoubleSide })
   );
   bead.rotation.x = Math.PI / 2;
   bead.position.y = 0.013;
   group.add(bead);
 
-  // Wooden apron below the rail, and the dealer's ledge along the back.
-  const woodMat = new THREE.MeshStandardMaterial({ map: createWoodTexture(), roughness: 0.6, metalness: 0 });
-  const APRON = m(0.15);
+  // The padded armrest: a deep bevel all round makes its section a full,
+  // rounded cushion.
+  const cushion = { thickness: m(0.034), size: m(0.05) };
+  // Deep enough to meet the apron below, with no gap under the cushion.
+  band(TABLE_RADIUS + RIM + cushion.size, RAIL_OUTER - cushion.size, RIM_TOP + m(0.068), m(0.006) + 0.025, LEATHER, cushion);
+
+  // Brass cup holders let into the rim between the seats.
+  const holderR = RIM * 0.36;
+  const holderRing = new THREE.TorusGeometry(holderR, m(0.007), 10, 36);
+  const holderWell = new THREE.CircleGeometry(holderR * 0.94, 36);
+  const wellMat = new THREE.MeshStandardMaterial({ color: 0x0d0b0a, roughness: 0.6, metalness: 0.2 });
+  HOLDER_ANGLES.forEach((deg) => {
+    const rad = THREE.MathUtils.degToRad(deg);
+    const r = TABLE_RADIUS + RIM * 0.55;
+    const ring = new THREE.Mesh(holderRing, BRASS);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(Math.sin(rad) * r, RIM_TOP + 0.004, Math.cos(rad) * r);
+    group.add(ring);
+    const well = new THREE.Mesh(holderWell, wellMat);
+    well.rotation.x = -Math.PI / 2;
+    well.position.set(Math.sin(rad) * r, RIM_TOP + 0.002, Math.cos(rad) * r);
+    group.add(well);
+  });
+
+  // The apron below: lacquered walnut, carrying the outline round to the
+  // dealer's ledge along the back.
+  const woodMat = new THREE.MeshStandardMaterial({ map: createWoodTexture(), roughness: 0.5, metalness: 0 });
+  const APRON = m(0.14);
   const apron = new THREE.Mesh(
-    new THREE.ExtrudeGeometry(buildTableShape(TABLE_RADIUS + SKIRT, SIDE_LENGTH + SKIRT), {
-      depth: APRON, bevelEnabled: false, curveSegments: 32,
+    new THREE.ExtrudeGeometry(buildTableShape(RAIL_OUTER, SIDE_LENGTH + LEDGE), {
+      depth: APRON, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 3, curveSegments: 48,
     }),
     woodMat
   );
   apron.rotation.x = Math.PI / 2;
-  apron.position.y = 0.005;
+  // The bevel rounds the top edge 2 cm above the extrusion; set down so
+  // that rounded top stays just under the felt rather than covering it.
+  apron.position.y = -0.025;
   apron.receiveShadow = true;
   apron.castShadow = true;
   group.add(apron);
 
   // Pedestal: the same outline set well in, so seated knees clear it.
   const INSET = m(0.6);
-  const pedestalTop = 0.005 - APRON;
+  const pedestalTop = -0.025 - APRON;
   const pedestal = new THREE.Mesh(
     new THREE.ExtrudeGeometry(
-      buildTableShape(TABLE_RADIUS + SKIRT - INSET, SIDE_LENGTH + SKIRT - INSET * 0.4),
+      buildTableShape(RAIL_OUTER - INSET, SIDE_LENGTH + LEDGE - INSET * 0.4),
       { depth: pedestalTop - FLOOR_Y, bevelEnabled: false, curveSegments: 32 }
     ),
     new THREE.MeshStandardMaterial({ color: 0x120d0a, roughness: 0.7, metalness: 0 })
@@ -326,7 +418,7 @@ export function createTable() {
   // A low brass kickplate where the pedestal meets the carpet.
   const kick = new THREE.Mesh(
     new THREE.ExtrudeGeometry(
-      buildTableShape(TABLE_RADIUS + SKIRT - INSET + m(0.015), SIDE_LENGTH + SKIRT - INSET * 0.4 + m(0.015)),
+      buildTableShape(RAIL_OUTER - INSET + m(0.015), SIDE_LENGTH + LEDGE - INSET * 0.4 + m(0.015)),
       { depth: m(0.05), bevelEnabled: false, curveSegments: 32 }
     ),
     BRASS

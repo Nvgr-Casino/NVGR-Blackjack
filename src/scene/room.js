@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { drawCasinoCrest } from './crest.js';
 import { FLOOR_Y } from './scale.js';
+import { furnishRoom } from './furniture.js';
 
 // The salon the table stands in.
 //
@@ -17,7 +18,9 @@ import { FLOOR_Y } from './scale.js';
 // material three.js has.
 
 export const CEILING_Y = 6.4;
-export const ROOM_HALF = 13;  // walls at ±13 in x and z
+// A 7 m salon. It was 10 m, which left the walls — and anything against
+// them — as specks in the dark behind the dealer.
+export const ROOM_HALF = 9;  // walls at ±9 in x and z
 const WALL_H = CEILING_Y - FLOOR_Y;
 const ROOM_SIZE = ROOM_HALF * 2;
 
@@ -127,7 +130,7 @@ function createCarpetTexture() {
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(8, 8);
+  texture.repeat.set(6, 6);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 8;
   return texture;
@@ -204,5 +207,6 @@ export function createRoom() {
   diffuser.position.set(0, CEILING_Y - 0.125, -0.4);
   room.add(diffuser);
 
+  furnishRoom(room, ROOM_HALF);
   return room;
 }

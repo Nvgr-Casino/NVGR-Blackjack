@@ -288,19 +288,25 @@ export function syncRoomToScene(room, myKey) {
   }
 
   // Payout/collect chips once results land for this round.
+  // The dealer settles one seat at a time, from their right round to their
+  // left (highest seat index first — the reverse of the deal).
   if (room.phase === 'results' && lastPhase !== 'results') {
-    (room.dealtIn || []).forEach((key) => {
-      const seatIndex = seatIndexOf.get(key);
-      const p = room.players[key];
-      if (seatIndex === undefined || !p || !p.hands) return;
-      const outcomes = p.hands.map((h) => h.outcome);
-      const anyWin = outcomes.some((o) => o === 'win' || o === 'blackjack');
-      const anyLose = outcomes.some((o) => o === 'lose');
-      if (anyWin) driver.payoutChipsForSeat(seatIndex, outcomes.includes('blackjack') ? 3 : 2);
-      else if (anyLose) driver.collectBetChipsForSeat(seatIndex);
-      betChipsShown[seatIndex] = false;
-      localPendingSeats[seatIndex] = false;
-    });
+    (room.dealtIn || [])
+      .map((key) => ({ key, seatIndex: seatIndexOf.get(key) }))
+      .filter((x) => x.seatIndex !== undefined)
+      .sort((a, b) => b.seatIndex - a.seatIndex)
+      .forEach(({ key, seatIndex }) => {
+        const p = room.players[key];
+        if (!p || !p.hands) return;
+        const outcomes = p.hands.map((h) => h.outcome);
+        const anyWin = outcomes.some((o) => o === 'win' || o === 'blackjack');
+        const anyLose = outcomes.some((o) => o === 'lose' || o === 'surrender');
+        if (anyWin) driver.payoutChipsForSeat(seatIndex, outcomes.includes('blackjack') ? 3 : 2);
+        else if (anyLose) driver.collectBetChipsForSeat(seatIndex);
+        else driver.drawChipsHome(seatIndex);
+        betChipsShown[seatIndex] = false;
+        localPendingSeats[seatIndex] = false;
+      });
   }
 
   lastPhase = room.phase;

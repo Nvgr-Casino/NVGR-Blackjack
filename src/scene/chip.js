@@ -92,15 +92,18 @@ function buildFaceCanvas(denom) {
   ctx.fillText('NVGR', 0, 0);
   ctx.restore();
 
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = `700 ${size * 0.19}px Georgia, serif`;
-  ctx.fillStyle = '#ffffff';
-  ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-  ctx.lineWidth = 3;
-  const label = labelText(denom.value);
-  ctx.strokeText(label, cx, cy + r * 0.08);
-  ctx.fillText(label, cx, cy + r * 0.08);
+  // Rack chips carry no value of their own, so no label.
+  if (denom.value) {
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `700 ${size * 0.19}px Georgia, serif`;
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.lineWidth = 3;
+    const label = labelText(denom.value);
+    ctx.strokeText(label, cx, cy + r * 0.08);
+    ctx.fillText(label, cx, cy + r * 0.08);
+  }
 
   return canvas;
 }
@@ -210,13 +213,58 @@ export function createChipForValue(value, colorIndex = 0) {
   return buildChipMesh(ladderDenom(value, colorIndex));
 }
 
+// A run of chips drawn as one solid cylinder, its edge pattern repeating
+// once per chip, rather than as a mesh per chip — a rack holds hundreds,
+// and every mesh is a draw call. The faces show on the ends.
+const runCache = new Map();
+function stackSideTexture(denom, count) {
+  const key = denomKey(denom) + ':' + count;
+  if (runCache.has(key)) return runCache.get(key);
+  const w = 256, h = 32;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = denom.color;
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  for (let i = 0; i < 8; i++) ctx.fillRect((i / 8) * w, 0, (w / 8) * 0.45, h);
+  // The seam between one chip and the next.
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillRect(0, h - 2, w, 2);
+  const texture = finalize(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(1, count);
+  runCache.set(key, texture);
+  return texture;
+}
+
+function chipRun(denom, count) {
+  const geometry = new THREE.CylinderGeometry(CHIP_RADIUS, CHIP_RADIUS, CHIP_HEIGHT * count, 32, 1);
+  const side = new THREE.MeshStandardMaterial({ map: stackSideTexture(denom, count), roughness: 0.5 });
+  const face = getMaterials(denom)[1];
+  const mesh = new THREE.Mesh(geometry, [side, face, face]);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
 // A short stack of chips, stood on the table at the group's origin.
 export function createChipStack(count = 4, colorIndex = 0) {
   const group = new THREE.Group();
-  for (let i = 0; i < count; i++) {
-    const chip = createChip(colorIndex);
-    chip.position.y = CHIP_HEIGHT * i + CHIP_HEIGHT / 2;
-    group.add(chip);
-  }
+  const run = chipRun(DENOMINATIONS[colorIndex % DENOMINATIONS.length], count);
+  run.position.y = (CHIP_HEIGHT * count) / 2;
+  group.add(run);
   return group;
+}
+
+// A column of chips lying on their edges along local Z, as they sit in the
+// tubes of a dealer's rack. `colorIndex` runs through the bet ladder's
+// colours, so the rack holds every denomination the table plays.
+export function createChipColumn(count, colorIndex) {
+  const i = colorIndex % LADDER_COLORS.length;
+  const run = chipRun({ value: 0, color: LADDER_COLORS[i], dark: LADDER_DARK[i] }, count);
+  run.rotation.x = Math.PI / 2;
+  return run;
 }

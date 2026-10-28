@@ -26,6 +26,8 @@ const ROLE_NAMES = {
   upperArmR: ['UpperArmR', 'RightArm', 'R_UpperArm'],
   lowerArmR: ['LowerArmR', 'RightForeArm', 'R_Forearm'],
   wristR: ['WristR', 'RightHand', 'R_Hand'],
+  // Mid-spine, which a figure leans from when reaching across the table.
+  spine: ['Spine1'],
 };
 
 // The leg roles are what a seated pose needs; without all of them the
@@ -129,4 +131,44 @@ export function prepareFigureMaterials(model) {
       mat.needsUpdate = true;
     }
   });
+}
+
+/**
+ * Fits a Rocketbox clip to a Rocketbox avatar.
+ *
+ * fbx2gltf drops the Biped root ("Bip01") from an avatar — it carries no
+ * skin — and bakes its rotation into the pelvis, which becomes the top of
+ * the skeleton. The clips keep Bip01, so the pelvis rotation they animate
+ * is relative to a parent the avatar doesn't have: played as-is, the
+ * standing idle laid the dealer flat across the table. Folding the root's
+ * rotation into the pelvis track, keyframe by keyframe, gives the pelvis
+ * the orientation the capture meant. Rigs that kept their root are
+ * returned untouched.
+ */
+export function fitClipToRig(clip, clipScene, model) {
+  if (!clip || model.getObjectByName('Bip01')) return clip;
+  const rootName = 'Bip01';
+  const pelvisName = 'Bip01_Pelvis';
+  const rootTrack = clip.tracks.find((t) => t.name === rootName + '.quaternion');
+  if (!rootTrack) return clip;
+  const pelvisTrack = clip.tracks.find((t) => t.name === pelvisName + '.quaternion');
+  const pelvisRest = clipScene && clipScene.getObjectByName(pelvisName);
+
+  const times = pelvisTrack ? pelvisTrack.times : rootTrack.times;
+  const rootAt = rootTrack.createInterpolant();
+  const pelvisAt = pelvisTrack ? pelvisTrack.createInterpolant() : null;
+  const values = new Float32Array(times.length * 4);
+  const qr = new THREE.Quaternion();
+  const qp = new THREE.Quaternion();
+  for (let i = 0; i < times.length; i++) {
+    qr.fromArray(rootAt.evaluate(times[i]));
+    if (pelvisAt) qp.fromArray(pelvisAt.evaluate(times[i]));
+    else if (pelvisRest) qp.copy(pelvisRest.quaternion);
+    else qp.identity();
+    qr.multiply(qp).toArray(values, i * 4);
+  }
+  const folded = new THREE.QuaternionKeyframeTrack(pelvisName + '.quaternion', Array.from(times), Array.from(values));
+  const tracks = clip.tracks.filter((t) => !t.name.startsWith(rootName + '.') && t.name !== pelvisName + '.quaternion');
+  tracks.push(folded);
+  return new THREE.AnimationClip(clip.name, clip.duration, tracks, clip.blendMode);
 }
