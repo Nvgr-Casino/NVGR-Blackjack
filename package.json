@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "models": "node scripts/optimize-models.mjs",
-    "character": "node scripts/import-character.mjs"
+    "character": "node scripts/import-character.mjs",
+    "cards": "node scripts/build-cards.mjs"
   },
   "dependencies": {
     "firebase": "^12.1.0",
@@ -17,6 +18,7 @@
   "devDependencies": {
     "@gltf-transform/cli": "^4.5.0",
     "fbx2gltf": "^0.9.7",
+    "sharp": "^0.33.5",
     "vite": "^5.4.11"
   },
   "allowScripts": {

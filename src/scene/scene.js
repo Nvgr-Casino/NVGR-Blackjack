@@ -57,9 +57,11 @@ export function initScene(canvas) {
   // measures whether the device can hold it (see adaptQuality), so a fast
   // phone keeps a sharp picture and only a struggling one gives resolution
   // up. Antialiasing is on everywhere for the same reason.
-  // Down to 0.75: integrated laptop graphics (an Intel UHD 630, measured)
-  // still needed 21 ms a frame at 1x, so stopping at 1 left it juddering.
-  const DPR_STEPS = [2, 1.5, 1.25, 1, 0.85, 0.75];
+  // Never below 1x. Steps under that bought a few frames at the cost of the
+  // whole picture going soft — the cards most of all, being the finest
+  // detail on screen — and a blurred card is worse than a slightly slower
+  // one. The finer steps at the top let a capable GPU keep more sharpness.
+  const DPR_STEPS = [2, 1.75, 1.5, 1.25, 1];
   let dprStep = 0;
   const applyPixelRatio = () => renderer.setPixelRatio(Math.min(window.devicePixelRatio, DPR_STEPS[dprStep]));
 

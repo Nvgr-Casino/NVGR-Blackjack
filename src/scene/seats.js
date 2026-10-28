@@ -61,14 +61,31 @@ const VIEWS = {
 export const isTallScreen = () => window.innerWidth < window.innerHeight;
 const view = () => (isTallScreen() ? VIEWS.tall : VIEWS.wide);
 
-export function cameraLookAtForSeat() {
-  return DEALER.handSpot.clone().setY(view().lookY);
+// From the end seats the dealer stands well off the line to their own cards,
+// so aiming at the cards leaves the dealer pushed to the edge of the
+// picture. The further out a seat, the more its aim moves back toward the
+// dealer, which brings them to the middle; the centre seat aims as before.
+const OUTER_AIM = 0.55;
+
+export function cameraLookAtForSeat(seat) {
+  const out = seat ? Math.abs(Math.atan2(seat.position.x, seat.position.z)) / (Math.PI / 2) : 0;
+  const target = DEALER.handSpot.clone().lerp(DEALER.position, Math.min(1, out) * OUTER_AIM);
+  return target.setY(view().lookY);
 }
+
+// The two end seats sit right out beside the dealer. Viewed from exactly
+// there, the table runs off sideways and the dealer is seen in profile at
+// the edge of the frame — accurate, and tiring to watch. So each seat's
+// camera swings partway toward the middle of the table: still from your
+// own side, but facing the dealer and with the whole table in front of
+// you. The middle seat is unchanged; seat 1 and seat 5 move most.
+const SWING = 0.4;
 
 export function cameraPositionForSeat(seat) {
   const { back, height } = view();
-  const dir = seat.position.clone().setY(0).normalize();
-  return seat.position.clone().addScaledVector(dir, back).setY(FLOOR_Y + height);
+  const angle = Math.atan2(seat.position.x, seat.position.z) * SWING;
+  const radius = SEAT_RADIUS + back;
+  return new THREE.Vector3(Math.sin(angle) * radius, FLOOR_Y + height, Math.cos(angle) * radius);
 }
 
 // The dealer stands behind the flat back rail (TABLE_BACK_Z is negative).

@@ -9,12 +9,16 @@ import {
   chipLadderForTable, stakesFor, stakesLabel, safeKey, seatOf, countdownLabel,
 } from './roomLogic.js';
 import { chipButtonDataURL } from '../scene/chip.js';
+import { prefetchCardFaces, cardFaceUrl } from '../scene/card.js';
 import { characterPortraitDataURL, defaultCharacterFor } from '../scene/character.js';
 import { esc } from './uiHelpers.js';
 import * as S from './session.js';
 import * as Social from './social.js';
 
 const DEAL_STEP_MS = 320;
+// How long a dealt card is in the air (deal.js's default) — the hand
+// readout shows a card only once it has landed on the felt.
+const CARD_FLIGHT_MS = 550;
 
 const OUTCOME_LABEL = {
   win: (bet) => 'Won ' + (bet * 2).toLocaleString(),
@@ -39,6 +43,13 @@ let betChipsShown = {}; // seatIndex -> bool, whether we've drawn a bet chip thi
 // decorative stack on top of the real one the player just tapped out.
 let localPendingSeats = {};
 let lastPhase = null;
+// Cards that have finished their flight, for the hand readout: keyed like
+// lastCounts, plus the dealer's. roundToken stops a flight still in the air
+// from the last round from counting toward this one.
+let landed = {};
+let landedDealer = 0;
+let holeShown = false;
+let roundToken = 0;
 
 let setFeltTheme = () => {};
 let setDealerModel = () => {};
@@ -52,8 +63,16 @@ export function mountTable3D(sceneHandles) {
 
 function toCard(str) { return { rank: rankOf(str), suit: suitOf(str) }; }
 
+function resetLanded() {
+  landed = {};
+  landedDealer = 0;
+  holeShown = false;
+  roundToken++;
+}
+
 function resetRoundVisuals() {
   driver.clearAllMeshes();
+  resetLanded();
   lastCounts = {};
   lastDealerCount = 0;
   dealerRevealed = false;
@@ -87,6 +106,7 @@ function spawnBetStack(seatIndex, amount, ladder) {
 // ---------- the real sync ----------
 export function syncRoomToScene(room, myKey) {
   if (!driver || !room) return;
+  prefetchCardFaces();
 
   setFeltTheme(room.felt);
   setDealerModel(room.dealerType);
@@ -216,6 +236,7 @@ export function syncRoomToScene(room, myKey) {
     dealerEvents.filter((e) => e.index === pass).forEach((e) => events.push(e));
   }
 
+  const token = roundToken;
   events.forEach((ev, i) => {
     setTimeout(() => {
       if (ev.kind === 'dealer') {
@@ -224,12 +245,26 @@ export function syncRoomToScene(room, myKey) {
         driver.dealCardToSeat(ev.seatIndex, ev.handIndex, ev.index, toCard(ev.card), ev.handCount);
       }
     }, i * DEAL_STEP_MS);
+    setTimeout(() => {
+      if (token !== roundToken) return;
+      if (ev.kind === 'dealer') landedDealer = Math.max(landedDealer, ev.index + 1);
+      else {
+        const k = ev.seatIndex + ':' + ev.handIndex;
+        landed[k] = Math.max(landed[k] || 0, ev.index + 1);
+      }
+      refreshHandStrip();
+    }, i * DEAL_STEP_MS + CARD_FLIGHT_MS);
   });
 
   // Dealer hole-card reveal, once.
   if (room.dealer.hiddenRevealed && !dealerRevealed && lastDealerCount >= 2) {
     dealerRevealed = true;
-    setTimeout(() => driver.revealDealerCard(1), events.length * DEAL_STEP_MS + 100);
+    setTimeout(() => {
+      driver.revealDealerCard(1);
+      if (token !== roundToken) return;
+      holeShown = true;
+      refreshHandStrip();
+    }, events.length * DEAL_STEP_MS + 100);
   }
 
   // Hand-value badges for every seat currently showing cards.
@@ -278,6 +313,73 @@ function shoeLabel(r) {
   const pct = Math.max(0, Math.min(100, Math.round((left / r.shoeSize) * 100)));
   const justShuffled = r.shuffledAt && Date.now() - r.shuffledAt < 8000;
   return justShuffled ? 'Fresh shoe' : 'Shoe ' + pct + '%';
+}
+
+// ---------- hand readout ----------
+// Your hand and the dealer's as flat card images with their totals, just
+// above the action bar. The 3D cards are as sharp as the screen allows, but
+// a laptop that can't render at its display's full resolution softens the
+// whole picture, and card corners — the finest detail in it — go first.
+// These are drawn by the browser at native resolution, so they never blur;
+// each appears only once its 3D card has landed, so they never run ahead of
+// the deal.
+function cardImg(card) {
+  return `<img class="rc" src="${cardFaceUrl(rankOf(card), suitOf(card))}" alt="${esc(rankOf(card) + suitOf(card))}">`;
+}
+
+function handStripHtml(r, myKey) {
+  if (!r || !['insurance', 'playing', 'dealer', 'results'].includes(r.phase)) return '';
+  const me = r.players && r.players[myKey];
+  const mySeat = myKey ? seatOf(r, myKey) : -1;
+
+  const dHand = (r.dealer && r.dealer.hand) || [];
+  const dShown = dHand.slice(0, landedDealer);
+  if (!dShown.length) return '';
+  const holeHidden = dShown.length >= 2 && !(r.dealer.hiddenRevealed && holeShown);
+  const dealerCards = dShown.map((c, i) => (i === 1 && holeHidden ? '<span class="rc rc-back"></span>' : cardImg(c))).join('');
+  const dealerTotal = handValueLabel(holeHidden ? dShown.slice(0, 1) : dShown);
+
+  let mine = '';
+  if (me && me.hands && me.hands.length && mySeat !== -1) {
+    const cur = r.turnOrder && r.turnOrder[r.currentTurnIndex];
+    mine = me.hands.map((h, hi) => {
+      const shown = h.cards.slice(0, landed[mySeat + ':' + hi] || 0);
+      if (!shown.length) return '';
+      const active = r.phase === 'playing' && cur && cur.pid === myKey && cur.hi === hi && me.hands.length > 1;
+      const tag = r.phase === 'results' && h.outcome ? `<span class="rs-tag ${h.outcome}">${esc(OUTCOME_LABEL[h.outcome](h.bet))}</span>`
+        : h.status === 'busted' ? '<span class="rs-tag lose">Bust</span>'
+        : h.status === 'blackjack' ? '<span class="rs-tag win">Blackjack</span>' : '';
+      return `
+        <div class="rs-hand ${active ? 'active' : ''}">
+          <div class="rs-cards">${shown.map(cardImg).join('')}</div>
+          <span class="rs-total">${handValueLabel(shown)}</span>${tag}
+        </div>`;
+    }).join('');
+  }
+
+  return `
+    <div class="readout" id="handStrip">
+      <div class="rs-side">
+        <span class="rs-label">Dealer</span>
+        <div class="rs-hand"><div class="rs-cards">${dealerCards}</div><span class="rs-total">${dealerTotal}</span></div>
+      </div>
+      ${mine ? `<div class="rs-side"><span class="rs-label">You</span>${mine}</div>` : ''}
+    </div>`;
+}
+
+// Redraws just the readout, between room updates, as each card lands.
+function refreshHandStrip() {
+  const r = S.session.room;
+  if (!r || S.session.screen !== 'table') return;
+  const html = handStripHtml(r, safeKey(S.session.uid));
+  const el = document.getElementById('handStrip');
+  if (el) {
+    if (html) el.outerHTML = html; else el.remove();
+  } else if (html) {
+    const dock = document.querySelector('.hud-dock');
+    if (dock) dock.insertAdjacentHTML('afterbegin', html);
+    else document.getElementById('root').insertAdjacentHTML('beforeend', `<div class="hud-dock">${html}</div>`);
+  }
 }
 
 // ---------- HTML chrome (top bar, status, players, dock, sheets) ----------
@@ -489,6 +591,8 @@ export function renderTableScreen() {
       </div>
     </div>` : '';
 
+  const readout = handStripHtml(r, myKey);
+
   const tableSub = [
     stakesLabel(min, max),
     r.isPublic ? 'Public · ' + (r.playerOrder || []).length + '/' + MAX_PUBLIC_SEATS : 'Private',
@@ -515,7 +619,7 @@ export function renderTableScreen() {
     ${playersHtml ? `<aside class="hud-players">${playersHtml}</aside>` : ''}
     ${hostSheet}
     ${chatSheet}
-    ${dock ? `<div class="hud-dock">${dock}</div>` : ''}
+    ${(dock || readout) ? `<div class="hud-dock">${readout}${dock}</div>` : ''}
   `;
 }
 
@@ -609,6 +713,7 @@ export function attachTableScreen() {
 }
 
 export function resetTableDiffState() {
+  resetLanded();
   lastRound = null;
   lastShuffledAt = null;
   lastCounts = {};
