@@ -75,15 +75,23 @@ export function cameraLookAtForSeat(seat) {
 
 // The two end seats sit right out beside the dealer. Viewed from exactly
 // there, the table runs off sideways and the dealer is seen in profile at
-// the edge of the frame — accurate, and tiring to watch. So each seat's
-// camera swings partway toward the middle of the table: still from your
-// own side, but facing the dealer and with the whole table in front of
-// you. The middle seat is unchanged; seat 1 and seat 5 move most.
-const SWING = 0.4;
+// the edge of the frame — accurate, and tiring to watch. So each outer
+// seat's camera swings in toward the middle of the table, to the middle of
+// the gap between that seat and the next one in: still your own side, but
+// facing the dealer, with the whole table in front of you — and between
+// the chairs, not behind the next player's head, where a fixed share of
+// the angle once put it.
+function cameraAngle(seat) {
+  const deg = SEAT_ANGLES_DEG[seat.index];
+  if (deg === 0) return 0;
+  const inward = SEAT_ANGLES_DEG.filter((d) => Math.abs(d) < Math.abs(deg) && Math.sign(d || deg) === Math.sign(deg));
+  const next = inward.length ? inward.reduce((a, b) => (Math.abs(b) > Math.abs(a) ? b : a)) : 0;
+  return THREE.MathUtils.degToRad((deg + next) / 2);
+}
 
 export function cameraPositionForSeat(seat) {
   const { back, height } = view();
-  const angle = Math.atan2(seat.position.x, seat.position.z) * SWING;
+  const angle = cameraAngle(seat);
   const radius = SEAT_RADIUS + back;
   return new THREE.Vector3(Math.sin(angle) * radius, FLOOR_Y + height, Math.cos(angle) * radius);
 }

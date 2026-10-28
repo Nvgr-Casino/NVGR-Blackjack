@@ -124,33 +124,35 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
     stashes.delete(seatIndex);
   }
 
-  // A seated figure leans in over the felt, so from your own chair the back
-  // of your own head sits squarely between the camera and your cards. Any
-  // head the camera is right behind isn't drawn; the body still is, so your
-  // own shoulders and arms are at the bottom of the picture, and turning the
-  // view to look at yourself brings the head back.
-  // Your own seat's head is held back from further away — the phone view
-  // stands well back over your shoulder — than anyone else's, which is
-  // hidden only when the camera is right behind it.
-  const HEAD_CLEARANCE = m(0.95);
-  const OWN_HEAD_CLEARANCE = m(2.4);
+  // A seated figure leans in over the felt, so from some views your own head
+  // sits squarely between the camera and your own cards. Then your figure is
+  // not drawn — the whole figure, never a body without its head, which is
+  // what the first version of this left you looking at. From every other
+  // view it is: the seat-1 view, swung in toward the middle of the table,
+  // has your own figure in the corner of the picture, and it should be
+  // whole. The same goes for anyone else's head in that line, or a figure
+  // the camera is right inside.
+  const HEAD_CLEARANCE = m(0.35);
+  const OCCLUDE_RADIUS = m(0.2);
   const headPoint = new THREE.Vector3();
+  const segment = new THREE.Line3();
+  const nearest = new THREE.Vector3();
   const priorBeforeRender = scene.onBeforeRender;
   scene.onBeforeRender = (...args) => {
     seatCharacters.forEach(({ group }, seatIndex) => {
-      const meshes = group.userData.headMeshes;
-      if (!meshes || !meshes.length) return;
+      const model = group.children[0];
+      if (!model) return;
       const seat = SEATS[seatIndex];
       const inward = seatOutwardDir(seat).multiplyScalar(-m(0.2));
       headPoint.copy(seat.position).add(inward).setY(SEAT_TOP_Y + m(0.72));
-      const own = seatIndex === viewSeatIndex;
-      const show = camera.position.distanceTo(headPoint) > (own ? OWN_HEAD_CLEARANCE : HEAD_CLEARANCE);
-      for (const mesh of meshes) mesh.visible = show;
-      // From the phone view, over your shoulder, a headless body of your own
-      // sat below your cards; there the whole figure stands down, and your
-      // hand is in the readout.
-      const model = group.children[0];
-      if (model) model.visible = !(own && !show && isTallScreen());
+      let hidden = camera.position.distanceTo(headPoint) < HEAD_CLEARANCE;
+      // Any head squarely between the camera and your own cards.
+      if (!hidden) {
+        segment.set(camera.position, SEATS[viewSeatIndex].handSpot);
+        segment.closestPointToPoint(headPoint, true, nearest);
+        hidden = nearest.distanceTo(headPoint) < OCCLUDE_RADIUS;
+      }
+      model.visible = !hidden;
     });
     priorBeforeRender.apply(scene, args);
   };

@@ -26,7 +26,9 @@ const ROLE_NAMES = {
   upperArmR: ['UpperArmR', 'RightArm', 'R_UpperArm'],
   lowerArmR: ['LowerArmR', 'RightForeArm', 'R_Forearm'],
   wristR: ['WristR', 'RightHand', 'R_Hand'],
-  // Mid-spine, which a figure leans from when reaching across the table.
+  // The lower and middle spine, which a figure bends and turns from when
+  // reaching across the table.
+  spineLow: ['Spine'],
   spine: ['Spine1'],
 };
 

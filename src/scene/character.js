@@ -147,14 +147,6 @@ export function createCharacter(id) {
       // Called when the figure leaves its seat, so it stops being animated.
       group.userData.release = () => seated.delete(record);
     }
-    // The head, hair and glasses, which Rocketbox keeps as meshes of their
-    // own, so the table can stop drawing a head the camera is sitting right
-    // behind — glasses included, or they hang in the air in front of you.
-    const head = [];
-    model.traverse((o) => {
-      if (o.isMesh && [].concat(o.material).some((mt) => /_(head|opacity|glasses)$/i.test(mt.name))) head.push(o);
-    });
-    group.userData.headMeshes = head;
     group.add(model);
   }).catch(() => { /* a missing model just leaves an empty chair */ });
   return group;
