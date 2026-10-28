@@ -9,11 +9,13 @@ export const CHIP_HEIGHT = 0.02;
 
 // Denomination ladder — explicit, high-contrast colors matching real chip
 // conventions (not the low-res Kenney art this used to load).
+// Bright, saturated casino colours — the earlier ones were dusty enough to
+// read as brown and grey under the table's warm light.
 export const DENOMINATIONS = [
-  { value: 100, color: '#b5342a', dark: false },
-  { value: 500, color: '#1f6fb2', dark: false },
-  { value: 1000, color: '#1f7a4d', dark: false },
-  { value: 5000, color: '#161616', dark: true },
+  { value: 100, color: '#e3262f', dark: false },
+  { value: 500, color: '#1e7fe0', dark: false },
+  { value: 1000, color: '#17a34a', dark: false },
+  { value: 5000, color: '#8b2fd6', dark: false },
 ];
 
 function labelText(value) {
@@ -25,8 +27,9 @@ function labelText(value) {
 // this same 6-step palette, one color per rung of roomLogic.js's
 // chipLadderForTable (kept separate from the 4-value DENOMINATIONS above,
 // which are for the fixed chips used in payout/collect animations).
-export const LADDER_COLORS = ['#f6ecd9', '#c0392b', '#2b6ca8', '#1f7a4d', '#5b3a8a', '#161616'];
-export const LADDER_DARK = [false, false, false, false, true, true];
+export const LADDER_COLORS = ['#f4f1ea', '#e3262f', '#1e7fe0', '#17a34a', '#ff8a1c', '#8b2fd6'];
+// The white chip carries dark lettering; every other one white.
+export const LADDER_DARK = [true, false, false, false, false, false];
 
 const faceCache = new Map();
 const sideCache = new Map();
@@ -38,73 +41,68 @@ function finalize(canvas) {
   return texture;
 }
 
-function buildFaceCanvas(denom) {
+// Mixes a hex colour toward white by `t`.
+function tint(hex, t) {
+  const n = parseInt(hex.slice(1), 16);
+  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => Math.round(v + (255 - v) * t));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
 
+// The face of a casino chip: a bright clay body with six white inserts
+// round the edge, a dashed inner ring, and the value large in the middle.
+function buildFaceCanvas(denom) {
   const size = 256;
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
-  const cx = size / 2, cy = size / 2, r = size / 2 - 4;
+  const cx = size / 2, cy = size / 2, r = size / 2 - 3;
+  const ink = denom.dark ? '#2a2420' : '#ffffff';
+  const insert = denom.dark ? '#c9302c' : '#ffffff';
 
   ctx.fillStyle = denom.color;
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fill();
 
-  // Edge dashes, like real chip spots.
-  const dashCount = 10;
-  ctx.fillStyle = 'rgba(255,255,255,0.92)';
-  for (let i = 0; i < dashCount; i++) {
-    const a0 = (i / dashCount) * Math.PI * 2;
-    const a1 = a0 + (Math.PI * 2) / dashCount / 2;
+  // Edge inserts.
+  const inserts = 6;
+  ctx.fillStyle = insert;
+  for (let i = 0; i < inserts; i++) {
+    const a0 = (i / inserts) * Math.PI * 2 - 0.2;
+    const a1 = a0 + 0.4;
     ctx.beginPath();
     ctx.arc(cx, cy, r, a0, a1);
-    ctx.arc(cx, cy, r * 0.82, a1, a0, true);
+    ctx.arc(cx, cy, r * 0.8, a1, a0, true);
     ctx.closePath();
     ctx.fill();
   }
 
-  // Inner face, gold ring, center disc.
-  ctx.fillStyle = denom.color;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r * 0.74, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.strokeStyle = '#eac35e';
+  // Dashed inner ring, then the centre a shade lighter than the body.
+  ctx.strokeStyle = ink;
+  ctx.globalAlpha = 0.9;
   ctx.lineWidth = 4;
+  ctx.setLineDash([10, 7]);
   ctx.beginPath();
-  ctx.arc(cx, cy, r * 0.6, 0, Math.PI * 2);
+  ctx.arc(cx, cy, r * 0.72, 0, Math.PI * 2);
   ctx.stroke();
-
-  ctx.fillStyle = denom.dark ? '#1c0a05' : 'rgba(255,255,255,0.14)';
+  ctx.setLineDash([]);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = tint(denom.color, 0.14);
   ctx.beginPath();
-  ctx.arc(cx, cy, r * 0.56, 0, Math.PI * 2);
+  ctx.arc(cx, cy, r * 0.62, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.save();
-  ctx.translate(cx, cy - r * 0.32);
-  ctx.rotate(0);
-  ctx.font = `700 ${size * 0.05}px Georgia, serif`;
-  ctx.fillStyle = '#eac35e';
-  ctx.textAlign = 'center';
-  ctx.globalAlpha = 0.85;
-  ctx.fillText('NVGR', 0, 0);
-  ctx.restore();
-
-  // Rack chips carry no value of their own, so no label.
   if (denom.value) {
+    const label = labelText(denom.value);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = `700 ${size * 0.19}px Georgia, serif`;
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-    ctx.lineWidth = 3;
-    const label = labelText(denom.value);
-    ctx.strokeText(label, cx, cy + r * 0.08);
-    ctx.fillText(label, cx, cy + r * 0.08);
+    ctx.font = `800 ${size * (label.length > 3 ? 0.2 : 0.25)}px Inter, 'Helvetica Neue', Arial, sans-serif`;
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillText(label, cx + 2, cy + 4);
+    ctx.fillStyle = ink;
+    ctx.fillText(label, cx, cy + 2);
   }
-
   return canvas;
 }
 
@@ -160,10 +158,10 @@ function makeSideTexture(denom) {
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = denom.color;
   ctx.fillRect(0, 0, w, h);
-  const stripes = 8;
-  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  const stripes = 6;
+  ctx.fillStyle = denom.dark ? '#c9302c' : '#ffffff';
   for (let i = 0; i < stripes; i++) {
-    ctx.fillRect((i / stripes) * w, 0, (w / stripes) * 0.45, h);
+    ctx.fillRect((i / stripes) * w, 0, (w / stripes) * 0.38, h);
   }
   const texture = finalize(canvas);
   texture.wrapS = THREE.RepeatWrapping;
@@ -181,12 +179,21 @@ function getGeometry() {
   return sharedGeometry;
 }
 
+// Smooth clay with a soft sheen, and a little of its own colour added back
+// as emission: in the salon's dim light the chips otherwise sank toward
+// brown, and a chip's colour is how its value is read at a glance.
+function chipMaterial(map) {
+  return new THREE.MeshStandardMaterial({
+    map, roughness: 0.32, metalness: 0, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: 0.22,
+  });
+}
+
 const matCache = new Map();
 function getMaterials(denom) {
   const key = denomKey(denom);
   if (!matCache.has(key)) {
-    const topMat = new THREE.MeshStandardMaterial({ map: makeFaceTexture(denom), roughness: 0.4 });
-    const sideMat = new THREE.MeshStandardMaterial({ map: makeSideTexture(denom), roughness: 0.5 });
+    const topMat = chipMaterial(makeFaceTexture(denom));
+    const sideMat = chipMaterial(makeSideTexture(denom));
     // CylinderGeometry material order: side, top, bottom
     matCache.set(key, [sideMat, topMat, topMat]);
   }
@@ -227,8 +234,8 @@ function stackSideTexture(denom, count) {
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = denom.color;
   ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = 'rgba(255,255,255,0.9)';
-  for (let i = 0; i < 8; i++) ctx.fillRect((i / 8) * w, 0, (w / 8) * 0.45, h);
+  ctx.fillStyle = denom.dark ? '#c9302c' : '#ffffff';
+  for (let i = 0; i < 6; i++) ctx.fillRect((i / 6) * w, 0, (w / 6) * 0.38, h);
   // The seam between one chip and the next.
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.fillRect(0, h - 2, w, 2);
@@ -242,7 +249,7 @@ function stackSideTexture(denom, count) {
 
 function chipRun(denom, count) {
   const geometry = new THREE.CylinderGeometry(CHIP_RADIUS, CHIP_RADIUS, CHIP_HEIGHT * count, 32, 1);
-  const side = new THREE.MeshStandardMaterial({ map: stackSideTexture(denom, count), roughness: 0.5 });
+  const side = chipMaterial(stackSideTexture(denom, count));
   const face = getMaterials(denom)[1];
   const mesh = new THREE.Mesh(geometry, [side, face, face]);
   mesh.castShadow = true;

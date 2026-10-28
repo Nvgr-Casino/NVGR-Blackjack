@@ -10,15 +10,31 @@ import {
 } from './roomLogic.js';
 import { chipButtonDataURL } from '../scene/chip.js';
 import { prefetchCardFaces, cardFaceUrl } from '../scene/card.js';
+import { DEAL_MS } from '../scene/deal.js';
 import { characterPortraitDataURL, defaultCharacterFor } from '../scene/character.js';
 import { esc } from './uiHelpers.js';
 import * as S from './session.js';
 import * as Social from './social.js';
 
-const DEAL_STEP_MS = 320;
-// How long a dealt card is in the air (deal.js's default) — the hand
-// readout shows a card only once it has landed on the felt.
-const CARD_FLIGHT_MS = 550;
+// One card every DEAL_STEP_MS: long enough for the dealer's hand to take
+// each card from the shoe and set it down before reaching for the next.
+// The readout shows a card once it is down (deal.js's DEAL_MS).
+const DEAL_STEP_MS = DEAL_MS;
+const CARD_FLIGHT_MS = DEAL_MS;
+const REVEAL_MS = 600;
+
+// The dealer does one thing at a time. Everything the table shows the
+// dealer doing — dealing, turning the hole card, settling — is queued on
+// this one timeline, so a hit arriving while the deal is still being shown
+// waits its turn instead of overlapping it, and the settling begins only
+// once the dealer's own hand is complete.
+let dealerFreeAt = 0;
+function dealerSlot(durationMs) {
+  const now = performance.now();
+  const start = Math.max(now, dealerFreeAt);
+  dealerFreeAt = start + durationMs;
+  return start - now;
+}
 
 const OUTCOME_LABEL = {
   win: (bet) => 'Won ' + (bet * 2).toLocaleString(),
@@ -237,14 +253,32 @@ export function syncRoomToScene(room, myKey) {
   }
 
   const token = roundToken;
-  events.forEach((ev, i) => {
+  // The hole card is turned before the dealer draws to it, as at a real
+  // table — it used to be turned after the draw.
+  const holeCardDealtBefore = lastDealerCount - dealerEvents.length >= 2;
+  const revealNow = room.dealer.hiddenRevealed && !dealerRevealed && lastDealerCount >= 2;
+  const revealFirst = revealNow && holeCardDealtBefore;
+  const reveal = () => {
+    dealerRevealed = true;
     setTimeout(() => {
+      driver.revealDealerCard(1);
+      if (token !== roundToken) return;
+      holeShown = true;
+      refreshHandStrip();
+    }, dealerSlot(REVEAL_MS));
+  };
+  if (revealFirst) reveal();
+
+  events.forEach((ev) => {
+    const wait = dealerSlot(DEAL_STEP_MS);
+    setTimeout(() => {
+      if (token !== roundToken) return;
       if (ev.kind === 'dealer') {
         driver.dealDealerCard(ev.index, toCard(ev.card), { faceDown: ev.faceDown });
       } else {
         driver.dealCardToSeat(ev.seatIndex, ev.handIndex, ev.index, toCard(ev.card), ev.handCount);
       }
-    }, i * DEAL_STEP_MS);
+    }, wait);
     setTimeout(() => {
       if (token !== roundToken) return;
       if (ev.kind === 'dealer') landedDealer = Math.max(landedDealer, ev.index + 1);
@@ -253,19 +287,12 @@ export function syncRoomToScene(room, myKey) {
         landed[k] = Math.max(landed[k] || 0, ev.index + 1);
       }
       refreshHandStrip();
-    }, i * DEAL_STEP_MS + CARD_FLIGHT_MS);
+    }, wait + CARD_FLIGHT_MS);
   });
 
-  // Dealer hole-card reveal, once.
-  if (room.dealer.hiddenRevealed && !dealerRevealed && lastDealerCount >= 2) {
-    dealerRevealed = true;
-    setTimeout(() => {
-      driver.revealDealerCard(1);
-      if (token !== roundToken) return;
-      holeShown = true;
-      refreshHandStrip();
-    }, events.length * DEAL_STEP_MS + 100);
-  }
+  // A table joined mid-hand learns of the hole card along with the cards
+  // themselves; then it is turned once they are down.
+  if (revealNow && !revealFirst) reveal();
 
   // Hand-value badges for every seat currently showing cards.
   order.forEach((key) => {
@@ -288,28 +315,40 @@ export function syncRoomToScene(room, myKey) {
   }
 
   // Payout/collect chips once results land for this round.
-  // The dealer settles one seat at a time, from their right round to their
-  // left (highest seat index first — the reverse of the deal).
   if (room.phase === 'results' && lastPhase !== 'results') {
-    (room.dealtIn || [])
-      .map((key) => ({ key, seatIndex: seatIndexOf.get(key) }))
-      .filter((x) => x.seatIndex !== undefined)
-      .sort((a, b) => b.seatIndex - a.seatIndex)
-      .forEach(({ key, seatIndex }) => {
-        const p = room.players[key];
-        if (!p || !p.hands) return;
-        const outcomes = p.hands.map((h) => h.outcome);
-        const anyWin = outcomes.some((o) => o === 'win' || o === 'blackjack');
-        const anyLose = outcomes.some((o) => o === 'lose' || o === 'surrender');
-        if (anyWin) driver.payoutChipsForSeat(seatIndex, outcomes.includes('blackjack') ? 3 : 2);
-        else if (anyLose) driver.collectBetChipsForSeat(seatIndex);
-        else driver.drawChipsHome(seatIndex);
-        betChipsShown[seatIndex] = false;
-        localPendingSeats[seatIndex] = false;
-      });
+    // Settled once the dealer's hand is down, a seat at a time on the same
+    // timeline — the driver paces each one itself.
+    const settleToken = roundToken;
+    const settle = () => {
+      if (settleToken !== roundToken) return;
+      settleSeats(room, seatIndexOf);
+    };
+    setTimeout(settle, dealerSlot(300));
   }
 
   lastPhase = room.phase;
+}
+
+// Pays or collects each seat's bet, a seat at a time, from the dealer's
+// right round to their left (highest seat index first — the reverse of the
+// deal).
+function settleSeats(room, seatIndexOf) {
+  (room.dealtIn || [])
+    .map((key) => ({ key, seatIndex: seatIndexOf.get(key) }))
+    .filter((x) => x.seatIndex !== undefined)
+    .sort((a, b) => b.seatIndex - a.seatIndex)
+    .forEach(({ key, seatIndex }) => {
+      const p = room.players[key];
+      if (!p || !p.hands) return;
+      const outcomes = p.hands.map((h) => h.outcome);
+      const anyWin = outcomes.some((o) => o === 'win' || o === 'blackjack');
+      const anyLose = outcomes.some((o) => o === 'lose' || o === 'surrender');
+      if (anyWin) driver.payoutChipsForSeat(seatIndex, outcomes.includes('blackjack') ? 3 : 2);
+      else if (anyLose) driver.collectBetChipsForSeat(seatIndex);
+      else driver.drawChipsHome(seatIndex);
+      betChipsShown[seatIndex] = false;
+      localPendingSeats[seatIndex] = false;
+    });
 }
 
 // How much of the shoe is left, as a few words for the table line.

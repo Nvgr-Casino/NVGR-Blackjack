@@ -19,7 +19,9 @@ export const BETTING_SECONDS = 20;
 export const TURN_SECONDS = 20;
 export const INSURANCE_SECONDS = 15;
 export const MAX_TIMEOUTS = 3;
-export const RESULTS_PAUSE_MS = 4000;
+// Long enough to watch the dealer finish their hand and settle every seat
+// before the next round clears the table; at 4 s the settling was cut off.
+export const RESULTS_PAUSE_MS = 8000;
 export const DEALER_REVEAL_DELAY = 650;
 
 export const SUITS = ['S', 'H', 'D', 'C'];

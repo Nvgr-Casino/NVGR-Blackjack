@@ -19,35 +19,54 @@ export function createDeckStack(count = 12) {
   return group;
 }
 
-// Slides + flips a single card from the deck to `to`, with a dealer arm
-// swing (if given) timed to the deal. Pass `faceDown: true` for the
-// dealer's hidden hole card — it slides into place but stays back-up until
-// revealCard() flips it later. Returns the card mesh once animation starts
-// (it keeps animating on its own via the shared scheduler).
-// `faceAngle` is the card's resting yaw once it lands — it should match the
-// receiving seat's facingAngle so the rank/suit reads right-side-up to
-// whoever is sitting there, not just to a viewer facing world -Z. Defaults
-// to 0 for the dealer's own cards (dealer always faces the same way).
-export function dealCard({ scene, dealer, rank, suit, to, duration = 550, faceDown = false, faceAngle = 0 }) {
+// How a card is dealt: the dealer's hand goes to the shoe and takes it,
+// carries it low across the felt and sets it down in front of the player,
+// then turns it face up where it lies. Nothing is thrown. Where a seat is
+// past a relaxed arm's length, the card leaves the hand and slides the
+// last stretch along the cloth, as dealers do. The timings are shared with
+// the dealer's own gesture (see dealer.js's playDealGesture).
+export const DEAL_MS = 650;
+export const DEAL_PICK = 0.34;   // hand reaches the shoe
+export const DEAL_SET = 0.84;    // card set down; then it turns over
+const CARRY_LIFT = 0.05;         // carried just clear of the felt
+
+const smooth = (x) => x * x * (3 - 2 * x);
+
+// `faceDown` keeps the dealer's hole card back-up until revealCard() turns
+// it. `faceAngle` is the card's resting yaw once it lands — the receiving
+// seat's angle, so it reads right-way-up to whoever is sitting there.
+export function dealCard({ scene, dealer, rank, suit, to, duration = DEAL_MS, faceDown = false, faceAngle = 0 }) {
   const card = createCard(rank, suit);
   const from = DECK_POSITION.clone();
-  const spin = Math.PI * 0.55;
+  const turn = Math.PI * 0.5;
 
   card.position.copy(from);
-  card.rotation.x = Math.PI; // face down, as it leaves the deck
-  card.rotation.y = faceAngle + spin;
+  card.rotation.x = Math.PI; // face down, as it comes out of the shoe
+  card.rotation.y = faceAngle + turn;
   scene.add(card);
 
   if (dealer) playDealGesture(dealer, to, duration);
 
   animate({
     duration,
-    easing: easeOutCubic,
+    easing: (t) => t, // phased below
     onUpdate: (t) => {
-      card.position.lerpVectors(from, to, t);
-      card.position.y += Math.sin(t * Math.PI) * 0.55; // arc while airborne
-      card.rotation.x = faceDown ? Math.PI : Math.PI * (1 - t); // flips face-up on arrival, unless dealt hidden
-      card.rotation.y = faceAngle + spin * (1 - t);
+      if (t < DEAL_PICK) return; // waiting in the shoe for the hand
+      if (t < DEAL_SET) {
+        const k = smooth((t - DEAL_PICK) / (DEAL_SET - DEAL_PICK));
+        card.position.lerpVectors(from, to, k);
+        card.position.y += Math.sin(k * Math.PI) * CARRY_LIFT;
+        card.rotation.y = faceAngle + turn * (1 - k);
+        return;
+      }
+      card.position.copy(to);
+      card.rotation.y = faceAngle;
+      if (!faceDown) {
+        // Turned over in place, the near edge lifting as it goes.
+        const k = smooth((t - DEAL_SET) / (1 - DEAL_SET));
+        card.rotation.x = Math.PI * (1 - k);
+        card.position.y = to.y + Math.sin(k * Math.PI) * 0.06;
+      }
     },
   });
 

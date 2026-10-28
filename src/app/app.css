@@ -44,6 +44,11 @@ p { margin: 0; }
 .muted { color: var(--muted); }
 /* Positioned so it paints above the fixed 3D canvas behind it. */
 .wrap { min-height: 100vh; position: relative; z-index: 1; }
+/* At the table that layer covers the whole screen, over the canvas. It
+   takes no input itself — only the controls on it do — so a drag anywhere
+   else reaches the 3D view and turns it. Without this, nothing could. */
+.wrap.on-table { pointer-events: none; }
+.wrap.on-table .hud-players, .wrap.on-table .sheet, .wrap.on-table .conn-banner { pointer-events: auto; }
 
 /* ---------- buttons ---------- */
 .btn {
@@ -406,10 +411,11 @@ input:focus { outline: none; border-color: var(--accent); }
 /* On a wide screen the betting panel is one slim row — balance, chips,
    buttons — so it stays clear of your own betting circle and you can watch
    your chips land on it. */
-@media (min-width: 900px) {
+@media (min-width: 900px), (orientation: landscape) and (max-height: 520px) {
   /* The hand readout sits beside the action buttons rather than above
      them, so the dock stays one row tall and the felt where your own cards
-     land stays in view. */
+     land stays in view. A phone held sideways gets the same: it has the
+     width, and no height to spare. */
   .hud-dock { flex-direction: row; align-items: stretch; justify-content: center; }
   .hud-dock .dock-panel { width: auto; display: flex; align-items: center; }
   .hud-dock .dock-bet { width: 100%; display: grid; }
@@ -447,11 +453,13 @@ input:focus { outline: none; border-color: var(--accent); }
   .hud-status { top: calc(54px + env(safe-area-inset-top, 0px)); }
   .status-log { display: none; }
   .status-pill { font-size: 13px; padding: 6px 12px; }
-  .hud-players { top: calc(92px + env(safe-area-inset-top, 0px)); right: 8px; width: auto; max-width: 46vw; gap: 4px; }
-  .player { padding: 4px 8px 4px 4px; }
-  .player-avatar { width: 22px; height: 22px; }
-  .player-status { display: none; }
-  .player-chips { display: none; }
+  /* Just a column of faces at the right edge, the one on turn ringed. Five
+     full rows of names and chips covered a third of the table. */
+  .hud-players { top: calc(96px + env(safe-area-inset-top, 0px)); right: 8px; width: auto; gap: 6px; }
+  .player { padding: 2px; border-radius: 50%; }
+  .player.on-turn { box-shadow: 0 0 0 2px var(--accent); }
+  .player-avatar { width: 30px; height: 30px; }
+  .player-info, .player-chips, .player-add { display: none; }
 
   .hud-dock { padding: 16px 8px calc(8px + env(safe-area-inset-bottom, 0px)); gap: 8px; }
   .readout { gap: 14px; padding: 6px 10px; }
@@ -466,6 +474,29 @@ input:focus { outline: none; border-color: var(--accent); }
   .action-row { grid-template-columns: 1.2fr 1fr 1fr 1fr 1.25fr; gap: 6px; }
   .action-row .btn { font-size: 13px; padding: 0 4px; height: 46px; }
   .sheet { left: 8px; right: 8px; width: auto; }
+}
+
+/* A phone held sideways: little height, so everything over the table is
+   pared down to keep the felt in view. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .hud-top { padding: calc(6px + env(safe-area-inset-top, 0px)) 10px 6px; }
+  .hud-btn { height: 32px; padding: 0 12px; font-size: 13px; }
+  .hud-sub { display: none; }
+  .hud-status { top: calc(8px + env(safe-area-inset-top, 0px)); }
+  .status-log { display: none; }
+  .hud-players { top: calc(48px + env(safe-area-inset-top, 0px)); width: 190px; gap: 4px; }
+  .player { padding: 3px 8px 3px 3px; }
+  .player-avatar { width: 22px; height: 22px; }
+  .player-status { display: none; }
+  .hud-dock { padding: 8px 10px calc(6px + env(safe-area-inset-bottom, 0px)); gap: 8px; }
+  .dock-panel { padding: 8px 10px; }
+  .dock-bet { gap: 12px; }
+  .chip-btn, .dock-bet .chip-btn { width: 38px; height: 38px; }
+  .btn { height: 38px; }
+  .action-row .btn { height: 38px; }
+  .readout { padding: 5px 10px; gap: 14px; }
+  .rc { width: 32px; height: 45px; }
+  .rs-cards .rc + .rc { margin-left: -11px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

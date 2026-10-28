@@ -21,6 +21,9 @@ let lastScreen = null;
 function render() {
   const showTable = session.screen === 'table';
   canvas.style.display = showTable ? 'block' : 'none';
+  // At the table the page layer sits over the 3D view; it must let drags
+  // through to the canvas, or the view can't be turned (see app.css).
+  root.classList.toggle('on-table', showTable);
   if (lastScreen === 'table' && session.screen !== 'table') resetTableDiffState();
   lastScreen = session.screen;
 

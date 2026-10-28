@@ -51,12 +51,12 @@ export const SEATS = SEAT_ANGLES_DEG.map((deg, i) => {
 // Screen shape decides the exact spot. A wide screen has little height to
 // spare between the dealer's head and the action bar, so the camera sits a
 // short way behind the chair, which shortens that span. A tall phone screen
-// has height to spare but a field of view that reaches far down, so the
-// camera sits directly above the chair, where your own head can't come
-// into shot.
+// is narrow: from the chair the table ran off both sides of it. So there
+// the camera stands back and above your chair, over your shoulder, far
+// enough to take in the whole width of the table.
 const VIEWS = {
   wide: { back: m(0.35), height: m(1.75), lookY: 0.5 },
-  tall: { back: 0, height: m(1.7), lookY: 0.7 },
+  tall: { back: m(1.1), height: m(2.35), lookY: 0.1 },
 };
 export const isTallScreen = () => window.innerWidth < window.innerHeight;
 const view = () => (isTallScreen() ? VIEWS.tall : VIEWS.wide);
@@ -97,7 +97,8 @@ export const DEALER = {
   // the felt does — a body standing at the old rail position was inside it.
   // Close enough to still lean over the felt, which is where a dealer
   // stands.
-  position: new THREE.Vector3(0, 0, TABLE_BACK_Z - 0.62),
+  // Close in against the table's back edge, as a dealer stands.
+  position: new THREE.Vector3(0, 0, TABLE_BACK_Z - 0.5),
   // On the dealer's right (-x, as they face the players), the side of the
   // hand that deals — reaching across the body to a shoe on the left was
   // half of what made the dealing look wrong.

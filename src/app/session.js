@@ -22,7 +22,7 @@ import {
   safeKey, genCode, shuffleShoe, drawCard, addPlayerToRoom, startRoundLogic, dealRoundCards,
   checkAutoDeal, processBettingTimeoutLogic, processTurnTimeoutLogic, resolveDealerAndPayouts,
   advanceTurnIn, rankOf, handValue, chipLadderForTable, stakesFor, TABLE_STAKES,
-  everyoneDecidedInsurance, resolveInsurance, processInsuranceTimeout, moveToSeat, countdownLabel,
+  everyoneDecidedInsurance, resolveInsurance, processInsuranceTimeout, moveToSeat, countdownLabel, RESULTS_PAUSE_MS,
 } from './roomLogic.js';
 
 export let session = { screen: 'loading', uid: null, name: null, photo: null, chips: 0, character: null, code: null, isAdmin: false, room: null };
@@ -260,7 +260,7 @@ function startTick() {
         mutateRoom(session.code, (rr) => processInsuranceTimeout(rr));
       } else if (r.phase === 'playing' && (!r.turnDeadline || Date.now() >= r.turnDeadline)) {
         mutateRoom(session.code, (rr) => processTurnTimeoutLogic(rr));
-      } else if (r.isPublic && r.phase === 'results' && r.resultsAt && (Date.now() - r.resultsAt) >= 4000) {
+      } else if (r.isPublic && r.phase === 'results' && r.resultsAt && (Date.now() - r.resultsAt) >= RESULTS_PAUSE_MS) {
         mutateRoom(session.code, (rr) => { if (rr.phase === 'results') startRoundLogic(rr); });
       }
     }

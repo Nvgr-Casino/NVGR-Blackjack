@@ -129,7 +129,11 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
   // head the camera is right behind isn't drawn; the body still is, so your
   // own shoulders and arms are at the bottom of the picture, and turning the
   // view to look at yourself brings the head back.
+  // Your own seat's head is held back from further away — the phone view
+  // stands well back over your shoulder — than anyone else's, which is
+  // hidden only when the camera is right behind it.
   const HEAD_CLEARANCE = m(0.95);
+  const OWN_HEAD_CLEARANCE = m(2.4);
   const headPoint = new THREE.Vector3();
   const priorBeforeRender = scene.onBeforeRender;
   scene.onBeforeRender = (...args) => {
@@ -139,8 +143,14 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
       const seat = SEATS[seatIndex];
       const inward = seatOutwardDir(seat).multiplyScalar(-m(0.2));
       headPoint.copy(seat.position).add(inward).setY(SEAT_TOP_Y + m(0.72));
-      const show = camera.position.distanceTo(headPoint) > HEAD_CLEARANCE;
+      const own = seatIndex === viewSeatIndex;
+      const show = camera.position.distanceTo(headPoint) > (own ? OWN_HEAD_CLEARANCE : HEAD_CLEARANCE);
       for (const mesh of meshes) mesh.visible = show;
+      // From the phone view, over your shoulder, a headless body of your own
+      // sat below your cards; there the whole figure stands down, and your
+      // hand is in the readout.
+      const model = group.children[0];
+      if (model) model.visible = !(own && !show && isTallScreen());
     });
     priorBeforeRender.apply(scene, args);
   };
@@ -426,8 +436,8 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
   }
 
   // The dealer reaches out to a losing bet and sweeps it back to the rack.
-  const REACH_OUT_MS = 420;
-  const SWEEP_MS = 560;
+  const REACH_OUT_MS = 360;
+  const SWEEP_MS = 460;
   function collectBetChipsForSeat(seatIndex) {
     ensureSeat(seatIndex);
     const seat = SEATS[seatIndex];
@@ -455,8 +465,8 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
 
   // The dealer takes a stack from the rack and sets it beside a winning bet;
   // the player then draws bet and winnings back to their place.
-  const TAKE_MS = 360;
-  const CARRY_MS = 600;
+  const TAKE_MS = 300;
+  const CARRY_MS = 480;
   function payoutChipsForSeat(seatIndex, count) {
     ensureSeat(seatIndex);
     const seat = SEATS[seatIndex];
