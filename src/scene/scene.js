@@ -197,6 +197,16 @@ export function initScene(canvas) {
     camera.fov = aspect < BASE_ASPECT
       ? Math.min(MAX_FOV, (2 * Math.atan(Math.tan(H_FOV / 2) / aspect) * 180) / Math.PI)
       : BASE_FOV;
+    // A portrait screen's extra height went to the wall above the dealer
+    // while the table sat low, under the action buttons. Shifting the
+    // projection lifts the table up the screen without tilting the camera,
+    // so the angle you look at the table from is the same on every device.
+    if (aspect < 1) {
+      const w = window.innerWidth, h = window.innerHeight;
+      camera.setViewOffset(w, h, 0, h * 0.07, w, h);
+    } else {
+      camera.clearViewOffset();
+    }
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
   }

@@ -252,13 +252,6 @@ export function syncRoomToScene(room, myKey) {
     driver.hideDealerBadge();
   }
 
-  // Round-long camera zoom onto MY seat while a hand is in progress.
-  if (myKey && seatIndexOf.has(myKey)) {
-    const goingToPlay = room.phase === 'insurance' || room.phase === 'playing' || room.phase === 'dealer' || room.phase === 'results';
-    if (goingToPlay && lastPhase === 'betting') driver.focusOnSeatHand(seatIndexOf.get(myKey));
-    if (room.phase === 'betting' && lastPhase !== 'betting') driver.releaseSeatFocus();
-  }
-
   // Payout/collect chips once results land for this round.
   if (room.phase === 'results' && lastPhase !== 'results') {
     (room.dealtIn || []).forEach((key) => {
@@ -330,7 +323,7 @@ export function renderTableScreen() {
         : S.pendingBet > 0 ? 'Place bet · ' + S.pendingBet.toLocaleString()
         : 'Tap chips to bet';
       dock = `
-        <div class="dock-panel">
+        <div class="dock-panel dock-bet">
           <div class="dock-head">
             <span class="dock-balance">Balance<b>${me.chips.toLocaleString()}</b></span>
             <button class="link" id="sitOutBtn">Sit out this round</button>

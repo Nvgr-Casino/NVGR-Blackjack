@@ -1,6 +1,6 @@
 // Character picker: the candidates a player can sit down as.
 import {
-  CHARACTERS, characterPortraitDataURL, defaultCharacterFor,
+  CHARACTERS, characterById, characterPortraitDataURL, defaultCharacterFor,
   buildCharacterPortraits, hasPortraits,
 } from '../../scene/character.js';
 import { backBar, esc } from '../uiHelpers.js';
@@ -8,7 +8,8 @@ import { safeKey } from '../roomLogic.js';
 import * as S from '../session.js';
 
 export function renderCharacter() {
-  const current = S.session.character || defaultCharacterFor(S.session.uid ? safeKey(S.session.uid) : '');
+  // Resolved, so a retired choice shows as the figure that now stands in.
+  const current = characterById(S.session.character || defaultCharacterFor(S.session.uid ? safeKey(S.session.uid) : '')).id;
   const group = (sex) => CHARACTERS.filter((c) => c.sex === sex).map((c) => `
     <button class="char-card ${c.id === current ? 'chosen' : ''}" data-character="${esc(c.id)}" aria-pressed="${c.id === current}">
       <img class="char-portrait" src="${characterPortraitDataURL(c.id, 128)}" alt="">

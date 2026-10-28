@@ -39,57 +39,36 @@ export const SEATS = SEAT_ANGLES_DEG.map((deg, i) => {
   };
 });
 
-// Where the camera sits when a given seat is "yours" — behind that seat's
-// own position (further from the table along the same radial line it
-// already sits on), at a fixed height. The look-at target stays the same
-// world point regardless of which seat is chosen (the dealer/table-center
-// area), so switching seats reads as moving around the same table rather
-// than each seat getting its own bespoke framing.
-// Pulled back and raised further than a literal seated eye-line would sit —
-// tight to the seat cropped the dealer and the rest of the felt out of
-// frame, so no single seat's view showed enough of the table to make sense
-// of the round. This wider, higher vantage keeps the whole felt (dealer's
-// cards down to every seat's hand spot) in frame from any of the 5 seats.
-// Over the seated player's shoulder. Their head now sits around y=1.4, so
-// the camera is about a metre above and a metre back of it — close enough
-// to read as their view, far enough that they are in it.
-// Measured from the floor now, not as a fixed height — a fixed number
-// silently changed meaning every time the floor moved. A seated adult's
-// eyes are about 1.2 m up; this sits a hand's breadth above and just behind
-// that, so the view is the player's own rather than a spectator's from
-// across the room.
-const CAMERA_BACK_DISTANCE = m(0.5);
-const CAMERA_HEIGHT = FLOOR_Y + m(1.5);
-// Off to the right shoulder. Straight behind, the player's own head sat
-// dead centre in frame and hid the middle of the felt.
-const CAMERA_SHOULDER_OFFSET = m(0.32);
-export const CAMERA_LOOK_AT = new THREE.Vector3(0, 0.65, -1.0);
-
-// What a player in this seat is actually looking at: halfway between their
-// own cards and the dealer's, lifted off the felt.
+// Where the camera sits when a given seat is yours: a little above a
+// seated eye-line, aimed at the dealer's cards — the view a live-dealer
+// stream uses, because it is the one you can watch for an hour without
+// effort. The dealer's face sits at the top of the frame, your own cards
+// sit just above the action bar, and every other hand is in between. The
+// earlier view was lower and over your shoulder, so the back of your own
+// head filled the middle of the screen and everything had to be read
+// around it.
 //
-// Aiming every seat at one fixed point in the middle of the table was fine
-// while the camera never left the middle seat. Once it sits where the
-// player really sits, that fixed point tilts the view too far away: your
-// own hand lands near the bottom of the frame — behind the betting panel —
-// and the further round the table your seat is, the further off-centre it
-// drifts. Splitting the difference with the dealer frames your cards and
-// theirs identically from all five chairs.
-const LOOK_LIFT = 0.3;
-export function cameraLookAtForSeat(seat) {
-  return seat.handSpot.clone().lerp(DEALER.handSpot, 0.5).setY(LOOK_LIFT);
+// Screen shape decides the exact spot. A wide screen has little height to
+// spare between the dealer's head and the action bar, so the camera sits a
+// short way behind the chair, which shortens that span. A tall phone screen
+// has height to spare but a field of view that reaches far down, so the
+// camera sits directly above the chair, where your own head can't come
+// into shot.
+const VIEWS = {
+  wide: { back: m(0.35), height: m(1.75), lookY: 0.5 },
+  tall: { back: 0, height: m(1.7), lookY: 0.7 },
+};
+export const isTallScreen = () => window.innerWidth < window.innerHeight;
+const view = () => (isTallScreen() ? VIEWS.tall : VIEWS.wide);
+
+export function cameraLookAtForSeat() {
+  return DEALER.handSpot.clone().setY(view().lookY);
 }
 
 export function cameraPositionForSeat(seat) {
+  const { back, height } = view();
   const dir = seat.position.clone().setY(0).normalize();
-  // Perpendicular to the seat's radial line, toward the player's right as
-  // they face the table.
-  const side = new THREE.Vector3(dir.z, 0, -dir.x);
-  return new THREE.Vector3(
-    seat.position.x + dir.x * CAMERA_BACK_DISTANCE + side.x * CAMERA_SHOULDER_OFFSET,
-    CAMERA_HEIGHT,
-    seat.position.z + dir.z * CAMERA_BACK_DISTANCE + side.z * CAMERA_SHOULDER_OFFSET
-  );
+  return seat.position.clone().addScaledVector(dir, back).setY(FLOOR_Y + height);
 }
 
 // The dealer stands behind the flat back rail (TABLE_BACK_Z is negative).

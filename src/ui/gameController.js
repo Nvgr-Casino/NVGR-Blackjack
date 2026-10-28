@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { dealCard, revealCard, playShuffle } from '../scene/deal.js';
-import { CARD_WIDTH } from '../scene/card.js';
+import { CARD_WIDTH, CARD_HEIGHT } from '../scene/card.js';
 import { createChip, createChipForValue, CHIP_HEIGHT, DENOMINATIONS } from '../scene/chip.js';
 import { createCharacter } from '../scene/character.js';
-import { focusOn, cameraOverride } from '../scene/cameraFocus.js';
+import { cameraOverride } from '../scene/cameraFocus.js';
 import { createHandBadge } from '../scene/handBadge.js';
-import { SEATS, DEALER, cameraPositionForSeat, cameraLookAtForSeat } from '../scene/seats.js';
+import { SEATS, DEALER, cameraPositionForSeat, cameraLookAtForSeat, isTallScreen } from '../scene/seats.js';
 import { animate, easeOutCubic, easeInOutCubic } from '../scene/animator.js';
 
 // Pure 3D/visual driver for the table — no DOM, no game rules. It knows how
@@ -64,7 +64,6 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
   const betChipMeshes = [];
   const pendingStack = [];
   const dealerMeshes = [];
-  let releaseFocus = null;
   // Where the camera sits. Seat 3 is only the opening guess, used until the
   // room tells us which seat is actually yours — see followSeat.
   let viewSeatIndex = 2;
@@ -72,8 +71,13 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
   // once; see followSeat.
   let seatFollowed = false;
 
+  // Hand totals sit on the felt just beyond the cards, on the dealer's side
+  // of them — directly above the hand as you look at it. Hovering high over
+  // the hand, perspective pulled them up the screen and onto other hands.
+  const BADGE_Y = 0.1;
+  const BADGE_BEYOND = CARD_HEIGHT * 0.95;
   const dealerBadge = createHandBadge();
-  dealerBadge.sprite.position.set(DEALER.handSpot.x, 0.34, DEALER.handSpot.z);
+  dealerBadge.sprite.position.set(DEALER.handSpot.x, BADGE_Y, DEALER.handSpot.z - BADGE_BEYOND);
   scene.add(dealerBadge.sprite);
 
   function ensureSeat(seatIndex) {
@@ -195,13 +199,22 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
 
   function releaseViewSeat() { seatFollowed = false; }
 
-  function focusOnSeatHand(seatIndex) {
-    const seat = SEATS[seatIndex];
-    releaseFocus = focusOn(camera, controls.target, seat.handSpot.clone().setY(0.25), { approach: 0.16, duration: 420 });
-  }
-  function releaseSeatFocus() {
-    if (releaseFocus) { releaseFocus(); releaseFocus = null; }
-  }
+  // Turning a phone, or resizing a window past square, changes which seat
+  // view fits the screen (see seats.js), so the camera snaps to the new one.
+  // Only on that change: a resize within the same shape keeps wherever you
+  // have dragged the view to.
+  let wasTall = isTallScreen();
+  window.addEventListener('resize', () => {
+    const tall = isTallScreen();
+    if (tall === wasTall || cameraOverride.active) return;
+    wasTall = tall;
+    const seat = SEATS[viewSeatIndex];
+    const lookAt = cameraLookAtForSeat(seat);
+    camera.position.copy(cameraPositionForSeat(seat));
+    camera.lookAt(lookAt);
+    controls.target.copy(lookAt);
+  });
+
 
   // ---------- cards ----------
   function dealCardToSeat(seatIndex, handIndex, cardIndex, card, handCount, opts = {}) {
@@ -276,7 +289,8 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
     }
     const badge = seatBadges[seatIndex][handIndex];
     const anchor = handAnchor(seat, handIndex, handCount);
-    badge.sprite.position.set(anchor.x, 0.6, anchor.z);
+    const inward = seatOutwardDir(seat).multiplyScalar(-BADGE_BEYOND);
+    badge.sprite.position.set(anchor.x + inward.x, BADGE_Y, anchor.z + inward.z);
     badge.setValue(valueText);
   }
   function hideSeatBadges(seatIndex) {
@@ -370,8 +384,6 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
     releaseViewSeat,
     shuffleDeck: () => { if (deck) playShuffle(deck); },
     getViewSeat: () => viewSeatIndex,
-    focusOnSeatHand,
-    releaseSeatFocus,
     dealCardToSeat,
     dealDealerCard,
     revealDealerCard,

@@ -87,6 +87,9 @@ function checkInviteParam() {
 async function boot() {
   await Promise.all([
     document.fonts.load("700 40px 'Cinzel'"),
+    // Card indices are drawn in Inter; a card painted before it loads is
+    // cached with the fallback face for the rest of the session.
+    document.fonts.load("700 40px 'Inter'"),
   ]);
   mountTable3D(initScene(canvas));
   setOnChange(render);

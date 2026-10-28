@@ -279,7 +279,7 @@ input:focus { outline: none; border-color: var(--accent); }
 .seat-dot:disabled { cursor: default; }
 
 .hud-status {
-  position: fixed; top: calc(64px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); z-index: 5;
+  position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); z-index: 5;
   display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; max-width: 92vw;
 }
 .status-pill {
@@ -369,7 +369,26 @@ input:focus { outline: none; border-color: var(--accent); }
   background: rgba(60, 20, 16, 0.92); border: 1px solid rgba(226, 130, 111, 0.5); color: #f0b4a6;
 }
 
+/* On a wide screen the betting panel is one slim row — balance, chips,
+   buttons — so it stays clear of your own betting circle and you can watch
+   your chips land on it. */
+@media (min-width: 900px) {
+  .dock-bet {
+    max-width: 940px; display: grid; grid-template-columns: auto 1fr auto;
+    align-items: center; gap: 18px; padding: 10px 14px;
+  }
+  .dock-bet .dock-head { flex-direction: column; align-items: flex-start; gap: 2px; margin: 0; }
+  .dock-bet .chip-row { margin: 0; flex-wrap: nowrap; }
+  .dock-bet .chip-btn { width: 46px; height: 46px; }
+  .dock-bet .dock-actions .grow { min-width: 200px; }
+}
+
 /* ---------- small screens ---------- */
+/* The status pill sits in the top bar's centre only while there is room
+   between its two ends; narrower, it drops just beneath the bar. */
+@media (max-width: 960px) {
+  .hud-status { top: calc(62px + env(safe-area-inset-top, 0px)); }
+}
 @media (max-width: 720px) {
   .quick { grid-template-columns: 1fr; }
   .nav-name { display: none; }
@@ -398,9 +417,9 @@ input:focus { outline: none; border-color: var(--accent); }
   .dock-panel { padding: 12px; border-radius: 14px; }
   .chip-btn { width: 42px; height: 42px; }
   .chip-row { gap: 8px; }
-  .action-row { grid-template-columns: repeat(3, 1fr); }
-  .action-row .btn { font-size: 14px; }
-  .action-row .btn-primary { grid-column: span 3; }
+  /* All five on one row: wrapping put the buttons over your own cards. */
+  .action-row { grid-template-columns: 1.2fr 1fr 1fr 1fr 1.25fr; gap: 6px; }
+  .action-row .btn { font-size: 13px; padding: 0 4px; height: 46px; }
   .sheet { left: 8px; right: 8px; width: auto; }
 }
 
