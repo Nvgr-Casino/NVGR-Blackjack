@@ -8,22 +8,24 @@ import * as THREE from 'three';
 // meant a model from anywhere else silently failed its pose and stood bolt
 // upright through the table.
 //
-// Two conventions matter so far: Quaternius ("UpperLegL") and Mixamo
-// ("mixamorig7:LeftUpLeg"). Mixamo's prefix carries a number that changes
-// per download — mixamorig, mixamorig1, mixamorig7 — so it can never be
-// matched literally, and GLTFLoader strips punctuation out of node names
-// on import anyway. Matching on the end of the name sidesteps both.
+// Three conventions matter: Quaternius ("UpperLegL"), Mixamo
+// ("mixamorig7:LeftUpLeg") and 3ds Max Biped, which Rocketbox uses
+// ("Bip01 L Thigh", which GLTFLoader turns into "Bip01_L_Thigh"). Mixamo's
+// prefix carries a number that changes per download — mixamorig,
+// mixamorig1, mixamorig7 — so it can never be matched literally, and
+// GLTFLoader rewrites punctuation and spaces in node names on import
+// anyway. Matching on the end of the name sidesteps both.
 
 const ROLE_NAMES = {
-  hips: ['Hips'],
-  upperLegL: ['UpperLegL', 'LeftUpLeg'],
-  upperLegR: ['UpperLegR', 'RightUpLeg'],
-  lowerLegL: ['LowerLegL', 'LeftLeg'],
-  lowerLegR: ['LowerLegR', 'RightLeg'],
-  shoulderR: ['ShoulderR', 'RightShoulder'],
-  upperArmR: ['UpperArmR', 'RightArm'],
-  lowerArmR: ['LowerArmR', 'RightForeArm'],
-  wristR: ['WristR', 'RightHand'],
+  hips: ['Hips', 'Pelvis'],
+  upperLegL: ['UpperLegL', 'LeftUpLeg', 'L_Thigh'],
+  upperLegR: ['UpperLegR', 'RightUpLeg', 'R_Thigh'],
+  lowerLegL: ['LowerLegL', 'LeftLeg', 'L_Calf'],
+  lowerLegR: ['LowerLegR', 'RightLeg', 'R_Calf'],
+  shoulderR: ['ShoulderR', 'RightShoulder', 'R_Clavicle'],
+  upperArmR: ['UpperArmR', 'RightArm', 'R_UpperArm'],
+  lowerArmR: ['LowerArmR', 'RightForeArm', 'R_Forearm'],
+  wristR: ['WristR', 'RightHand', 'R_Hand'],
 };
 
 // The leg roles are what a seated pose needs; without all of them the
@@ -75,12 +77,16 @@ export function hasRoles(bones, roles) {
  * the placement. The dealer ended up sunk through the floor by two thirds
  * of a metre this way.
  *
- * Only the position goes. The rotations are the pose, and they stay.
+ * Only the position goes. The rotations are the pose, and they stay. A
+ * Biped skeleton keeps that translation on the root above the pelvis
+ * rather than on the pelvis itself, so every bone from the hips up is
+ * covered.
  */
 export function withoutRootMotion(clip, hipsBone) {
   if (!clip || !hipsBone) return clip;
-  const drop = hipsBone.name + '.position';
-  const tracks = clip.tracks.filter((t) => t.name !== drop);
+  const drop = new Set();
+  for (let b = hipsBone; b && b.isBone; b = b.parent) drop.add(b.name + '.position');
+  const tracks = clip.tracks.filter((t) => !drop.has(t.name));
   if (tracks.length === clip.tracks.length) return clip;
   return new THREE.AnimationClip(clip.name, clip.duration, tracks, clip.blendMode);
 }
@@ -109,6 +115,10 @@ export function prepareFigureMaterials(model) {
     for (const mat of [].concat(o.material)) {
       if (!mat.metalnessMap) mat.metalness = 0;
       if (!mat.roughnessMap) mat.roughness = Math.max(mat.roughness, 0.6);
+      // Rocketbox hair is layered cards facing outward. Drawn double-sided,
+      // the backs of the inner layers show through every gap in the outer
+      // ones as dark wedges across the hair.
+      if (/_opacity$/i.test(mat.name)) mat.side = THREE.FrontSide;
       if (mat.transparent) {
         mat.transparent = false;
         mat.opacity = 1;

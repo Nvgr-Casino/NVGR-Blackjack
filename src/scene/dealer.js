@@ -266,24 +266,77 @@ function solveArmIK(arm, targetWorld) {
 const activeDealers = new Set();
 export function updateDealerAnimations(deltaSeconds) {
   activeDealers.forEach((record) => {
+    // The mixer only writes a bone when its animated value has changed since
+    // it last wrote it, so a reach left on the arm would otherwise stay
+    // there: over a still stretch of the idle clip nothing puts the arm
+    // back, which is how the hand was left hanging out after a deal. The
+    // animated pose is kept and restored before the mixer runs each frame.
+    if (record.arm && record.armPose) restoreArmPose(record);
     record.mixer.update(deltaSeconds);
+    if (record.arm) saveArmPose(record);
     if (record.bones && record.seatPose) applySeatBend(record.bones, record.seatPose);
     if (record.arm && record.reach) updateReach(record);
   });
 }
 
+function saveArmPose(record) {
+  const { upperArm, lowerArm } = record.arm;
+  if (!record.armPose) record.armPose = [new THREE.Quaternion(), new THREE.Quaternion()];
+  record.armPose[0].copy(upperArm.quaternion);
+  record.armPose[1].copy(lowerArm.quaternion);
+}
+
+function restoreArmPose(record) {
+  const { upperArm, lowerArm } = record.arm;
+  upperArm.quaternion.copy(record.armPose[0]);
+  lowerArm.quaternion.copy(record.armPose[1]);
+}
+
+// The deal, as the hand moves through it: out to the shoe to take the card,
+// across toward the player as it is pitched, then back to rest. The arm is
+// blended between the idle pose and the reach by an eased weight, so it
+// leaves and returns smoothly — it used to snap back to idle the instant
+// a reach ended, and travel in straight unmodulated lines, which is what
+// made the dealer look mechanical.
+const PICK = 0.38;        // share of the deal spent taking the card
+const RETURN_MS = 420;    // easing back to rest once the card is away
+const smooth = (x) => x * x * (3 - 2 * x);
+
+function reachState(reach, now) {
+  const ms = now - reach.startTime;
+  const pickMs = reach.duration * PICK;
+  if (ms < pickMs) {
+    const t = smooth(ms / pickMs);
+    return {
+      weight: THREE.MathUtils.lerp(reach.fromWeight, 1, t),
+      target: reach.scratch.lerpVectors(reach.fromPos, reach.deckPos, t),
+      done: false,
+    };
+  }
+  if (ms < reach.duration) {
+    const t = smooth((ms - pickMs) / (reach.duration - pickMs));
+    return { weight: 1, target: reach.scratch.lerpVectors(reach.deckPos, reach.aimPos, t), done: false };
+  }
+  const t = Math.min(1, (ms - reach.duration) / RETURN_MS);
+  return { weight: 1 - smooth(t), target: reach.scratch.copy(reach.aimPos), done: t >= 1 };
+}
+
+const animUpper = new THREE.Quaternion();
+const animLower = new THREE.Quaternion();
 function updateReach(record) {
   const { reach, arm } = record;
-  const t = THREE.MathUtils.clamp((performance.now() - reach.startTime) / reach.duration, 0, 1);
-  const targetPos = new THREE.Vector3();
-  if (t < reach.pickFraction) {
-    targetPos.lerpVectors(reach.fromPos, reach.deckPos, t / reach.pickFraction);
-  } else {
-    const t2 = (t - reach.pickFraction) / (1 - reach.pickFraction);
-    targetPos.lerpVectors(reach.deckPos, reach.toPos, t2);
-  }
-  solveArmIK(arm, targetPos);
-  if (t >= 1) record.reach = null;
+  const state = reachState(reach, performance.now());
+  reach.weight = state.weight;
+  reach.target = state.target.clone();
+  if (state.done) { record.reach = null; return; }
+  // The mixer has just posed the arm; solve the reach, then settle between
+  // the two by the current weight.
+  animUpper.copy(arm.upperArm.quaternion);
+  animLower.copy(arm.lowerArm.quaternion);
+  solveArmIK(arm, state.target);
+  arm.upperArm.quaternion.copy(animUpper.slerp(arm.upperArm.quaternion, state.weight));
+  arm.lowerArm.quaternion.copy(animLower.slerp(arm.lowerArm.quaternion, state.weight));
+  arm.upperArm.updateMatrixWorld(true);
 }
 
 export function createDealerFigure(key = 'male') {
@@ -393,6 +446,11 @@ export function stopDealerIdle(dealer) {
 // table surface, not literally into it — the card itself still lands flat
 // (see deal.js), this only affects where the hand appears to reach.
 const REACH_LIFT = new THREE.Vector3(0, 0.18, 0);
+// How far along a straight arm the hand goes when pitching. A dealer
+// doesn't lock the arm out toward the far seats — the card travels the
+// rest of the way on its own — and reaching to full length is what made
+// the arm look stretched and robotic.
+const PITCH_REACH = 0.85;
 
 // Crossfades from idle into a one-shot "handing something over" clip for
 // body language (torso/head), while the right arm itself is driven by a
@@ -429,15 +487,41 @@ export function playDealGesture(dealer, target, duration = 550) {
   }
 
   if (record && record.arm && target) {
-    const wristWorld = new THREE.Vector3();
-    record.arm.wrist.getWorldPosition(wristWorld);
+    const { arm } = record;
+    const shoulder = new THREE.Vector3();
+    arm.upperArm.getWorldPosition(shoulder);
+    // The pitching hand stays low over the felt. When the card's spot is out
+    // of reach the hand comes in across the table, not up toward shoulder
+    // height — reaching along the straight line to a far seat raised the arm
+    // into a point.
+    const aim = target.clone().add(REACH_LIFT);
+    const reachLen = (arm.upperLen + arm.lowerLen) * PITCH_REACH;
+    // Standing upright, the dealer's shoulder is further above the felt than
+    // a relaxed arm reaches, so the hand pitches from about waist height.
+    aim.y = Math.max(aim.y, shoulder.y - reachLen * 0.7);
+    const drop = shoulder.y - aim.y;
+    const across = Math.sqrt(Math.max(0, reachLen * reachLen - drop * drop));
+    const flat = new THREE.Vector3(aim.x - shoulder.x, 0, aim.z - shoulder.z);
+    if (flat.length() > across) {
+      flat.setLength(across);
+      aim.set(shoulder.x + flat.x, aim.y, shoulder.z + flat.z);
+    }
+
+    // A deal that begins while the hand is still out from the last one
+    // carries on from where the hand is, rather than jumping to rest.
+    const prior = record.reach;
+    const fromPos = prior && prior.target ? prior.target.clone() : new THREE.Vector3();
+    if (!prior) arm.wrist.getWorldPosition(fromPos);
     record.reach = {
       startTime: performance.now(),
       duration,
-      pickFraction: 0.4,
-      fromPos: wristWorld,
+      fromPos,
+      fromWeight: prior ? prior.weight || 0 : 0,
       deckPos: DEALER.deckPosition.clone().add(REACH_LIFT),
-      toPos: target.clone().add(REACH_LIFT),
+      aimPos: aim,
+      scratch: new THREE.Vector3(),
+      weight: prior ? prior.weight || 0 : 0,
+      target: null,
     };
   }
 }

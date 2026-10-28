@@ -27,8 +27,8 @@ export const SEATS = SEAT_ANGLES_DEG.map((deg, i) => {
     // to clear a dealt card's own footprint (CARD_HEIGHT, now real-card
     // sized) plus the chip stack's radius — retuned down from a much wider
     // gap that was sized for the old, oversized card/chip art.
-    betSpot: dir.clone().multiplyScalar(TABLE_RADIUS - 0.5).setY(0.02),
-    handSpot: dir.clone().multiplyScalar(TABLE_RADIUS - 1.08).setY(0.04),
+    betSpot: dir.clone().multiplyScalar(TABLE_RADIUS * 0.81).setY(0.02),
+    handSpot: dir.clone().multiplyScalar(TABLE_RADIUS * 0.585).setY(0.04),
     facingAngle: Math.atan2(-dir.x, -dir.z), // yaw so local +Z points at the table center
     // A dealt card's rank/suit reads upright to a viewer facing world -Z
     // (the camera's own default gaze) at rotation.y=0 — that's offset by PI
@@ -98,7 +98,10 @@ export const DEALER = {
   // Close enough to still lean over the felt, which is where a dealer
   // stands.
   position: new THREE.Vector3(0, 0, TABLE_BACK_Z - 0.62),
-  deckPosition: new THREE.Vector3(0.7, 0.05, TABLE_BACK_Z + 0.4),
+  // On the dealer's right (-x, as they face the players), the side of the
+  // hand that deals — reaching across the body to a shoe on the left was
+  // half of what made the dealing look wrong.
+  deckPosition: new THREE.Vector3(-0.7, 0.05, TABLE_BACK_Z + 0.4),
   // Pulled just clear of the rail/tray/shoe cluster so the dealer's cards
   // (and hand-value badge) aren't lost in that clutter — with the back
   // stretch of felt shrunk down, this now lands right at the start of the

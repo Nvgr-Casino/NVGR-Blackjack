@@ -11,26 +11,34 @@ import { SEAT_TOP_Y, PLAYER_HEIGHT } from './scale.js';
 // together — hence SkeletonUtils.clone for each seat.
 const TARGET_HEIGHT = PLAYER_HEIGHT;
 
-// The cast: realistic Mixamo figures, each shipping with a motion-captured
-// "seated idle, hands on a table" clip, which is what puts their arms and
-// hands where a player's actually are and keeps them alive between hands.
+// The cast: Microsoft Rocketbox avatars (MIT licence), dressed for a
+// high-limit table. Rocketbox records its motion captures on the same
+// skeleton as every avatar, so one "seated at a table" clip per sex drives
+// the whole cast — shipped once and shared — and puts each figure's hands
+// where a seated player's are. Imported by scripts/import-rocketbox.mjs.
+const SIT_M = 'rb_sit_m.glb';
+const SIT_F = 'rb_sit_f.glb';
 export const CHARACTERS = [
-  { id: 'joe', name: 'Joe', sex: 'm', file: 'mx_joe.glb', tone: '#2b2f3a' },
-  { id: 'josh', name: 'Josh', sex: 'm', file: 'mx_josh.glb', tone: '#3b4454' },
-  { id: 'lewis', name: 'Lewis', sex: 'm', file: 'mx_lewis.glb', tone: '#2f5248' },
-  { id: 'louise', name: 'Louise', sex: 'f', file: 'mx_louise.glb', tone: '#24344f' },
-  { id: 'martha', name: 'Martha', sex: 'f', file: 'mx_martha.glb', tone: '#4a3350' },
-  { id: 'suzie', name: 'Suzie', sex: 'f', file: 'mx_suzie.glb', tone: '#6b5a4a' },
+  { id: 'rb_bm01', name: 'Daniel', sex: 'm', file: 'rb_bm01.glb', clip: SIT_M, tone: '#2b2f3a' },
+  { id: 'rb_bm02', name: 'Marcus', sex: 'm', file: 'rb_bm02.glb', clip: SIT_M, tone: '#2a3550' },
+  { id: 'rb_bm03', name: 'Oliver', sex: 'm', file: 'rb_bm03.glb', clip: SIT_M, tone: '#2f4a46' },
+  { id: 'rb_bm05', name: 'Victor', sex: 'm', file: 'rb_bm05.glb', clip: SIT_M, tone: '#43304f' },
+  { id: 'rb_bf01', name: 'Grace', sex: 'f', file: 'rb_bf01.glb', clip: SIT_F, tone: '#24344f' },
+  { id: 'rb_bf02', name: 'Helen', sex: 'f', file: 'rb_bf02.glb', clip: SIT_F, tone: '#5a2a2a' },
+  { id: 'rb_bf03', name: 'Clara', sex: 'f', file: 'rb_bf03.glb', clip: SIT_F, tone: '#4a4038' },
+  { id: 'rb_bf04', name: 'Elena', sex: 'f', file: 'rb_bf04.glb', clip: SIT_F, tone: '#2e2e36' },
 ];
 
-// The stylised low-poly cast that came before. They sat badly — no seated
-// clip, so they were bent into their chairs by hand and slid out of them —
-// and they looked like a different game. Accounts and seats still carry
-// their ids, so each maps to a realistic figure of the same sex rather
-// than everyone who chose one turning into the same default.
+// Earlier casts. Accounts and seats still carry these ids, so each maps to
+// a current figure of the same sex rather than everyone who chose one
+// turning into the same default.
 const RETIRED = {
-  sterling: 'joe', baron: 'lewis', rook: 'josh', marlowe: 'joe',
-  jade: 'louise', scarlett: 'martha', vega: 'suzie', duchess: 'louise',
+  // The Mixamo figures.
+  joe: 'rb_bm01', josh: 'rb_bm02', lewis: 'rb_bm03',
+  louise: 'rb_bf04', martha: 'rb_bf02', suzie: 'rb_bf03',
+  // The stylised low-poly figures, which slid out of their chairs.
+  sterling: 'rb_bm01', baron: 'rb_bm05', rook: 'rb_bm02', marlowe: 'rb_bm03',
+  jade: 'rb_bf01', scarlett: 'rb_bf02', vega: 'rb_bf03', duchess: 'rb_bf04',
 };
 
 export const DEFAULT_CHARACTER = CHARACTERS[0].id;
@@ -94,7 +102,9 @@ function placeSeated(model) {
 export function createCharacter(id) {
   const c = characterById(id);
   const group = new THREE.Group();
-  loadModel(c.file).then((gltf) => {
+  // A figure either carries its own seated clip (Mixamo), or shares one
+  // recorded on the same skeleton and shipped once (Rocketbox).
+  Promise.all([loadModel(c.file), c.clip ? loadModel(c.clip) : null]).then(([gltf, clipGltf]) => {
     const model = cloneSkinned(gltf.scene);
     model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     prepareFigureMaterials(model);
@@ -102,7 +112,7 @@ export function createCharacter(id) {
     // The seated clip puts the arms, hands and weight where a person at a
     // table actually holds them, and keeps them alive between hands.
     placeSeated(model);
-    const clip = pickSeatedClip(gltf.animations);
+    const clip = pickSeatedClip((clipGltf || gltf).animations);
     if (clip) {
       const bones = resolveRig(model);
       const mixer = new THREE.AnimationMixer(model);
@@ -114,6 +124,13 @@ export function createCharacter(id) {
       seatedMixers.add(mixer);
       group.userData.mixer = mixer;
     }
+    // The head and hair, which Rocketbox keeps as meshes of their own, so the
+    // table can stop drawing a head the camera is sitting right behind.
+    const head = [];
+    model.traverse((o) => {
+      if (o.isMesh && [].concat(o.material).some((mt) => /_(head|opacity)$/i.test(mt.name))) head.push(o);
+    });
+    group.userData.headMeshes = head;
     group.add(model);
   }).catch(() => { /* a missing model just leaves an empty chair */ });
   return group;

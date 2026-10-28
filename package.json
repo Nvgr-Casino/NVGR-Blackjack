@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "models": "node scripts/optimize-models.mjs",
     "character": "node scripts/import-character.mjs",
-    "cards": "node scripts/build-cards.mjs"
+    "cards": "node scripts/build-cards.mjs",
+    "rocketbox": "node scripts/import-rocketbox.mjs"
   },
   "dependencies": {
     "firebase": "^12.1.0",

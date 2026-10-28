@@ -6,7 +6,10 @@ import { FLOOR_Y, m } from './scale.js';
 // dealer. TABLE_RADIUS is the semicircle's radius (and so the felt's full
 // width, held constant all the way back); SIDE_LENGTH is how far the
 // straight sides run before the flat back edge closes the shape off.
-export const TABLE_RADIUS = 2.6;
+// Sized as a five-spot table, which is what this one is: about 2.1 m
+// across overall. It was built to a seven-seat 2.4 m spec, so five players
+// sat far apart around a wide, empty felt.
+export const TABLE_RADIUS = m(0.885);
 const SIDE_LENGTH = 1.0;
 export const TABLE_BACK_Z = -SIDE_LENGTH;
 
@@ -150,14 +153,17 @@ function createFeltTexture(themeKey) {
     ctx.fillText(text, 0, 0);
     ctx.restore();
   };
-  label('BLACKJACK PAYS 3 TO 2', 0.56, 0.12, INK, 700);
-  label('DEALER MUST DRAW TO 16 AND STAND ON ALL 17s', 0.75, 0.055, INK_SOFT, 600);
+  // Positions are proportions of the table's radius, so the layout holds
+  // whatever size the table is.
+  const R = TABLE_RADIUS;
+  label('BLACKJACK PAYS 3 TO 2', R * 0.215, 0.105, INK, 700);
+  label('DEALER MUST DRAW TO 16 AND STAND ON ALL 17s', R * 0.29, 0.048, INK_SOFT, 600);
 
   // Insurance band: two printed arcs concentric with the table's own front
   // edge, with the line set between them, letter by letter.
   const [ox, oy] = toPx(0, 0);
-  const INNER = 1.0;
-  const OUTER = 1.2;
+  const INNER = R * 0.385;
+  const OUTER = R * 0.46;
   const ARC_FROM = THREE.MathUtils.degToRad(28);
   const ARC_TO = THREE.MathUtils.degToRad(152);
   ctx.strokeStyle = INK_SOFT;
@@ -171,7 +177,7 @@ function createFeltTexture(themeKey) {
   const bandR = ((INNER + OUTER) / 2) * PX;
   const spread = THREE.MathUtils.degToRad(46);
   ctx.fillStyle = INK_SOFT;
-  ctx.font = font(0.075, 700);
+  ctx.font = font(0.066, 700);
   [...band].forEach((ch, i) => {
     // Left to right as the player reads it: canvas angles grow clockwise,
     // and +90deg points at the players.

@@ -7,6 +7,7 @@ import { cameraOverride } from '../scene/cameraFocus.js';
 import { createHandBadge } from '../scene/handBadge.js';
 import { SEATS, DEALER, cameraPositionForSeat, cameraLookAtForSeat, isTallScreen } from '../scene/seats.js';
 import { animate, easeOutCubic, easeInOutCubic } from '../scene/animator.js';
+import { m, SEAT_TOP_Y } from '../scene/scale.js';
 
 // Pure 3D/visual driver for the table — no DOM, no game rules. It knows how
 // to put a card/chip/badge somewhere on the felt for a given seat index and
@@ -89,15 +90,32 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
 
 
   // ---------- seated characters ----------
-  // One figure per occupied seat, your own included.
-  //
-  // Your chair and your body used to be hidden at whichever seat the camera
-  // was in, on the reasoning that you *are* that player and a body would
-  // fill the screen. That was true of a first-person eye-line camera; this
-  // one sits 2.25 units behind the chair and 3.85 above it, which is over
-  // your own shoulder. Hiding them just left a hole at the table where you
-  // were sitting — no chair, no character, whichever way the camera turned.
+  // One figure per occupied seat, your own included. Hiding your whole
+  // figure once left a hole at the table where you were sitting, whichever
+  // way the camera turned; only the head is held back, and only while the
+  // camera is right behind it (below).
   const seatCharacters = new Map(); // seatIndex -> { id, group }
+
+  // A seated figure leans in over the felt, so from your own chair the back
+  // of your own head sits squarely between the camera and your cards. Any
+  // head the camera is right behind isn't drawn; the body still is, so your
+  // own shoulders and arms are at the bottom of the picture, and turning the
+  // view to look at yourself brings the head back.
+  const HEAD_CLEARANCE = m(0.95);
+  const headPoint = new THREE.Vector3();
+  const priorBeforeRender = scene.onBeforeRender;
+  scene.onBeforeRender = (...args) => {
+    seatCharacters.forEach(({ group }, seatIndex) => {
+      const meshes = group.userData.headMeshes;
+      if (!meshes || !meshes.length) return;
+      const seat = SEATS[seatIndex];
+      const inward = seatOutwardDir(seat).multiplyScalar(-m(0.2));
+      headPoint.copy(seat.position).add(inward).setY(SEAT_TOP_Y + m(0.72));
+      const show = camera.position.distanceTo(headPoint) > HEAD_CLEARANCE;
+      for (const mesh of meshes) mesh.visible = show;
+    });
+    priorBeforeRender.apply(scene, args);
+  };
 
   function applySeatCharacter(seatIndex, characterId) {
     const existing = seatCharacters.get(seatIndex);

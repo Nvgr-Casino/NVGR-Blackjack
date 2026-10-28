@@ -11,15 +11,15 @@
 // stays at y=0 because every card, chip and bet spot is placed against it;
 // the floor moves to give the table its real height.
 //
-// Reference: a casino-grade seven-player table is 2400 x 1200 mm overall,
-// 780–820 mm tall including the padded rail, with about 650 mm of rail per
-// seat (manufacturer spec, macaumr.com).
+// Reference: a casino-grade table is 780–820 mm tall including the padded
+// rail (manufacturer spec, macaumr.com). Its width depends on how many
+// spots it has — see table.js.
 
-// Overall width of this table in scene units — felt radius 2.6 plus the
-// 0.45 wooden skirt each side (see table.js). That against the real 2.4 m
-// is the conversion everything else goes through.
-const OVERALL_TABLE_WIDTH = (2.6 + 0.45) * 2;
-export const UNITS_PER_METRE = OVERALL_TABLE_WIDTH / 2.4;
+// Scene units per metre. It was first derived by fitting the original
+// table to a seven-seat 2.4 m spec, and is kept as that fixed number now
+// that the table has its own real size: every figure, chair and card is
+// already measured against it.
+export const UNITS_PER_METRE = 6.1 / 2.4;
 export const m = (metres) => metres * UNITS_PER_METRE;
 
 // 0.80 m, the middle of the real 780–820 mm range. The earlier 0.75 m was

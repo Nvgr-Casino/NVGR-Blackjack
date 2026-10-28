@@ -136,18 +136,20 @@ export function initScene(canvas) {
   // table rather than gear actually resting on the felt.
   const dealerGearZ = TABLE_BACK_Z + 0.3;
 
+  // Shoe on the dealer's right, beside the hand that deals (see seats.js);
+  // chip tray on the left.
   const tray = createChipTray(1.1);
-  tray.position.set(-0.75, 0.03, dealerGearZ);
+  tray.position.set(0.75, 0.03, dealerGearZ);
   scene.add(tray);
 
   [0, 1, 2].forEach((colorIndex, i) => {
     const stack = createChipStack(3 + colorIndex, colorIndex);
-    stack.position.set(-1.05 + i * 0.32, 0.06, dealerGearZ);
+    stack.position.set(0.45 + i * 0.32, 0.06, dealerGearZ);
     scene.add(stack);
   });
 
   const shoe = createCardShoe();
-  shoe.position.set(0.75, 0.03, dealerGearZ);
+  shoe.position.set(-0.75, 0.03, dealerGearZ);
   scene.add(shoe);
 
   // No chair for the dealer — they stand, like every real one.
