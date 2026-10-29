@@ -5,6 +5,7 @@
 
 import { createPokerDriver } from '../ui/pokerController.js';
 import * as R from '../poker/rules.js';
+import * as T from '../poker/tournament.js';
 import { bestHand } from '../poker/evaluator.js';
 import { cardFaceUrl } from '../scene/card.js';
 import { characterPortraitDataURL, defaultCharacterFor } from '../scene/character.js';
@@ -13,6 +14,7 @@ import { safeKey, roomName, stakesTier } from './roomLogic.js';
 import { esc } from './uiHelpers.js';
 import * as S from './session.js';
 import * as Poker from './pokerSession.js';
+import * as Offline from './offlinePoker.js';
 import * as Social from './social.js';
 
 let driver = null;
@@ -239,8 +241,13 @@ export function renderPokerScreen() {
 
   // ----- the dock.
   let dock = '';
-  if (!me) {
-    dock = sitDownPanel(r, buyMin, buyMax);
+  const tour = r.tournament || null;
+  if (tour && (T.finished(r) || T.placeOf(r, myKey)) && !(h && me && h.phase !== 'done' && h.players.includes(myKey))) {
+    dock = tournamentResultPanel(r, myKey);
+  } else if (tour && T.registering(r)) {
+    dock = registrationPanel(r, me);
+  } else if (!me) {
+    dock = tour ? '<p class="dock-msg">The tournament is in play — you are watching.</p>' : sitDownPanel(r, buyMin, buyMax);
   } else {
     const legal = R.legalActions(r, myKey);
     if (legal) {
@@ -265,14 +272,14 @@ export function renderPokerScreen() {
             ${legal.raise ? `<button class="btn btn-primary" id="raiseBtn">${raiseTo >= legal.maxTo ? 'All in ' + legal.maxTo.toLocaleString() : raiseWord + ' ' + raiseTo.toLocaleString()}</button>` : ''}
           </div>
         </div>`;
-    } else if (h && h.players.includes(myKey) && !(h.folded && h.folded[myKey]) && h.phase === 'betting') {
+    } else if (h && h.players.includes(myKey) && !(h.folded && h.folded[myKey]) && !(h.allIn && h.allIn[myKey]) && h.phase === 'betting') {
       dock = `
         <div class="dock-panel dock-poker pre-actions">
           <label><input type="checkbox" id="preCheckFold" ${preAction === 'checkfold' ? 'checked' : ''}> Check / Fold</label>
           <label><input type="checkbox" id="preCallAny" ${preAction === 'callany' ? 'checked' : ''}> Call any</label>
         </div>`;
     } else {
-      dock = betweenHandsPanel(r, me, buyMax);
+      dock = tour ? tournamentWaitPanel(r, me) : betweenHandsPanel(r, me, buyMax);
     }
   }
 
@@ -316,13 +323,13 @@ export function renderPokerScreen() {
       </div>
     </div>` : '';
 
-  const sub = `${r.offline ? 'Practice' : "Hold'em"} · Blinds ${short(r.sb)} / ${short(r.bb)} · ${R.seatKeys(r).length}/${R.POKER_SEATS}`;
+  const sub = tour ? tournamentSub(r) : `${r.offline ? 'Practice' : "Hold'em"} · Blinds ${short(r.sb)} / ${short(r.bb)} · ${R.seatKeys(r).length}/${R.POKER_SEATS}`;
   return `
     <div class="hud-top">
       <div class="hud-left">
         <button class="hud-btn" id="leaveBtn">← Leave</button>
         <div class="hud-table">
-          <span class="hud-code">${esc(roomName(r))} · ${esc(r.code)}</span>
+          <span class="hud-code">${tour ? esc(tour.name) + ' · ' + esc(roomName(r)) : esc(roomName(r)) + ' · ' + esc(r.code)}</span>
           <span class="hud-sub">${sub}</span>
         </div>
       </div>
@@ -334,6 +341,87 @@ export function renderPokerScreen() {
     ${chatSheet}
     <div class="hud-dock">${readout}${dock}</div>
   `;
+}
+
+// ----- tournaments
+
+function tournamentSub(r) {
+  const x = r.tournament;
+  const where = r.offline ? 'vs bots' : 'Sit & Go';
+  if (T.registering(r)) return `${where} · Buy-in ${short(x.buyIn)} · 1st ${short(x.prizes[0])}`;
+  const left = R.seatKeys(r).length;
+  const up = T.running(r) && T.nextLevel(r) ? ` · up in ${T.handsToNextLevel(r)}` : '';
+  return `${where} · Level ${(x.level || 0) + 1} · Blinds ${short(r.sb)} / ${short(r.bb)}${up} · ${left}/${x.entrants || left} left`;
+}
+
+function prizeList(x) {
+  return (x.prizes || []).map((p, i) => `<span class="tp-prize"><b>${T.ordinal(i + 1)}</b>${p.toLocaleString()}</span>`).join('');
+}
+
+function registrationPanel(r, me) {
+  const x = r.tournament;
+  const n = R.seatKeys(r).length;
+  const short_ = S.session.chips < x.buyIn;
+  const when = Poker.countdownText(r, null).replace(/^Registering · \d+\/\d+ · /, '');
+  return `
+    <div class="dock-panel dock-poker tour-panel">
+      <div class="tp-head">
+        <span class="tp-title">${esc(x.name)}</span>
+        <span class="muted">${n}/${T.SEATS} registered · ${esc(when)}</span>
+      </div>
+      <div class="tp-prizes">${prizeList(x)}</div>
+      <p class="tp-fine">${T.START_STACK.toLocaleString()} chips each · blinds up every ${T.HANDS_PER_LEVEL} hands · prizes for a full table, in proportion if it starts short.</p>
+      <div class="dock-actions">
+        ${me
+          ? '<span class="tp-in">You are registered</span><button class="btn btn-sm btn-quiet" id="unregisterBtn">Unregister</button>'
+          : `<button class="btn btn-primary" id="registerBtn" ${short_ ? 'disabled' : ''}>Register · ${x.buyIn.toLocaleString()}</button>${short_ ? `<span class="muted">You have ${S.session.chips.toLocaleString()}</span>` : ''}`}
+      </div>
+    </div>`;
+}
+
+function tournamentWaitPanel(r, me) {
+  const key = safeKey(S.session.uid);
+  let line;
+  if (r.hand && r.hand.players.includes(key) && r.hand.folded && r.hand.folded[key]) line = 'Folded — waiting for the next hand.';
+  else if (r.hand && r.hand.phase === 'deal') line = 'Shuffling and dealing…';
+  else if (me.stack <= 0) line = 'All in.';
+  else line = 'Next hand in a moment.';
+  const next = T.nextLevel(r);
+  return `
+    <div class="dock-panel dock-poker">
+      <p class="dock-text">${esc(line)}</p>
+      ${next ? `<p class="tp-fine" style="text-align:center;">Blinds go up to ${short(next[0])} / ${short(next[1])} in ${T.handsToNextLevel(r)} hand${T.handsToNextLevel(r) === 1 ? '' : 's'}.</p>` : ''}
+    </div>`;
+}
+
+function tournamentResultPanel(r, key) {
+  const x = r.tournament;
+  const mine = T.placeOf(r, key);
+  const table = T.standings(r).slice(0, 6).map((e) => `
+    <li class="${e.key === key ? 'me' : ''}">
+      <span class="ts-place">${e.place ? T.ordinal(e.place) : '—'}</span>
+      <img src="${characterPortraitDataURL(e.character || defaultCharacterFor(e.key), 48)}" alt="">
+      <span class="ts-name">${esc(e.name)}${e.bot ? ' <span class="role">BOT</span>' : ''}</span>
+      <span class="ts-prize">${e.prize ? e.prize.toLocaleString() : e.stack !== undefined ? e.stack.toLocaleString() + ' chips' : ''}</span>
+    </li>`).join('');
+  let head;
+  if (mine && mine.place === 1) head = `<span class="tr-big">Champion</span><span class="tr-line">You won the ${esc(x.name)} — ${mine.prize.toLocaleString()} chips</span>`;
+  else if (mine) head = `<span class="tr-big">${T.ordinal(mine.place)}</span><span class="tr-line">You finished ${T.ordinal(mine.place)} of ${x.entrants}${mine.prize ? ' — ' + mine.prize.toLocaleString() + ' chips' : ''}</span>`;
+  else {
+    const w = Object.values(x.places || {}).find((v) => v.place === 1);
+    head = `<span class="tr-big">Over</span><span class="tr-line">${w ? esc(w.name) + ' won the ' + esc(x.name) : 'The tournament is over'}</span>`;
+  }
+  const again = r.offline && x.id ? `<button class="btn btn-primary" id="playAgainBtn" ${S.session.chips < x.buyIn ? 'disabled' : ''}>Play again · ${x.buyIn.toLocaleString()}</button>` : '';
+  return `
+    <div class="dock-panel dock-poker tour-result ${mine && mine.place === 1 ? 'won' : ''}">
+      <div class="tr-head">${head}</div>
+      ${T.running(r) ? '<p class="tp-fine" style="text-align:center;">Still playing:</p>' : ''}
+      <ol class="tour-standings">${table}</ol>
+      <div class="dock-actions" style="justify-content:center;">
+        ${again}
+        <button class="btn ${again ? 'btn-quiet' : 'btn-primary'}" id="lobbyBtn">Back to the lobby</button>
+      </div>
+    </div>`;
 }
 
 function holeName(cards) {
@@ -376,6 +464,7 @@ function betweenHandsPanel(r, me, max) {
   if (r.hand && r.hand.players.includes(safeKey(S.session.uid)) && r.hand.folded && r.hand.folded[safeKey(S.session.uid)]) line = 'Folded — waiting for the next hand.';
   else if (r.hand && r.hand.phase === 'deal') line = 'Shuffling and dealing…';
   else if (out) line = 'You are sitting out.';
+  else if (r.hand && r.hand.phase !== 'done' && r.hand.allIn && r.hand.allIn[safeKey(S.session.uid)]) line = 'All in.';
   else if (me.waitBB) line = 'You will be dealt in at the big blind.';
   else if (Object.values(r.players).filter((p) => p.status === 'active' && p.stack > 0).length < 2) line = 'Waiting for another player to sit down.';
   else line = 'Next hand in a moment.';
@@ -394,7 +483,15 @@ export function attachPokerScreen() {
   if (!r) return;
   const myKey = S.session.uid ? safeKey(S.session.uid) : null;
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
-  on('leaveBtn', S.leaveTable);
+  const forfeit = r.tournament && T.running(r) && r.players && r.players[myKey];
+  on('leaveBtn', () => {
+    if (forfeit && !window.confirm('Leave the tournament? Your seat is forfeit: you finish in the place you have reached, and the buy-in is not returned.')) return;
+    S.leaveTable();
+  });
+  on('lobbyBtn', S.leaveTable);
+  on('unregisterBtn', S.leaveTable);
+  on('registerBtn', () => Poker.registerTournament(r.code));
+  on('playAgainBtn', () => Offline.playAgain());
   on('chatToggleBtn', () => S.setChatOpen(!S.chatOpen));
   on('foldBtn', () => Poker.act('fold'));
   on('checkBtn', () => Poker.act('check'));

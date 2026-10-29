@@ -21,6 +21,7 @@ import { initSocial, stopSocial, goOffline } from './social.js';
 // reads the session; this module hands it poker rooms.
 import * as Poker from './pokerSession.js';
 import * as Offline from './offlinePoker.js';
+import * as Leaderboard from './leaderboard.js';
 import {
   STARTING_CHIPS, BETTING_SECONDS, TURN_SECONDS, MAX_PUBLIC_SEATS, MIN_PUBLIC_TABLES,
   safeKey, genCode, shuffleShoe, drawCard, addPlayerToRoom, startRoundLogic, dealRoundCards,
@@ -126,6 +127,7 @@ export async function chooseCharacter(id) {
 // settled.
 export async function saveAccountChips(uid, name, chips) {
   await update(ref(db, 'accounts/' + safeKey(uid)), { name, chips, updatedAt: Date.now() });
+  Leaderboard.noteBalance(uid, name, chips, session.character);
 }
 export async function setCurrentRoom(uid, code) {
   await set(ref(db, 'accounts/' + safeKey(uid) + '/currentRoom'), code || null);
@@ -141,6 +143,7 @@ export function initAuth() {
       const account = await ensureAccount(user.uid, session.name);
       session.chips = account.chips;
       session.character = account.character;
+      Leaderboard.noteBalance(user.uid, session.name, session.chips, session.character);
       initSocial();
       const acctSnap = await get(ref(db, 'accounts/' + safeKey(user.uid) + '/currentRoom'));
       const lastRoom = acctSnap.exists() ? acctSnap.val() : null;
@@ -151,9 +154,13 @@ export function initAuth() {
           enterTable(lastRoom);
           return;
         }
-        // Stood up from a poker table while away: the stack is waiting.
+        // Stood up from a poker table while away: the stack is waiting —
+        // or a tournament prize won while gone.
         if (room && room.game === 'holdem' && room.cashout && room.cashout[safeKey(user.uid)]) {
           await Poker.collectCashout(lastRoom);
+        }
+        if (room && room.game === 'holdem' && room.prizes && room.prizes[safeKey(user.uid)]) {
+          await Poker.collectPrize(lastRoom);
         }
         await setCurrentRoom(user.uid, null);
       }
@@ -492,7 +499,7 @@ export async function leaveTable() {
   const key = safeKey(session.uid);
   const wasPublic = session.room && session.room.isPublic;
   if (session.room && session.room.offline) {
-    Offline.stopPractice();
+    Offline.leavePractice();
     session.code = null; session.room = null; session.screen = 'home';
     updateHash(); render();
     loadLobby();
@@ -582,8 +589,9 @@ async function ensureOpenTables(tables) {
 
 export async function loadLobby() {
   lobbyLoading = true; render();
-  if (lobbyGame === 'holdem') {
-    try { pokerTables = await Poker.loadPokerTables(); } catch (e) { pokerTables = []; }
+  Leaderboard.loadLeaderboard().then(render, () => {});
+  if (lobbyGame === 'holdem' || lobbyGame === 'tournaments') {
+    try { pokerTables = await Poker.loadPokerTables(); } catch (e) { pokerTables = { tables: [], tournaments: [] }; }
     lobbyLoading = false;
     render();
     return;

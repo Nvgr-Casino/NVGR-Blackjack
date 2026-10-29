@@ -11,16 +11,23 @@
 // up while away (out too long, or left mid-hand) has their stack put in
 // the room's `cashout`, which their own client collects the next time it
 // can (collectCashout).
+//
+// Tournaments (src/poker/tournament.js) run at the same tables: the buy-in
+// leaves the account on registering, tournament chips never come back, and
+// a prize waits in the room's `prizes` for the winner's own client to
+// collect (collectPrize).
 
 import { ref, get, set, update, remove, onValue, onDisconnect, runTransaction } from 'firebase/database';
 import { db } from '../firebase/config.js';
 import * as R from '../poker/rules.js';
+import * as T from '../poker/tournament.js';
 import { createProtocol } from '../poker/protocol.js';
 import { FELT_THEME_KEYS } from '../scene/table.js';
 import { DEALER_KEYS } from '../scene/dealer.js';
 import { safeKey, genCode } from './roomLogic.js';
 import * as S from './session.js';
 import * as Offline from './offlinePoker.js';
+import * as Leaderboard from './leaderboard.js';
 
 const roomRef = (code) => ref(db, 'rooms/' + code);
 const mpPath = (code, handId) => 'rooms/' + code + '_mp/' + handId;
@@ -38,6 +45,12 @@ function newPokerRoom(tierIndex, { isPublic, adminId = null } = {}) {
     players: {}, hand: null, buttonSeat: null, handCount: 0,
     chat: [], log: ['Table open — take a seat.'],
   };
+}
+
+function newTournamentRoom(def) {
+  const room = T.setupTournament(newPokerRoom(def.tier - 1, { isPublic: true }), def);
+  room.log = [`${def.name} — registration open. It starts when six have registered, or ${T.START_WAIT_MS / 1000} seconds after the second.`];
+  return room;
 }
 
 export async function createPokerTable(tierIndex = 0) {
@@ -60,7 +73,7 @@ export async function playPokerNow() {
   for (const code of codes) {
     const snap = await get(roomRef(code));
     const r = snap.val();
-    if (!r || r.game !== 'holdem') continue;
+    if (!r || r.game !== 'holdem' || r.tournament) continue;
     if (Object.keys(r.players || {}).length >= R.POKER_SEATS) continue;
     const { min, max } = R.buyInRange(r);
     if (S.session.chips < min) continue;
@@ -94,6 +107,34 @@ export async function sitDown(code, seat, buyIn) {
   // buy-in goes straight back.
   if (!committed) { await giveToAccount(buyIn); return false; }
   markOnline(code);
+  return true;
+}
+
+/**
+ * Registers for the tournament at `code`: the buy-in comes off the account
+ * and, if the place is gone by the time the transaction runs, goes back.
+ */
+export async function registerTournament(code) {
+  const snap = (await get(roomRef(code))).val();
+  const x = snap && snap.tournament;
+  if (!x || x.status !== 'registering') { S.setFormError('Registration for that tournament has closed.'); return false; }
+  if (S.session.chips < x.buyIn) { S.setFormError(`The buy-in is ${x.buyIn.toLocaleString()} — you have ${S.session.chips.toLocaleString()}.`); return false; }
+  await takeFromAccount(x.buyIn);
+  const key = me();
+  let committed = false;
+  try {
+    const result = await runTransaction(roomRef(code), (r) => {
+      if (!r) return r;
+      if (!r.tournament || r.tournament.buyIn !== x.buyIn || !T.register(r, key, { name: S.session.name, character: S.session.character, now: Date.now() })) return;
+      return r;
+    });
+    committed = result.committed && !!(result.snapshot.val().players || {})[key];
+  } catch (e) {
+    console.error('registerTournament', e);
+  }
+  if (!committed) { await giveToAccount(x.buyIn); S.setFormError('That tournament just filled or started.'); return false; }
+  markOnline(code);
+  await openPokerTable(code);
   return true;
 }
 
@@ -150,10 +191,32 @@ export async function leavePoker(code) {
   clearPresence();
   await runTransaction(roomRef(code), (r) => {
     if (!r) return r;
-    if (r.players && r.players[key]) R.leave(r, key, Date.now());
+    if (!(r.players && r.players[key])) return r;
+    if (r.tournament) T.withdraw(r, key, Date.now());
+    else R.leave(r, key, Date.now());
     return r;
   });
   await collectCashout(code);
+  await collectPrize(code);
+}
+
+/** Takes a tournament prize the room is holding for this player to their account. */
+export async function collectPrize(code) {
+  const key = me();
+  let amount = 0;
+  let place = null;
+  const result = await runTransaction(roomRef(code), (r) => {
+    if (!r) return r;
+    amount = (r.prizes && r.prizes[key]) || 0;
+    if (!amount) return;
+    place = T.placeOf(r, key);
+    delete r.prizes[key];
+    return r;
+  });
+  if (!result.committed || !amount) return 0;
+  await giveToAccount(amount);
+  Leaderboard.recordTournament(S.session.uid, { name: S.session.name, character: S.session.character, place: place ? place.place : 3, prize: amount });
+  return amount;
 }
 
 /** Takes anything the room is holding for this player back to their account. */
@@ -210,15 +273,38 @@ function tidyPlayers(r) {
   Object.keys(r.players || {}).forEach((k) => { if (typeof r.players[k].seat !== 'number') delete r.players[k]; });
 }
 
+// A finished tournament stays listed this long, for its result.
+const FINISHED_LISTED_MS = 2 * 60 * 1000;
+
+/** The Hold'em lobby: { tables, tournaments } — cash tables, and each tournament's open table and any in play. */
 export async function loadPokerTables() {
   const idx = await get(ref(db, 'publicIndex/tables'));
   const codes = idx.exists() ? Object.keys(idx.val()) : [];
+  const rooms = await Promise.all(codes.map(async (code) => [code, (await get(roomRef(code))).val()]));
   const tables = [];
-  for (const code of codes) {
-    const r = (await get(roomRef(code))).val();
+  const tournaments = [];
+  for (const [code, r] of rooms) {
     if (!r || r.game !== 'holdem') continue;
     const seats = Object.values(r.players || {}).map((p) => ({ name: p.name, character: p.character || null }));
+    if (r.tournament) {
+      const x = r.tournament;
+      if (x.status === 'finished' && Date.now() - (x.finishedAt || 0) > FINISHED_LISTED_MS) {
+        remove(ref(db, 'publicIndex/tables/' + code)).catch(() => {});
+        continue;
+      }
+      const winner = x.places && Object.values(x.places).find((v) => v.place === 1);
+      tournaments.push({ code, id: x.id, status: x.status, count: seats.length, seats, startsAt: x.startsAt || null, level: x.level || 0, entrants: x.entrants || seats.length, winner: winner ? winner.name : null, mine: !!(r.players && r.players[me()]) });
+      continue;
+    }
     tables.push({ code, game: 'holdem', tier: r.tier, sb: r.sb, bb: r.bb, count: seats.length, seats, felt: r.felt, playing: !!r.hand });
+  }
+  // Each tournament always has a table taking registrations.
+  for (const def of T.TOURNAMENTS) {
+    if (tournaments.some((t) => t.id === def.id && t.status === 'registering')) continue;
+    const room = newTournamentRoom(def);
+    await set(roomRef(room.code), room);
+    await set(ref(db, 'publicIndex/tables/' + room.code), true);
+    tournaments.push({ code: room.code, id: def.id, status: 'registering', count: 0, seats: [], startsAt: null, level: 0, entrants: 0, winner: null, mine: false });
   }
   // One open table at each stakes, always.
   for (let i = 0; i < R.POKER_STAKES.length; i++) {
@@ -228,7 +314,7 @@ export async function loadPokerTables() {
     await set(ref(db, 'publicIndex/tables/' + room.code), true);
     tables.push({ code: room.code, game: 'holdem', tier: room.tier, sb: room.sb, bb: room.bb, count: 0, seats: [], felt: room.felt, playing: false });
   }
-  return tables.sort((a, b) => a.tier - b.tier);
+  return { tables: tables.sort((a, b) => a.tier - b.tier), tournaments };
 }
 
 // ---------- the hand, from this client ----------
@@ -272,6 +358,7 @@ export function onRoom(room) {
   // A hand just ended with this player gone from the table — or holding
   // a stack for them: collect it.
   if (room && room.cashout && room.cashout[key]) collectCashout(room.code);
+  if (room && room.prizes && room.prizes[key]) collectPrize(room.code);
   if (room) watchPresence(room.code);
   // Seated (again, after a reload): keep the seat marked present.
   if (room && room.players && room.players[key] && typeof room.players[key].stack === 'number') markOnline(room.code);
@@ -351,6 +438,7 @@ export function tick(room) {
     S.mutateRoom(code, tidyPlayers);
     return;
   }
+  if (T.isTournament(room) && !T.running(room)) { tournamentLobbyTick(room, now); return; }
   if (h && h.phase === 'betting' && h.deadline && now >= h.deadline) {
     S.mutateRoom(code, (r) => { if (r.hand && r.hand.id === h.id) R.processTimeout(r, Date.now()); });
   } else if (h && R.stalled(room, now)) {
@@ -363,14 +451,19 @@ export function tick(room) {
     }).then(() => remove(ref(db, mpPath(code, h.id))).catch(() => {}));
   } else if (h && h.phase === 'done' && now >= h.endsAt) {
     const oldId = h.id;
-    S.mutateRoom(code, (r) => { if (r.hand && r.hand.id === oldId && R.clearHand(r, Date.now())) r.lastHandAt = Date.now(); })
-      .then(() => remove(ref(db, mpPath(code, oldId))).catch(() => {}));
+    S.mutateRoom(code, (r) => {
+      if (!r.hand || r.hand.id !== oldId || r.hand.phase !== 'done' || Date.now() < r.hand.endsAt) return;
+      // At a tournament, whoever is out of chips is out of it.
+      T.afterHand(r, Date.now());
+      if (R.clearHand(r, Date.now())) r.lastHandAt = Date.now();
+    }).then(() => remove(ref(db, mpPath(code, oldId))).catch(() => {}));
   } else if (!h) {
     const lastEnd = room.lastHandAt || 0;
     if (now - lastEnd < NEXT_HAND_MS) return;
     if (!presence) return;   // until we know who is here
     const here = { ...presence };
     const ready = Object.entries(room.players || {}).filter(([k, p]) => p.status === 'active' && p.stack > 0 && here[k] && !p.leaving);
+    if (T.isTournament(room)) { tournamentHandTick(room, here, ready.length, now); return; }
     if (ready.length >= 2) {
       // Nothing of an earlier hand is still needed once none is running.
       remove(ref(db, 'rooms/' + code + '_mp')).catch(() => {});
@@ -387,9 +480,68 @@ export function tick(room) {
   }
 }
 
+// A tournament between hands. Nobody chooses to sit out of one — whoever
+// is here is dealt in; whoever is gone is sat out, and forfeits if gone too
+// long — and the blinds go up as it goes.
+function tournamentHandTick(room, here, readyCount, now) {
+  const players = Object.entries(room.players || {});
+  const due = players.some(([k, p]) => (!here[k] && p.status === 'active')
+    || (here[k] && p.status === 'sitout')
+    || (p.status === 'sitout' && p.sitOutAt && now - p.sitOutAt > T.AWAY_LIMIT_MS));
+  if (readyCount < 2 && !due) return;
+  const code = room.code;
+  if (readyCount >= 2) remove(ref(db, 'rooms/' + code + '_mp')).catch(() => {});
+  const id = genCode() + now.toString(36);
+  S.mutateRoom(code, (r) => {
+    if (r.hand || !T.running(r)) return;
+    const t = Date.now();
+    Object.entries(r.players || {}).forEach(([k, p]) => {
+      if (!here[k] && p.status === 'active') { p.status = 'sitout'; p.sitOutAt = t; }
+      else if (here[k] && p.status === 'sitout') { p.status = 'active'; p.sitOutAt = null; p.timeouts = 0; p.waitBB = false; }
+    });
+    T.forfeitAway(r, t);
+    if (!T.running(r)) return;
+    const ready = Object.values(r.players).filter((p) => p.status === 'active' && p.stack > 0).length;
+    if (ready < 2) return;
+    T.beforeHand(r);
+    R.startHand(r, id, t);
+  });
+}
+
+// A tournament taking registrations: anyone who has gone is unregistered
+// (their buy-in back), and it starts when full or the wait is over.
+const absentSince = {};
+const ABSENT_UNREGISTER_MS = 30 * 1000;
+function tournamentLobbyTick(room, now) {
+  if (!T.registering(room) || !presence) return;
+  const here = { ...presence };
+  const keys = Object.keys(room.players || {});
+  keys.forEach((k) => { if (here[k]) delete absentSince[k]; else if (!absentSince[k]) absentSince[k] = now; });
+  const gone = keys.filter((k) => absentSince[k] && now - absentSince[k] > ABSENT_UNREGISTER_MS);
+  if (!gone.length && !T.canStart(room, now)) return;
+  S.mutateRoom(room.code, (r) => {
+    if (!T.registering(r)) return;
+    gone.forEach((k) => { if (r.players && r.players[k]) T.withdraw(r, k); });
+    if (T.canStart(r, Date.now())) {
+      // Only those here when it starts are in it.
+      Object.keys(r.players || {}).forEach((k) => { if (!here[k]) T.withdraw(r, k); });
+      T.start(r, Date.now(), { scale: true });
+      r.lastHandAt = Date.now();
+    }
+  });
+}
+
 /** The words on the table's clock pill: whose turn and how long, or what is being dealt. */
 export function countdownText(room, key) {
   const h = room && room.hand;
+  if (T.registering(room)) {
+    const x = room.tournament;
+    const n = Object.keys(room.players || {}).length;
+    if (n < 2 || !x.startsAt) return `Registering · ${n}/${T.SEATS} · waiting for a second player`;
+    const secs = Math.max(0, Math.ceil((x.startsAt - Date.now()) / 1000));
+    return `Registering · ${n}/${T.SEATS} · starts in ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+  }
+  if (T.finished(room)) return 'Tournament over';
   if (!h) return '';
   if (h.phase === 'betting' && h.deadline) {
     const secs = Math.max(0, Math.ceil((h.deadline - Date.now()) / 1000));

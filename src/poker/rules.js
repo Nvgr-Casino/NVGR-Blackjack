@@ -540,12 +540,17 @@ export function clearHand(room, now = Date.now()) {
   return stood;
 }
 
-/** Takes a player off the table, their stack into room.cashout. */
+/**
+ * Takes a player off the table, their stack into room.cashout — except at a
+ * tournament, whose chips are never money (tournament.js).
+ */
 export function standUp(room, key) {
   const p = room.players && room.players[key];
   if (!p) return;
-  if (!room.cashout) room.cashout = {};
-  room.cashout[key] = (room.cashout[key] || 0) + p.stack;
+  if (!room.tournament) {
+    if (!room.cashout) room.cashout = {};
+    room.cashout[key] = (room.cashout[key] || 0) + p.stack;
+  }
   log(room, p.name + ' leaves the table.');
   delete room.players[key];
 }
@@ -623,7 +628,7 @@ export function voidHand(room, reason = 'The hand was called off.') {
   Object.entries(h.committed || {}).forEach(([k, amt]) => {
     if (room.players[k]) room.players[k].stack += amt;
     // Gone from the table already: their part goes where their stack went.
-    else if (amt) { if (!room.cashout) room.cashout = {}; room.cashout[k] = (room.cashout[k] || 0) + amt; }
+    else if (amt && !room.tournament) { if (!room.cashout) room.cashout = {}; room.cashout[k] = (room.cashout[k] || 0) + amt; }
   });
   room.hand = null;
   log(room, reason + ' Every bet has been returned.');

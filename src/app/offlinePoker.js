@@ -6,8 +6,14 @@
 //
 // Practice chips: every seat buys in for the table maximum, the house tops
 // you up if you go broke, and nothing touches the account balance.
+//
+// A tournament against the bots is different: five of them and you, played
+// to the end under tournament.js, and for real — the buy-in comes off your
+// balance and a prize goes on it. Leaving before the end forfeits your seat
+// (in the place you had reached, which may still be paid).
 
 import * as R from '../poker/rules.js';
+import * as T from '../poker/tournament.js';
 import { decide, newPersonality } from '../poker/bot.js';
 import { CARDS, shuffle } from '../poker/mentalPoker.js';
 import { CHARACTERS } from '../scene/character.js';
@@ -15,6 +21,7 @@ import { FELT_THEME_KEYS } from '../scene/table.js';
 import { DEALER_KEYS } from '../scene/dealer.js';
 import { safeKey } from './roomLogic.js';
 import * as S from './session.js';
+import * as Leaderboard from './leaderboard.js';
 
 // The pace of the table: a pause to show each thing happening.
 const DEAL_MS = 1400;
@@ -67,10 +74,82 @@ export function startPractice(tierIndex = 0, botCount = 3) {
   timer = setInterval(step, TICK_MS);
 }
 
+/** A tournament against five bots: `defId` from tournament.js. Returns false if you can't cover the buy-in. */
+export function startTournament(defId) {
+  const def = T.tournamentById(defId);
+  if (!def) return false;
+  if (S.session.chips < def.buyIn) {
+    S.setFormError(`The ${def.name} buy-in is ${def.buyIn.toLocaleString()} — you have ${S.session.chips.toLocaleString()}.`);
+    return false;
+  }
+  stopPractice();
+  S.session.chips -= def.buyIn;
+  S.saveAccountChips(S.session.uid, S.session.name, S.session.chips).catch(() => {});
+  room = {
+    code: 'PRACTICE', game: 'holdem', offline: true, isPublic: false,
+    felt: FELT_THEME_KEYS[def.tier % FELT_THEME_KEYS.length],
+    dealerType: DEALER_KEYS[Math.floor(Math.random() * DEALER_KEYS.length)],
+    players: {}, hand: null, buttonSeat: null, handCount: 0, chat: [], log: [],
+  };
+  T.setupTournament(room, def);
+  // You in the middle seat, the bots round you.
+  const cast = shuffle(CHARACTERS.filter((c) => c.id !== S.session.character));
+  const order = [{ key: me(), name: S.session.name, character: S.session.character }]
+    .concat([0, 1, 2, 3, 4].map((i) => ({ key: 'bot' + i, name: cast[i % cast.length].name, character: cast[i % cast.length].id, bot: true })));
+  // register() takes the first free seat; you are given seat 2 by seating
+  // two bots first.
+  [order[1], order[2], order[0], order[3], order[4], order[5]].forEach((p) => T.register(room, p.key, { name: p.name, character: p.character, bot: !!p.bot, now: Date.now() }));
+  order.slice(1).forEach((p) => { bots[p.key] = newPersonality(); });
+  T.start(room, Date.now());
+  S.session.code = room.code;
+  S.session.screen = 'table';
+  setLeaveGuard(true);
+  publish();
+  waitUntil = performance.now() + 1200;
+  timer = setInterval(step, TICK_MS);
+  return true;
+}
+
+/** Plays it again: the same tournament, a new buy-in. */
+export function playAgain() {
+  const id = room && room.tournament && room.tournament.id;
+  if (id) startTournament(id);
+}
+
 export function stopPractice() {
   if (timer) clearInterval(timer);
   timer = null;
   room = null; deck = []; hole = {}; bots = {}; thinking = null;
+  setLeaveGuard(false);
+}
+
+/** Leaving the table: from a tournament still running, a forfeit. */
+export function leavePractice() {
+  if (room && T.running(room) && room.players[me()]) {
+    T.withdraw(room, me(), Date.now());
+    payOut();
+  }
+  stopPractice();
+}
+
+// Closing the tab mid-tournament forfeits it; the browser asks first.
+const guard = (e) => { e.preventDefault(); e.returnValue = ''; };
+function setLeaveGuard(on) {
+  window.removeEventListener('beforeunload', guard);
+  if (on) window.addEventListener('beforeunload', guard);
+}
+
+// Your result: any prize onto the balance, and the record onto the board.
+function payOut() {
+  const place = T.placeOf(room, me());
+  if (!place) return;
+  const prize = (room.prizes && room.prizes[me()]) || 0;
+  if (room.prizes) delete room.prizes[me()];
+  if (prize) {
+    S.session.chips += prize;
+    S.saveAccountChips(S.session.uid, S.session.name, S.session.chips).catch(() => {});
+  }
+  Leaderboard.recordTournament(S.session.uid, { name: S.session.name, character: S.session.character, place: place.place, prize });
 }
 
 export const isPractice = (r) => !!(r && r.offline);
@@ -95,14 +174,14 @@ export function act(action, amount) {
   publish();
 }
 export function setSitOut(out) {
-  if (!room) return;
+  if (!room || T.isTournament(room)) return;
   R.setSitOut(room, me(), out, Date.now());
   room.players[me()].waitBB = false;
   publish();
 }
 export function topUp() {
   const p = room && room.players[me()];
-  if (!p || R.inHand(room, me())) return;
+  if (!p || R.inHand(room, me()) || T.isTournament(room)) return;
   p.stack = R.buyInRange(room).max;
   publish();
 }
@@ -138,6 +217,7 @@ function step() {
   }
   if (h.phase === 'done') {
     if (Date.now() >= h.endsAt) {
+      if (T.isTournament(room)) { endTournamentHand(); return; }
       // You are never stood up from your own practice table for sitting out.
       const mine = room.players[me()];
       if (mine && mine.status === 'sitout') mine.sitOutAt = Date.now();
@@ -185,9 +265,31 @@ function botAct(key) {
   publish();
 }
 
+// A tournament hand over: the knocked out leave, and once you are one of
+// them — or the last one standing — it is over for you.
+function endTournamentHand() {
+  T.afterHand(room, Date.now());
+  R.clearHand(room, Date.now());
+  // Nobody sits out of a tournament: out of time is folded, not left out.
+  Object.values(room.players).forEach((p) => { if (p.status === 'sitout') { p.status = 'active'; p.timeouts = 0; } });
+  if (T.placeOf(room, me())) {
+    payOut();
+    if (timer) clearInterval(timer);
+    timer = null;
+    setLeaveGuard(false);
+  }
+  waitUntil = performance.now() + NEXT_HAND_MS;
+  publish();
+}
+
 function nextHand() {
   const id = 'P' + Date.now().toString(36);
+  if (T.isTournament(room)) {
+    if (!T.running(room)) return;
+    T.beforeHand(room);
+  }
   if (!R.startHand(room, id, Date.now())) {
+    if (T.isTournament(room)) return;
     // Everyone else sat out or broke: there's always another bot.
     restock();
     waitUntil = performance.now() + NEXT_HAND_MS;

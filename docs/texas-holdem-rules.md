@@ -89,3 +89,39 @@ browsers shuffle and deal them, with the SRA commutative encryption scheme
 players' own clients. A determined cheater could rewrite stacks; they could
 not see your cards. Closing that gap needs a trusted server, as in
 `docs/texas-holdem-plan.md`.
+
+## Tournaments
+
+Sit & Go, six seats (`src/poker/tournament.js`). Everyone starts on 5,000
+tournament chips; the blinds start at 25/50 and go up every 5 hands. A player
+out of chips is out; two out in the same hand are placed by the chips they
+started it with. The top three are paid.
+
+| Tournament  | Room          | Buy-in    | 1st        | 2nd       | 3rd       |
+|-------------|---------------|-----------|------------|-----------|-----------|
+| Starter     | The Lounge    | 10,000    | 100,000    | 25,000    | 10,000    |
+| Classic     | The Library   | 50,000    | 500,000    | 125,000   | 50,000    |
+| High Roller | The Gold Room | 100,000   | 1,000,000  | 250,000   | 100,000   |
+| Millionaire | The Penthouse | 250,000   | 2,500,000  | 625,000   | 250,000   |
+| Diamond     | The Penthouse | 1,000,000 | 10,000,000 | 2,500,000 | 1,000,000 |
+
+- **Online.** Each tournament always has a table taking registrations. It
+  starts when six have registered, or 90 seconds after the second. A short
+  field pays in proportion (three players: half the prizes) and never pays
+  more places than the field less one. Unregistering, or being gone for 30
+  seconds before the start, refunds the buy-in. Once it is running nobody
+  sits out: whoever is here is dealt in, whoever is gone is skipped, and gone
+  for three minutes is a forfeit. Leaving is a forfeit too, in the place
+  reached. Tournament chips are never cashed out; a prize waits in the room's
+  `prizes` for the winner's own client.
+- **Against bots.** The same tournament with five bots, played in the
+  browser, for the real buy-in and prize. Leaving, or closing the tab, before
+  the end forfeits the seat.
+
+## The leaderboard
+
+`rooms/LEADERBOARD/<player>`: each player's client copies its balance there,
+and its tournament record under `record` (wins, cashes, winnings, best
+finish). It lives under `rooms/` because that is the only place the database
+rules let every signed-in player write. Like the stacks, it is only as honest
+as the clients writing it.
