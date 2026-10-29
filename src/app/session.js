@@ -20,6 +20,7 @@ import { initSocial, stopSocial, goOffline } from './social.js';
 // Circular too, and the same way: pokerSession.js runs Hold'em tables and
 // reads the session; this module hands it poker rooms.
 import * as Poker from './pokerSession.js';
+import * as Offline from './offlinePoker.js';
 import {
   STARTING_CHIPS, BETTING_SECONDS, TURN_SECONDS, MAX_PUBLIC_SEATS, MIN_PUBLIC_TABLES,
   safeKey, genCode, shuffleShoe, drawCard, addPlayerToRoom, startRoundLogic, dealRoundCards,
@@ -490,6 +491,13 @@ export async function leaveTable() {
   const code = session.code;
   const key = safeKey(session.uid);
   const wasPublic = session.room && session.room.isPublic;
+  if (session.room && session.room.offline) {
+    Offline.stopPractice();
+    session.code = null; session.room = null; session.screen = 'home';
+    updateHash(); render();
+    loadLobby();
+    return;
+  }
   if (session.room && session.room.game === 'holdem') {
     await Poker.leavePoker(code);
     Poker.stopPoker();

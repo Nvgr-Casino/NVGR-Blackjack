@@ -4,6 +4,7 @@
 import { MAX_PUBLIC_SEATS, stakesLabel, roomName, ROOM_NAMES } from '../roomLogic.js';
 import { POKER_SEATS, POKER_STAKES, buyInRange } from '../../poker/rules.js';
 import * as Poker from '../pokerSession.js';
+import { startPractice } from '../offlinePoker.js';
 import { feltTheme } from '../../scene/table.js';
 import { characterPortraitDataURL, defaultCharacterFor } from '../../scene/character.js';
 import { brandMark, esc } from '../uiHelpers.js';
@@ -99,6 +100,20 @@ function holdemLobby() {
         </div>
       </section>
 
+      <section class="panel practice">
+        <div class="practice-text">
+          <span class="practice-title">Practice with bots</span>
+          <span class="muted">Play now against computer players, no one else needed. Practice chips — your balance isn't touched.</span>
+        </div>
+        <div class="practice-controls">
+          <select id="practiceStakes" aria-label="Practice stakes">${stakes}</select>
+          <select id="practiceBots" aria-label="Number of bots">
+            ${[1, 2, 3, 4, 5].map((n) => `<option value="${n}" ${n === 3 ? 'selected' : ''}>${n} bot${n > 1 ? 's' : ''}</option>`).join('')}
+          </select>
+          <button class="btn btn-primary" id="practiceBtn">Play with bots</button>
+        </div>
+      </section>
+
       <section class="section">
         <div class="section-head">
           <h2>Hold'em tables</h2>
@@ -184,6 +199,11 @@ export function attachHome() {
   on('characterBtn', () => S.goToScreen('character'));
   on('refreshLobbyBtn', S.loadLobby);
   on('pokerNowBtn', Poker.playPokerNow);
+  on('practiceBtn', () => {
+    const stakes = document.getElementById('practiceStakes');
+    const bots = document.getElementById('practiceBots');
+    startPractice(stakes ? Number(stakes.value) : 0, bots ? Number(bots.value) : 3);
+  });
   on('pokerHostBtn', () => {
     const sel = document.getElementById('pokerStakes');
     Poker.createPokerTable(sel ? Number(sel.value) : 0);

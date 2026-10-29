@@ -289,7 +289,7 @@ export function renderPokerScreen() {
       else if (h.last && h.last[k]) status = actionText(h.last[k]);
       if (h.hands && h.hands[k]) status = h.hands[k].name;
     }
-    const roles = h ? [h.button === k ? 'D' : '', h.sb === k && h.players.length > 2 ? 'SB' : '', h.bb === k ? 'BB' : ''].filter(Boolean).join(' ') : '';
+    const roles = [p.bot ? 'BOT' : '', h && h.button === k ? 'D' : '', h && h.sb === k && h.players.length > 2 ? 'SB' : '', h && h.bb === k ? 'BB' : ''].filter(Boolean).join(' ');
     const addable = !isMe && !Social.isFriend(k);
     return `
       <div class="player ${onTurn ? 'on-turn' : ''} ${addable ? 'addable' : ''}" ${addable ? `data-add-friend="${esc(k)}" data-add-name="${esc(p.name)}"` : ''}>
@@ -316,7 +316,7 @@ export function renderPokerScreen() {
       </div>
     </div>` : '';
 
-  const sub = `Hold'em · Blinds ${short(r.sb)} / ${short(r.bb)} · ${R.seatKeys(r).length}/${R.POKER_SEATS}`;
+  const sub = `${r.offline ? 'Practice' : "Hold'em"} · Blinds ${short(r.sb)} / ${short(r.bb)} · ${R.seatKeys(r).length}/${R.POKER_SEATS}`;
   return `
     <div class="hud-top">
       <div class="hud-left">
@@ -371,7 +371,7 @@ function sitDownPanel(r, min, max) {
 
 function betweenHandsPanel(r, me, max) {
   const out = me.status === 'sitout';
-  const canTop = !out && me.stack < max && S.session.chips > 0 && !(r.hand && R.inHand(r, safeKey(S.session.uid)));
+  const canTop = !out && me.stack < max && (r.offline || S.session.chips > 0) && !(r.hand && R.inHand(r, safeKey(S.session.uid)));
   let line;
   if (r.hand && r.hand.players.includes(safeKey(S.session.uid)) && r.hand.folded && r.hand.folded[safeKey(S.session.uid)]) line = 'Folded — waiting for the next hand.';
   else if (r.hand && r.hand.phase === 'deal') line = 'Shuffling and dealing…';

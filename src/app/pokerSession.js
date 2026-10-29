@@ -20,6 +20,7 @@ import { FELT_THEME_KEYS } from '../scene/table.js';
 import { DEALER_KEYS } from '../scene/dealer.js';
 import { safeKey, genCode } from './roomLogic.js';
 import * as S from './session.js';
+import * as Offline from './offlinePoker.js';
 
 const roomRef = (code) => ref(db, 'rooms/' + code);
 const mpPath = (code, handId) => 'rooms/' + code + '_mp/' + handId;
@@ -172,14 +173,20 @@ export async function collectCashout(code) {
   return amount;
 }
 
+// A practice table is local: its moves go to offlinePoker.js.
+const practising = () => Offline.isPractice(S.session.room);
+
 export async function act(action, amount) {
+  if (practising()) { Offline.act(action, amount); return; }
   const code = S.session.code;
   await S.mutateRoom(code, (r) => { R.applyAction(r, me(), action, amount, Date.now()); });
 }
 export async function setSitOut(out) {
+  if (practising()) { Offline.setSitOut(out); return; }
   await S.mutateRoom(S.session.code, (r) => { R.setSitOut(r, me(), out, Date.now()); });
 }
 export async function topUp(amount) {
+  if (practising()) { Offline.topUp(); return; }
   amount = Math.min(Math.floor(amount), S.session.chips);
   if (!(amount > 0)) return;
   let added = 0;
@@ -239,6 +246,7 @@ let myCardsHand = null;
 
 /** This player's hole cards for the hand in progress, once decrypted. */
 export function myHoleCards(room) {
+  if (Offline.isPractice(room)) return Offline.myCards();
   return room && room.hand && myCardsHand === room.hand.id ? myCards : null;
 }
 
