@@ -6,11 +6,12 @@
 import { createTableDriver } from '../ui/gameController.js';
 import {
   MAX_PUBLIC_SEATS, MAX_TIMEOUTS, rankOf, suitOf, handValueLabel,
-  chipLadderForTable, stakesFor, stakesLabel, safeKey, seatOf, countdownLabel,
+  chipLadderForTable, stakesFor, stakesLabel, safeKey, seatOf, countdownLabel, canSplitCards,
 } from './roomLogic.js';
 import { chipButtonDataURL } from '../scene/chip.js';
 import { prefetchCardFaces, cardFaceUrl } from '../scene/card.js';
 import { DEAL_MS } from '../scene/deal.js';
+import { SHUFFLE_MS } from '../scene/shuffle.js';
 import { characterPortraitDataURL, defaultCharacterFor } from '../scene/character.js';
 import { esc } from './uiHelpers.js';
 import * as S from './session.js';
@@ -22,23 +23,34 @@ import * as Social from './social.js';
 const DEAL_STEP_MS = DEAL_MS;
 const CARD_FLIGHT_MS = DEAL_MS;
 const REVEAL_MS = 600;
+// The dealer's other moves on the same timeline: lifting the hole card's
+// corner to check it, taking a busted bet, setting a split pair apart, and
+// a doubled stake going down.
+const PEEK_MS = 900;
+const COLLECT_MS = 1900;   // the bet, then the cards
+const SPLIT_MS = 350;
+const STAKE_MS = 500;
 
 // The dealer does one thing at a time. Everything the table shows the
-// dealer doing — dealing, turning the hole card, settling — is queued on
-// this one timeline, so a hit arriving while the deal is still being shown
-// waits its turn instead of overlapping it, and the settling begins only
-// once the dealer's own hand is complete.
+// dealer doing — dealing, turning the hole card, settling, shuffling — is
+// queued on this one timeline, so a hit arriving while the deal is still
+// being shown waits its turn instead of overlapping it, the settling begins
+// only once the dealer's own hand is complete, and a shuffle waits for the
+// last hand to be picked up. The driver queues its own settling moves
+// (gameController.js's dealerTask), so the timeline waits for those too.
 let dealerFreeAt = 0;
 function dealerSlot(durationMs) {
   const now = performance.now();
-  const start = Math.max(now, dealerFreeAt);
+  const start = Math.max(now, dealerFreeAt, driver ? driver.dealerBusyUntil() : 0);
   dealerFreeAt = start + durationMs;
   return start - now;
 }
 
+// What a hand won, not counting its own stake coming back — "Won 1,000" on
+// a 500 bet read as twice the real win.
 const OUTCOME_LABEL = {
-  win: (bet) => 'Won ' + (bet * 2).toLocaleString(),
-  blackjack: (bet) => 'Blackjack — won ' + (bet + Math.floor(bet * 1.5)).toLocaleString(),
+  win: (bet) => 'Won ' + bet.toLocaleString(),
+  blackjack: (bet) => 'Blackjack — won ' + Math.floor(bet * 1.5).toLocaleString(),
   push: () => 'Push',
   lose: (bet) => 'Lost ' + bet.toLocaleString(),
   surrender: (bet) => 'Surrendered — kept ' + Math.floor(bet / 2).toLocaleString(),
@@ -53,6 +65,21 @@ let lastCounts = {}; // `${seatIndex}:${handIndex}` -> cards.length last seen
 let lastDealerCount = 0;
 let dealerRevealed = false;
 let betChipsShown = {}; // seatIndex -> bool, whether we've drawn a bet chip this round
+// seatIndex -> the stake drawn on the felt so far, so a double or a split
+// adds only the new stake.
+let stakeShown = {};
+// Seats whose busted bet the dealer has already taken.
+let collectedSeats = {};
+let peekShown = false;
+// What the shoe is showing, and whether a shuffle is waiting its turn on the
+// dealer's timeline (the room's shoe is already full by then, but the
+// table's isn't until the dealer has shuffled it).
+let shoeShown = 0;
+let shufflePending = false;
+// The results are in the room the moment the last hand is played, but the
+// table only says who won once the dealer has played their hand out and
+// begins to settle — not before the hole card is even turned.
+let resultsShown = false;
 // Seats whose bet-spot chips were already built locally, one at a time, by
 // tapping the bet-ladder buttons (see attachTableScreen) — when Firebase
 // then confirms that bet, the sync loop below must not draw a second,
@@ -79,6 +106,12 @@ export function mountTable3D(sceneHandles) {
 
 function toCard(str) { return { rank: rankOf(str), suit: suitOf(str) }; }
 
+function cardsOnTable(room) {
+  let n = ((room.dealer && room.dealer.hand) || []).length;
+  Object.values(room.players || {}).forEach((p) => (p.hands || []).forEach((h) => { n += (h.cards || []).length; }));
+  return n;
+}
+
 function resetLanded() {
   landed = {};
   landedDealer = 0;
@@ -94,6 +127,10 @@ function resetRoundVisuals() {
   dealerRevealed = false;
   betChipsShown = {};
   localPendingSeats = {};
+  stakeShown = {};
+  collectedSeats = {};
+  peekShown = false;
+  resultsShown = false;
 }
 
 // Greedily breaks a bet amount into ladder-denomination chips, largest
@@ -136,12 +173,31 @@ export function syncRoomToScene(room, myKey) {
   // you see, not just a line in the log. shuffledAt is the room's own stamp,
   // so every player at the table watches it at the same moment, and
   // comparing against the last one seen means re-renders don't replay it.
+  const total = room.shoeSize || 312;
+  const shoeLeft = (room.deck || []).length;
   if (room.shuffledAt && room.shuffledAt !== lastShuffledAt) {
     const firstSight = lastShuffledAt === null;
     lastShuffledAt = room.shuffledAt;
-    // Don't riffle at someone who just walked up to a table mid-shoe; only
-    // a shuffle that happens while they are watching is worth animating.
-    if (!firstSight) driver.shuffleDeck();
+    // Don't shuffle at someone who just walked up to a table mid-shoe; only
+    // a shuffle that happens while they are watching is worth showing.
+    if (firstSight) {
+      // The used cards are in the discard holder: all that have left the
+      // shoe but those still on the felt.
+      driver.setDiscard(Math.max(0, total - shoeLeft - cardsOnTable(room)));
+    } else {
+      // Once the dealer has finished with the last hand, from what the
+      // shoe was showing.
+      const from = shoeShown;
+      const cutAt = room.cutCardAt;
+      shufflePending = true;
+      const wait = dealerSlot(SHUFFLE_MS);
+      setTimeout(() => driver.shuffleShoe({ shoeLeft: from, total, cutAt }), wait);
+      setTimeout(() => { shufflePending = false; }, wait + SHUFFLE_MS);
+    }
+  }
+  if (!shufflePending) {
+    shoeShown = shoeLeft;
+    driver.setShoe(shoeLeft, total, room.cutCardAt);
   }
 
   const order = room.playerOrder || [];
@@ -177,6 +233,7 @@ export function syncRoomToScene(room, myKey) {
     if (!p) return;
     if (p.status === 'bet-placed' && !betChipsShown[seatIndex]) {
       betChipsShown[seatIndex] = true;
+      stakeShown[seatIndex] = p.bet;
       if (!localPendingSeats[seatIndex]) {
         const { min, max } = stakesFor(room);
         spawnBetStack(seatIndex, p.bet, chipLadderForTable(min, max));
@@ -184,13 +241,17 @@ export function syncRoomToScene(room, myKey) {
     }
     if (p.status === 'betting' && betChipsShown[seatIndex]) {
       betChipsShown[seatIndex] = false;
+      delete stakeShown[seatIndex];
       localPendingSeats[seatIndex] = false;
       driver.clearBetChipsForSeat(seatIndex);
     }
     // A seat that never confirmed (e.g. missed the betting window and got
     // pushed to 'sitout') can still have chips sitting on the felt from
-    // taps that were never followed by "Place bet" — sweep those too.
-    if (p.status !== 'betting' && p.status !== 'bet-placed' && (betChipsShown[seatIndex] || localPendingSeats[seatIndex])) {
+    // taps that were never followed by "Place bet" — sweep those too. Only
+    // a seat sitting out: this once matched 'playing' as well, and wiped
+    // every bet off the felt the moment the cards came out, leaving the
+    // dealer nothing to take or pay.
+    if (p.status === 'sitout' && (betChipsShown[seatIndex] || localPendingSeats[seatIndex])) {
       betChipsShown[seatIndex] = false;
       localPendingSeats[seatIndex] = false;
       driver.clearBetChipsForSeat(seatIndex);
@@ -210,11 +271,43 @@ export function syncRoomToScene(room, myKey) {
 
   if (room.phase === 'insurance' || room.phase === 'playing' || room.phase === 'dealer' || room.phase === 'results') {
     const dHand = room.dealer.hand || [];
+    // The hole card always goes down face down, even when it is already
+    // known to be turned (a blackjack found on the peek): it is turned over
+    // in front of everyone, below.
     for (let i = lastDealerCount; i < dHand.length; i++) {
-      dealerEvents.push({ kind: 'dealer', index: i, card: dHand[i], faceDown: i === 1 && !room.dealer.hiddenRevealed });
+      dealerEvents.push({ kind: 'dealer', index: i, card: dHand[i], faceDown: i === 1 });
     }
     lastDealerCount = dHand.length;
   }
+
+  // A pair just split: the second card slides across to start the new
+  // hand, before either hand is dealt anything more.
+  const splits = [];
+  order.forEach((key) => {
+    const seatIndex = seatIndexOf.get(key);
+    const p = room.players[key];
+    if (!p || !p.hands || p.hands.length !== 2) return;
+    if (lastCounts[seatIndex + ':1'] === undefined && (lastCounts[seatIndex + ':0'] || 0) >= 2) {
+      splits.push(seatIndex);
+      lastCounts[seatIndex + ':0'] = 1;
+      lastCounts[seatIndex + ':1'] = 1;
+      landed[seatIndex + ':0'] = Math.min(landed[seatIndex + ':0'] || 0, 1);
+      landed[seatIndex + ':1'] = 1;
+    }
+  });
+
+  // A doubled or split bet puts its second stake down beside the first.
+  const extraStakes = [];
+  order.forEach((key) => {
+    const seatIndex = seatIndexOf.get(key);
+    const p = room.players[key];
+    if (!p || !p.hands || !p.hands.length || stakeShown[seatIndex] === undefined) return;
+    const staked = p.hands.reduce((sum, h) => sum + (h.bet || 0), 0);
+    if (staked > stakeShown[seatIndex]) {
+      extraStakes.push({ seatIndex, amount: staked - stakeShown[seatIndex] });
+      stakeShown[seatIndex] = staked;
+    }
+  });
 
   order.forEach((key) => {
     const seatIndex = seatIndexOf.get(key);
@@ -224,7 +317,13 @@ export function syncRoomToScene(room, myKey) {
       const countKey = seatIndex + ':' + handIndex;
       const seen = lastCounts[countKey] || 0;
       for (let i = seen; i < hand.cards.length; i++) {
-        seatEvents.push({ kind: 'seat', seatIndex, handIndex, handCount: p.hands.length, index: i, card: hand.cards[i] });
+        seatEvents.push({
+          kind: 'seat', seatIndex, handIndex, handCount: p.hands.length, index: i, card: hand.cards[i],
+          // A busted box's bet is taken the moment it busts, as at a real
+          // table — not left out until the dealer has played. (A split
+          // seat's chips are shared between its hands, so those wait.)
+          collect: hand.status === 'busted' && i === hand.cards.length - 1 && p.hands.length === 1,
+        });
       }
       lastCounts[countKey] = hand.cards.length;
     });
@@ -252,24 +351,28 @@ export function syncRoomToScene(room, myKey) {
     dealerEvents.filter((e) => e.index === pass).forEach((e) => events.push(e));
   }
 
-  const token = roundToken;
-  // The hole card is turned before the dealer draws to it, as at a real
-  // table — it used to be turned after the draw.
-  const holeCardDealtBefore = lastDealerCount - dealerEvents.length >= 2;
-  const revealNow = room.dealer.hiddenRevealed && !dealerRevealed && lastDealerCount >= 2;
-  const revealFirst = revealNow && holeCardDealtBefore;
-  const reveal = () => {
-    dealerRevealed = true;
-    setTimeout(() => {
-      driver.revealDealerCard(1);
-      if (token !== roundToken) return;
-      holeShown = true;
-      refreshHandStrip();
-    }, dealerSlot(REVEAL_MS));
-  };
-  if (revealFirst) reveal();
-
+  // What the dealer does, in the order a real one does it — several of
+  // these can arrive in one update (the last player's hit, the dealer's
+  // whole hand and the results all land in one transaction):
+  //   1. the opening deal, round the table twice;
+  //   2. with an ace or a ten showing, the peek at the hole card;
+  //   3. each box's hits, doubles and splits, first base to third, a busted
+  //      bet taken as it busts;
+  //   4. the hole card turned over;
+  //   5. the dealer's own draws.
+  const dealsHole = dealerEvents.some((e) => e.index === 1);
+  const opening = [];
+  const played = [];
+  const dealerDraws = [];
   events.forEach((ev) => {
+    if (ev.kind === 'dealer') (ev.index < 2 ? opening : dealerDraws).push(ev);
+    else (dealsHole && ev.index < 2 ? opening : played).push(ev);
+  });
+  played.sort((a, b) => a.seatIndex - b.seatIndex || a.handIndex - b.handIndex || a.index - b.index);
+
+  const token = roundToken;
+  const later = (ms, run) => setTimeout(() => { if (token === roundToken) run(); }, dealerSlot(ms));
+  const deal = (ev) => {
     const wait = dealerSlot(DEAL_STEP_MS);
     setTimeout(() => {
       if (token !== roundToken) return;
@@ -288,31 +391,43 @@ export function syncRoomToScene(room, myKey) {
       }
       refreshHandStrip();
     }, wait + CARD_FLIGHT_MS);
-  });
-
-  // A table joined mid-hand learns of the hole card along with the cards
-  // themselves; then it is turned once they are down.
-  if (revealNow && !revealFirst) reveal();
-
-  // Hand-value badges for every seat currently showing cards.
-  order.forEach((key) => {
-    const seatIndex = seatIndexOf.get(key);
-    const p = room.players[key];
-    if (!p) return;
-    if (p.hands && p.hands.length && room.phase !== 'betting' && room.phase !== 'lobby') {
-      p.hands.forEach((hand, handIndex) => {
-        driver.setSeatBadge(seatIndex, handIndex, p.hands.length, handValueLabel(hand.cards));
+    if (ev.collect) {
+      collectedSeats[ev.seatIndex] = true;
+      later(COLLECT_MS, () => {
+        driver.collectBetChipsForSeat(ev.seatIndex);
+        driver.collectSeatCards(ev.seatIndex);
       });
-    } else {
-      driver.hideSeatBadges(seatIndex);
     }
-  });
+  };
 
-  if (room.phase === 'insurance' || room.phase === 'playing' || room.phase === 'dealer' || room.phase === 'results') {
-    driver.setDealerBadge(handValueLabel(room.dealer.hand.slice(0, room.dealer.hiddenRevealed ? room.dealer.hand.length : 1)));
-  } else {
-    driver.hideDealerBadge();
+  opening.forEach(deal);
+
+  if (room.dealer.peeked && !peekShown && lastDealerCount >= 2) {
+    peekShown = true;
+    later(PEEK_MS, () => driver.peekDealerCard(1));
   }
+
+  extraStakes.forEach(({ seatIndex, amount }) => {
+    const { min, max } = stakesFor(room);
+    later(STAKE_MS, () => spawnBetStack(seatIndex, amount, chipLadderForTable(min, max)));
+  });
+  splits.forEach((seatIndex) => later(SPLIT_MS, () => driver.splitSeatHand(seatIndex, 0, 2)));
+  played.forEach(deal);
+
+  // The hole card is turned before the dealer draws to it — and turned even
+  // when every box has bust and there is nothing to draw to.
+  if (room.dealer.hiddenRevealed && !dealerRevealed && lastDealerCount >= 2) {
+    dealerRevealed = true;
+    later(REVEAL_MS, () => {
+      driver.revealDealerCard(1);
+      holeShown = true;
+      refreshHandStrip();
+    });
+  }
+
+  dealerDraws.forEach(deal);
+
+  refreshBadges(room);
 
   // Payout/collect chips once results land for this round.
   if (room.phase === 'results' && lastPhase !== 'results') {
@@ -321,6 +436,8 @@ export function syncRoomToScene(room, myKey) {
     const settleToken = roundToken;
     const settle = () => {
       if (settleToken !== roundToken) return;
+      resultsShown = true;
+      S.refresh();
       settleSeats(room, seatIndexOf);
     };
     setTimeout(settle, dealerSlot(300));
@@ -340,15 +457,20 @@ function settleSeats(room, seatIndexOf) {
     .forEach(({ key, seatIndex }) => {
       const p = room.players[key];
       if (!p || !p.hands) return;
+      betChipsShown[seatIndex] = false;
+      localPendingSeats[seatIndex] = false;
+      if (collectedSeats[seatIndex]) return;
       const outcomes = p.hands.map((h) => h.outcome);
       const anyWin = outcomes.some((o) => o === 'win' || o === 'blackjack');
       const anyLose = outcomes.some((o) => o === 'lose' || o === 'surrender');
       if (anyWin) driver.payoutChipsForSeat(seatIndex, outcomes.includes('blackjack') ? 3 : 2);
       else if (anyLose) driver.collectBetChipsForSeat(seatIndex);
       else driver.drawChipsHome(seatIndex);
-      betChipsShown[seatIndex] = false;
-      localPendingSeats[seatIndex] = false;
+      // Then the box's cards go into the discard holder.
+      driver.collectSeatCards(seatIndex);
     });
+  // The dealer's own hand last.
+  driver.collectDealerCards();
 }
 
 // How much of the shoe is left, as a few words for the table line.
@@ -391,9 +513,10 @@ function handStripHtml(r, myKey) {
       const shown = h.cards.slice(0, landed[mySeat + ':' + hi] || 0);
       if (!shown.length) return '';
       const active = r.phase === 'playing' && cur && cur.pid === myKey && cur.hi === hi && me.hands.length > 1;
-      const tag = r.phase === 'results' && h.outcome ? `<span class="rs-tag ${h.outcome}">${esc(OUTCOME_LABEL[h.outcome](h.bet))}</span>`
-        : h.status === 'busted' ? '<span class="rs-tag lose">Bust</span>'
-        : h.status === 'blackjack' ? '<span class="rs-tag win">Blackjack</span>' : '';
+      const allDown = shown.length === h.cards.length;
+      const tag = r.phase === 'results' && resultsShown && h.outcome ? `<span class="rs-tag ${h.outcome}">${esc(OUTCOME_LABEL[h.outcome](h.bet))}</span>`
+        : h.status === 'busted' && allDown ? '<span class="rs-tag lose">Bust</span>'
+        : h.status === 'blackjack' && allDown ? '<span class="rs-tag win">Blackjack</span>' : '';
       return `
         <div class="rs-hand ${active ? 'active' : ''}">
           <div class="rs-cards">${shown.map(cardImg).join('')}</div>
@@ -413,9 +536,33 @@ function handStripHtml(r, myKey) {
 }
 
 // Redraws just the readout, between room updates, as each card lands.
+// Hand totals on the felt count only the cards that are down — the whole
+// hand arrives at once, and a total for the dealer's next three cards
+// showed while the first of them was still in the shoe.
+function refreshBadges(room) {
+  if (!driver || !room) return;
+  const dealt = room.phase !== 'betting' && room.phase !== 'lobby';
+  (room.playerOrder || []).forEach((key) => {
+    const seatIndex = seatOf(room, key);
+    const p = room.players[key];
+    if (!p) return;
+    if (!dealt || !p.hands || !p.hands.length) { driver.hideSeatBadges(seatIndex); return; }
+    p.hands.forEach((hand, handIndex) => {
+      const down = hand.cards.slice(0, landed[seatIndex + ':' + handIndex] || 0);
+      if (down.length) driver.setSeatBadge(seatIndex, handIndex, p.hands.length, handValueLabel(down));
+    });
+  });
+  const dHand = (room.dealer && room.dealer.hand) || [];
+  const shown = dHand.slice(0, landedDealer).filter((_, i) => i !== 1 || holeShown);
+  if (dealt && shown.length) driver.setDealerBadge(handValueLabel(shown));
+  else driver.hideDealerBadge();
+}
+
 function refreshHandStrip() {
   const r = S.session.room;
-  if (!r || S.session.screen !== 'table') return;
+  if (!r) return;
+  refreshBadges(r);
+  if (S.session.screen !== 'table') return;
   const html = handStripHtml(r, safeKey(S.session.uid));
   const el = document.getElementById('handStrip');
   if (el) {
@@ -501,7 +648,7 @@ export function renderTableScreen() {
       }
     } else if (myTurn && myHand) {
       const canDouble = myHand.cards.length === 2 && me.chips >= myHand.bet;
-      const canSplit = myHand.cards.length === 2 && me.hands.length === 1 && me.chips >= myHand.bet && rankOf(myHand.cards[0]) === rankOf(myHand.cards[1]);
+      const canSplit = me.hands.length === 1 && me.chips >= myHand.bet && canSplitCards(myHand.cards);
       // Late surrender: only on an untouched two-card hand that was never split.
       const canSurrender = myHand.cards.length === 2 && me.hands.length === 1;
       dock = `
@@ -529,9 +676,11 @@ export function renderTableScreen() {
   const holdingCards = !!(me && me.hands && me.hands.length);
   const seatOwner = new Map();
   (r.playerOrder || []).forEach((k) => seatOwner.set(seatOf(r, k), k));
+  // Laid out as the chairs are seen from the players' side: seat 1, first
+  // base, is on the right.
   const seatPicker = `
     <div class="seat-dots" id="seatSwitchRow" role="group" aria-label="Seat">
-      ${Array.from({ length: MAX_PUBLIC_SEATS }).map((_, i) => {
+      ${Array.from({ length: MAX_PUBLIC_SEATS }, (_, n) => MAX_PUBLIC_SEATS - 1 - n).map((i) => {
         const owner = seatOwner.get(i);
         const mine = owner === myKey && myKey;
         const taken = owner && !mine;
@@ -570,6 +719,7 @@ export function renderTableScreen() {
       }).join(' / ');
     } else if (phase === 'results') {
       if (p.status === 'sitout' || !p.hands || !p.hands.length) statusText = 'Sitting out';
+      else if (!resultsShown) statusText = 'Waiting on the dealer';
       else statusText = p.hands.map((h) => (h.outcome ? OUTCOME_LABEL[h.outcome](h.bet) : '')).join(' / ');
     }
     if (phase === 'betting' && p.timeouts > 0) statusText += ` (${p.timeouts}/${MAX_TIMEOUTS} missed)`;
@@ -767,6 +917,11 @@ export function resetTableDiffState() {
   betChipsShown = {};
   localPendingSeats = {};
   lastPhase = null;
+  stakeShown = {};
+  collectedSeats = {};
+  peekShown = false;
+  resultsShown = false;
+  shufflePending = false;
   // A viewpoint you picked by hand belonged to the table you just left.
   if (driver) driver.releaseViewSeat();
 }

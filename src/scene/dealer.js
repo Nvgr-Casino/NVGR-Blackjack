@@ -4,7 +4,7 @@ import { loadGltf } from './gltf.js';
 import { resolveRig, withoutRootMotion, prepareFigureMaterials, fitClipToRig } from './rig.js';
 import { createReach } from './reach.js';
 import { DEALER } from './seats.js';
-import { DEAL_MS, DEAL_PICK, DEAL_SET } from './deal.js';
+import { DEAL_MS, DEAL_PULL, DEAL_PICK, DEAL_SET } from './deal.js';
 import { DEALER_HEIGHT, FLOOR_Y, m } from './scale.js';
 
 // The dealer: a Microsoft Rocketbox avatar, like the players, standing
@@ -51,14 +51,19 @@ function standAtTable(model, bones) {
   model.position.z -= hip.z;
 }
 
-// Every dealer figure, stepped from scene.js's render loop. The reach is
-// layered over the idle each frame (see reach.js).
+// Every dealer figure, stepped from scene.js's render loop. The reaches are
+// layered over the idle each frame (see reach.js). Both arms share the
+// waist, so their keep-and-restore has to nest: the right arm runs first
+// after the mixer and is put back last before it, which leaves the waist
+// holding the mixer's own pose when the mixer next runs.
 const activeDealers = new Set();
 export function updateDealerAnimations(deltaSeconds) {
   activeDealers.forEach((record) => {
+    if (record.left) record.left.before();
     if (record.reach) record.reach.before();
     record.mixer.update(deltaSeconds);
     if (record.reach) record.reach.after();
+    if (record.left) record.left.after();
   });
 }
 
@@ -100,8 +105,11 @@ function populateDealer(group, key) {
       if (idle) mixer.clipAction(withoutRootMotion(fitClipToRig(idle, clipGltf.scene, model), bones.hips)).play();
       const reach = createReach(model, bones);
       if (!reach) console.warn('Dealer model is missing right-arm bones — reach skipped.');
+      // The left hand draws from the shoe; it leans the body less, since
+      // the right is usually reaching at the same time.
+      const left = createReach(model, bones, { side: 'left', body: 0.5 });
 
-      const record = { mixer, reach };
+      const record = { mixer, reach, left };
       activeDealers.add(record);
       Object.assign(group.userData, { model, mixer, record, ready: true });
     })
@@ -118,20 +126,28 @@ export function startDealerIdle(dealer) {
 const LIFT = 0.16;
 const lifted = (p) => p.clone().setY(Math.max(p.y, 0) + LIFT);
 
-/** Moves the dealer's hand through `points` ([{ at, pos }]); see reach.js. */
-export function dealerReach(dealer, points, options) {
+/**
+ * Moves one of the dealer's hands through `points` ([{ at, pos }]); see
+ * reach.js. `hand` is 'right' (the default) or 'left'.
+ */
+export function dealerReach(dealer, points, { hand = 'right', ...options } = {}) {
   const record = dealer.userData.record;
-  if (!record || !record.reach) return;
-  record.reach.play(points.map((p) => ({ at: p.at, pos: lifted(p.pos) })), options);
+  const reach = record && (hand === 'left' ? record.left : record.reach);
+  if (!reach) return;
+  reach.play(points.map((p) => ({ at: p.at, pos: lifted(p.pos) })), options);
 }
 
-// Takes a card from the shoe and sets it down at `target`, in step with
-// the card itself (deal.js): at the shoe when the card is picked up, at the
-// player's spot when it is set down.
+// In step with the card itself (deal.js): the left hand at the shoe's mouth
+// as the card starts out, sliding it to the handoff point; the right hand
+// there to take it, then at the player's spot as it is set down.
 export function playDealGesture(dealer, target, duration = DEAL_MS) {
   if (!target) return;
   dealerReach(dealer, [
-    { at: duration * DEAL_PICK, pos: DEALER.deckPosition },
+    { at: duration * DEAL_PULL, pos: DEALER.deckPosition },
+    { at: duration * DEAL_PICK, pos: DEALER.handoffPosition },
+  ], { hand: 'left', returnMs: 320 });
+  dealerReach(dealer, [
+    { at: duration * DEAL_PICK, pos: DEALER.handoffPosition },
     { at: duration * DEAL_SET, pos: target },
   ], { returnMs: 300 });
 }

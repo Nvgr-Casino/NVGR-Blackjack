@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { dealCard, revealCard, playShuffle } from '../scene/deal.js';
+import { dealCard, revealCard } from '../scene/deal.js';
+import { playShoeShuffle } from '../scene/shuffle.js';
+import { STACKED_CARD } from '../scene/props.js';
 import { CARD_WIDTH, CARD_HEIGHT } from '../scene/card.js';
 import { createChip, createChipForValue, createChipStack, CHIP_HEIGHT, DENOMINATIONS } from '../scene/chip.js';
 import { CHANNEL_RADIUS, CHANNEL_Y } from '../scene/table.js';
@@ -35,10 +37,28 @@ function cardSlot(anchor, facingAngle, index, gap = CARD_GAP) {
   return new THREE.Vector3(anchor.x + localX * cos, anchor.y, anchor.z - localX * sin);
 }
 
-function refanExisting(meshes, anchor, facingAngle, gap) {
+// Split hands sit side by side in lanes too narrow to fan across — fanned,
+// the first hand's next card landed against the second hand and the two
+// read as one. So each cascades its cards toward its player instead, each
+// card a little nearer them and to the outside, the index corner of every
+// card showing above the next: the way a dealer lays out a split.
+function splitSlot(seat, handIndex, handCount, index) {
+  const anchor = handAnchor(seat, handIndex, handCount);
+  const out = seatOutwardDir(seat);
+  const side = handIndex - (handCount - 1) / 2 < 0 ? -1 : 1;
+  const lateral = side * index * CARD_WIDTH * 0.18;
+  const toward = index * CARD_HEIGHT * 0.22;
+  return new THREE.Vector3(
+    anchor.x + lateral * Math.cos(seat.facingAngle) + out.x * toward,
+    anchor.y + index * 0.003,
+    anchor.z - lateral * Math.sin(seat.facingAngle) + out.z * toward
+  );
+}
+
+function refanExisting(meshes, anchor, facingAngle, gap, slotOf = (i) => cardSlot(anchor, facingAngle, i, gap)) {
   meshes.forEach((mesh, i) => {
     const start = mesh.position.clone();
-    const target = cardSlot(anchor, facingAngle, i, gap);
+    const target = slotOf(i);
     if (start.distanceToSquared(target) < 0.0001) return;
     animate({
       duration: 220,
@@ -60,7 +80,7 @@ function handAnchor(seat, handIndex, handCount) {
   return new THREE.Vector3(seat.handSpot.x + localX * cos, seat.handSpot.y, seat.handSpot.z - localX * sin);
 }
 
-export function createTableDriver({ scene, camera, controls, dealer, deck, chairsBySeat }) {
+export function createTableDriver({ scene, camera, controls, dealer, shoe, discard, chairsBySeat }) {
   // Indexed by seat: yourMeshes[seatIndex][handIndex] = [cardMesh, ...]
   const seatMeshes = [];
   const seatBadges = [];
@@ -289,11 +309,15 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
     if (!seatMeshes[seatIndex][handIndex]) seatMeshes[seatIndex][handIndex] = [];
     const existing = seatMeshes[seatIndex][handIndex];
 
-    const fanMaxWidth = handCount > 1 ? 0.9 : 1.58;
-    const gap = gapForHand(cardIndex + 1, fanMaxWidth);
-    refanExisting(existing, anchor, seat.facingAngle, gap);
-
-    const to = cardSlot(anchor, seat.facingAngle, cardIndex, gap);
+    let to;
+    if (handCount > 1) {
+      refanExisting(existing, anchor, seat.facingAngle, 0, (i) => splitSlot(seat, handIndex, handCount, i));
+      to = splitSlot(seat, handIndex, handCount, cardIndex);
+    } else {
+      const gap = gapForHand(cardIndex + 1, 1.58);
+      refanExisting(existing, anchor, seat.facingAngle, gap);
+      to = cardSlot(anchor, seat.facingAngle, cardIndex, gap);
+    }
     const mesh = dealCard({ scene, dealer, rank: card.rank, suit: card.suit, to, faceAngle: seat.cardAngle, ...opts });
     existing.push(mesh);
     return mesh;
@@ -312,6 +336,35 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
     if (dealerMeshes[index]) revealCard(dealerMeshes[index]);
   }
 
+  // With an ace or a ten showing, the dealer checks the hole card for
+  // blackjack before anyone plays: a hand to the card, its near corner
+  // lifted just enough to see under, and set back down unseen.
+  const PEEK_REACH_MS = 380;
+  const PEEK_HOLD_MS = 320;
+  function peekDealerCard(index) {
+    const mesh = dealerMeshes[index];
+    if (!mesh) return;
+    dealerReach(dealer, [
+      { at: PEEK_REACH_MS, pos: mesh.position.clone() },
+      { at: PEEK_REACH_MS + PEEK_HOLD_MS, pos: mesh.position.clone() },
+    ], { returnMs: 300 });
+    const down = mesh.rotation.x;
+    const y = mesh.position.y;
+    const TILT = 0.22;
+    // Raised by as much as the tilt drops its far edge, so it pivots on
+    // that edge rather than sinking it into the cloth.
+    setTimeout(() => animate({
+      duration: PEEK_HOLD_MS,
+      easing: (t) => t,
+      onUpdate: (t) => {
+        const k = Math.sin(t * Math.PI);
+        mesh.rotation.x = down - k * TILT;
+        mesh.position.y = y + Math.sin(k * TILT) * (CARD_HEIGHT / 2);
+      },
+      onComplete: () => { mesh.rotation.x = down; mesh.position.y = y; },
+    }), PEEK_REACH_MS);
+  }
+
   function slideCard(mesh, to, duration = 280) {
     const start = mesh.position.clone();
     animate({ duration, easing: easeOutCubic, onUpdate: (t) => mesh.position.lerpVectors(start, to, t) });
@@ -326,21 +379,100 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
     const meshes = seatMeshes[seatIndex][handIndex] || [];
     const [keptMesh, movedMesh] = meshes;
     if (!keptMesh || !movedMesh) return;
-    const anchor0 = handAnchor(seat, handIndex, newHandCount);
-    const anchor1 = handAnchor(seat, handIndex + 1, newHandCount);
-    slideCard(keptMesh, cardSlot(anchor0, seat.facingAngle, 0));
-    slideCard(movedMesh, cardSlot(anchor1, seat.facingAngle, 0));
+    slideCard(keptMesh, splitSlot(seat, handIndex, newHandCount, 0));
+    slideCard(movedMesh, splitSlot(seat, handIndex + 1, newHandCount, 0));
     seatMeshes[seatIndex][handIndex] = [keptMesh];
     seatMeshes[seatIndex].splice(handIndex + 1, 0, [movedMesh]);
   }
 
+  // ---------- used cards, the discard holder and the shoe ----------
+  // Turns `meshes` face down and carries them into the discard holder,
+  // after `delay`, landing on top of what is already there.
+  function cardsToDiscard(meshes, delay, duration) {
+    if (!meshes.length || !discard) { meshes.forEach((m) => scene.remove(m)); return; }
+    setTimeout(() => {
+      const base = discard.userData.top();
+      meshes.forEach((mesh, i) => {
+        const from = mesh.position.clone();
+        const rx = mesh.rotation.x;
+        const ry = mesh.rotation.y;
+        const to = discard.localToWorld(base.clone().setY(base.y + i * STACKED_CARD * 3));
+        animate({
+          duration,
+          easing: easeInOutCubic,
+          onUpdate: (k) => {
+            mesh.position.lerpVectors(from, to, k);
+            mesh.position.y += Math.sin(k * Math.PI) * 0.08;
+            mesh.rotation.x = rx + (Math.PI - rx) * k;
+            mesh.rotation.y = ry + (discard.rotation.y - ry) * k;
+          },
+          onComplete: () => scene.remove(mesh),
+        });
+      });
+      setTimeout(() => discard.userData.setCount(discard.userData.count() + meshes.length), duration);
+    }, delay);
+  }
+
+  // Once a box is settled, the dealer picks its cards up — all of its hands
+  // together — and puts them in the discard holder; as at a real table, a
+  // bust hand's cards go the moment it busts, along with the bet.
+  const PICK_REACH_MS = 320;
+  const PICK_SWEEP_MS = 440;
+  function collectSeatCards(seatIndex) {
+    ensureSeat(seatIndex);
+    const meshes = seatMeshes[seatIndex].flat().filter(Boolean);
+    seatMeshes[seatIndex] = [];
+    if (!meshes.length) return;
+    const seat = SEATS[seatIndex];
+    dealerTask(PICK_REACH_MS + PICK_SWEEP_MS + 120, () => {
+      hideSeatBadges(seatIndex);
+      dealerReach(dealer, [
+        { at: PICK_REACH_MS, pos: seat.handSpot },
+        { at: PICK_REACH_MS + PICK_SWEEP_MS, pos: DEALER.discardPosition },
+      ]);
+      cardsToDiscard(meshes, PICK_REACH_MS, PICK_SWEEP_MS);
+    });
+  }
+  function collectDealerCards() {
+    const meshes = dealerMeshes.splice(0, dealerMeshes.length);
+    if (!meshes.length) return;
+    dealerTask(PICK_REACH_MS + PICK_SWEEP_MS + 120, () => {
+      dealerBadge.hide();
+      dealerReach(dealer, [
+        { at: PICK_REACH_MS, pos: DEALER.handSpot },
+        { at: PICK_REACH_MS + PICK_SWEEP_MS, pos: DEALER.discardPosition },
+      ]);
+      cardsToDiscard(meshes, PICK_REACH_MS, PICK_SWEEP_MS);
+    });
+  }
+
+  // Whatever is still on the felt when a new round begins goes into the
+  // discard holder at once — normally nothing is, the dealer having picked
+  // every hand up while settling.
   function clearAllMeshes() {
-    seatMeshes.forEach((hands) => hands && hands.forEach((h) => h && h.forEach((m) => scene.remove(m))));
+    const left = [...seatMeshes.flat(2), ...dealerMeshes].filter(Boolean);
     seatMeshes.length = 0;
-    dealerMeshes.forEach((m) => scene.remove(m));
     dealerMeshes.length = 0;
+    cardsToDiscard(left, 0, 300);
     seatBadges.forEach((hands) => hands && hands.forEach((b) => b && b.hide()));
     dealerBadge.hide();
+  }
+
+  // The shoe shows how many cards are left in it, and where the cut card
+  // stands — except while the dealer is shuffling, when the shuffle owns it.
+  let shuffling = false;
+  function setShoe(left, total, cutAt) {
+    if (shoe && !shuffling) shoe.userData.setLevel(left, total, cutAt);
+  }
+  function setDiscard(count) {
+    if (discard) discard.userData.setCount(count);
+  }
+  function shuffleShoe({ shoeLeft, total, cutAt }) {
+    if (!shoe || !discard) return 0;
+    shuffling = true;
+    const ms = playShoeShuffle({ scene, dealer, shoe, discard, shoeLeft, total, cutAt });
+    setTimeout(() => { shuffling = false; }, ms);
+    return ms;
   }
 
   // ---------- hand-value badges ----------
@@ -524,11 +656,17 @@ export function createTableDriver({ scene, camera, controls, dealer, deck, chair
     setViewSeat,
     followSeat,
     releaseViewSeat,
-    shuffleDeck: () => { if (deck) playShuffle(deck); },
+    shuffleShoe,
+    dealerBusyUntil: () => dealerFreeAt,
+    setShoe,
+    setDiscard,
+    collectSeatCards,
+    collectDealerCards,
     getViewSeat: () => viewSeatIndex,
     dealCardToSeat,
     dealDealerCard,
     revealDealerCard,
+    peekDealerCard,
     splitSeatHand,
     clearAllMeshes,
     setSeatBadge,

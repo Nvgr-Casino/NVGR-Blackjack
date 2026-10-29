@@ -187,6 +187,17 @@ function getFaceMaterial(rank, suit) {
 let backMaterial = null;
 let edgeMaterial = null;
 
+// The card back and the white stock edge, for things built out of many
+// cards at once — the stacks in the shoe and the discard holder.
+export function cardBackMaterial() {
+  if (!backMaterial) backMaterial = cardMaterial(makeBackTexture());
+  return backMaterial;
+}
+export function cardEdgeMaterial() {
+  if (!edgeMaterial) edgeMaterial = new THREE.MeshLambertMaterial({ color: 0xefede6 });
+  return edgeMaterial;
+}
+
 // A card lies flat with its face up (+Y) and back down (-Y), so a dealt
 // card sits on the table with no extra rotation.
 export function createCard(rank, suit) {

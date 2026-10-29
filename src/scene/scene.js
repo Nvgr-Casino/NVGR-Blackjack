@@ -2,14 +2,13 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { createTable } from './table.js';
-import { createDeckStack, playShuffle } from './deal.js';
+import { playShoeShuffle } from './shuffle.js';
 import { place } from './furniture.js';
 import { updateSeatedCharacters } from './character.js';
 import { createDealerFigure, setDealerModel, startDealerIdle, updateDealerAnimations } from './dealer.js';
-import { createBetRing, createCardShoe, createChipRack } from './props.js';
+import { createBetRing, createCardShoe, createChipRack, createDiscardHolder, SHOE_MOUTH } from './props.js';
 import { createRoom, ROOM_HALF, CEILING_Y } from './room.js';
 import { FLOOR_Y, m } from './scale.js';
-import { TABLE_BACK_Z } from './table.js';
 import { SEATS, DEALER, cameraPositionForSeat, cameraLookAtForSeat } from './seats.js';
 import { tickAnimations } from './animator.js';
 import { cameraOverride } from './cameraFocus.js';
@@ -135,24 +134,28 @@ export function initScene(canvas) {
   const table = createTable();
   scene.add(table);
 
-  const deck = createDeckStack();
-  scene.add(deck);
-
-  // The dealer's chip tray and card shoe sit directly on the felt, right at
-  // the back edge in front of the dealer — a raised wooden rail bench used
-  // to hold them instead, which read as a clumsy platform bolted onto the
-  // table rather than gear actually resting on the felt.
-  const dealerGearZ = TABLE_BACK_Z + 0.3;
-
-  // Shoe on the dealer's right, beside the hand that deals (see seats.js);
-  // chip tray on the left.
+  // The dealer's gear sits directly on the felt at its back edge, laid out
+  // as at a casino table (see seats.js): the shoe on the dealer's left, its
+  // mouth angled in toward the middle and the dealer; the chip rack in
+  // front of them; the discard holder on their right.
   const rack = createChipRack();
   rack.position.copy(DEALER.trayPosition);
   scene.add(rack);
 
   const shoe = createCardShoe();
-  shoe.position.set(-0.75, 0.03, dealerGearZ);
+  shoe.position.copy(DEALER.shoePosition);
+  shoe.rotation.y = 0.35;
   scene.add(shoe);
+  shoe.updateMatrixWorld(true);
+  // Cards come out at the shoe's mouth, lying along it.
+  DEALER.deckPosition.copy(shoe.localToWorld(SHOE_MOUTH.clone()));
+  DEALER.shoeYaw = shoe.rotation.y;
+
+  const discard = createDiscardHolder();
+  discard.position.copy(DEALER.discardPosition);
+  discard.rotation.y = -0.3;
+  scene.add(discard);
+  discard.updateMatrixWorld(true);
 
   // No chair for the dealer — they stand, like every real one.
 
@@ -291,17 +294,18 @@ export function initScene(canvas) {
   // nothing and makes the figure look frozen when it isn't.
   if (import.meta.env.DEV) {
     window.__nvgr = {
-      scene, camera, dealer, deck, renderer, controls,
+      scene, camera, dealer, shoe, discard, renderer, controls,
       tickDealer: updateDealerAnimations,
       // This module's own bound copies, for the same reason as tickDealer:
       // importing them from the console gets a second instance whose
       // animation queue nothing is draining.
-      tickAnimations, shuffleDeck: () => playShuffle(deck),
+      tickAnimations,
+      shuffle: () => playShoeShuffle({ scene, dealer, shoe, discard, shoeLeft: 60, total: 312, cutAt: 70 }),
     };
   }
 
   return {
-    scene, camera, renderer, controls, dealer, deck, chairsBySeat,
+    scene, camera, renderer, controls, dealer, shoe, discard, chairsBySeat,
     setFeltTheme: table.userData.setFeltTheme,
     setDealerModel: (key) => setDealerModel(dealer, key),
   };

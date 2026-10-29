@@ -26,6 +26,11 @@ const ROLE_NAMES = {
   upperArmR: ['UpperArmR', 'RightArm', 'R_UpperArm'],
   lowerArmR: ['LowerArmR', 'RightForeArm', 'R_Forearm'],
   wristR: ['WristR', 'RightHand', 'R_Hand'],
+  // The left arm, which the dealer draws cards from the shoe with.
+  shoulderL: ['ShoulderL', 'LeftShoulder', 'L_Clavicle'],
+  upperArmL: ['UpperArmL', 'LeftArm', 'L_UpperArm'],
+  lowerArmL: ['LowerArmL', 'LeftForeArm', 'L_Forearm'],
+  wristL: ['WristL', 'LeftHand', 'L_Hand'],
   // The lower and middle spine, which a figure bends and turns from when
   // reaching across the table.
   spineLow: ['Spine'],
@@ -36,6 +41,7 @@ const ROLE_NAMES = {
 // figure cannot be sat down at all.
 export const SEAT_ROLES = ['hips', 'upperLegL', 'upperLegR', 'lowerLegL', 'lowerLegR'];
 export const ARM_ROLES = ['shoulderR', 'upperArmR', 'lowerArmR', 'wristR'];
+export const LEFT_ARM_ROLES = ['shoulderL', 'upperArmL', 'lowerArmL', 'wristL'];
 
 function findBone(model, candidates) {
   let exact = null;

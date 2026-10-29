@@ -12,7 +12,13 @@ const SEAT_RADIUS = TABLE_RADIUS + m(0.5);
 // the straight sides that run back toward the dealer, using the space that
 // used to sit empty at the dealer's left and right flanks. The inner three
 // stay spread across the curve itself with real elbow room between them.
-const SEAT_ANGLES_DEG = [-95, -45, 0, 45, 95];
+//
+// Seat 1 is "first base", on the dealer's left (+x, as the dealer faces the
+// players) — the right-hand end of the table as the players see it — and
+// the seats count round to the dealer's right. A dealer deals and plays the
+// table from their left to their right, so seat order is deal order. It ran
+// the other way, dealing from third base.
+const SEAT_ANGLES_DEG = [95, 45, 0, -45, -95];
 
 // Seats arc across the near side (+Z, camera side) of the table. Any seat
 // can be "you" — which one is chosen at runtime (see src/ui/gameController.js's
@@ -107,13 +113,18 @@ export const DEALER = {
   // stands.
   // Close in against the table's back edge, as a dealer stands.
   position: new THREE.Vector3(0, 0, TABLE_BACK_Z - 0.5),
-  // On the dealer's right (-x, as they face the players), the side of the
-  // hand that deals — reaching across the body to a shoe on the left was
-  // half of what made the dealing look wrong.
-  deckPosition: new THREE.Vector3(-0.7, 0.05, TABLE_BACK_Z + 0.4),
-  // The chip rack, on the dealer's left; losing bets go in, payouts come
-  // out.
-  trayPosition: new THREE.Vector3(0.3, 0.01, TABLE_BACK_Z + 0.32),
+  // The dealer's gear, laid out as at any casino blackjack table: the shoe
+  // on the dealer's left (+x, as they face the players), its mouth turned
+  // toward the middle; the chip rack straight in front of them; the discard
+  // holder on their right. A card comes out of the shoe under the left
+  // hand, which slides it across to the handoff point, where the right hand
+  // takes it and deals it.
+  shoePosition: new THREE.Vector3(1.22, 0, TABLE_BACK_Z + 0.3),
+  deckPosition: new THREE.Vector3(0.86, 0.06, TABLE_BACK_Z + 0.3),
+  handoffPosition: new THREE.Vector3(0.6, 0.012, TABLE_BACK_Z + 0.72),
+  discardPosition: new THREE.Vector3(-1.2, 0, TABLE_BACK_Z + 0.3),
+  // The chip rack; losing bets go in, payouts come out.
+  trayPosition: new THREE.Vector3(0, 0.01, TABLE_BACK_Z + 0.3),
   // Pulled just clear of the rail/tray/shoe cluster so the dealer's cards
   // (and hand-value badge) aren't lost in that clutter — with the back
   // stretch of felt shrunk down, this now lands right at the start of the

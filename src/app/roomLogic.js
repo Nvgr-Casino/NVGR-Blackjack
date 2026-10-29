@@ -19,9 +19,15 @@ export const BETTING_SECONDS = 20;
 export const TURN_SECONDS = 20;
 export const INSURANCE_SECONDS = 15;
 export const MAX_TIMEOUTS = 3;
-// Long enough to watch the dealer finish their hand and settle every seat
-// before the next round clears the table; at 4 s the settling was cut off.
-export const RESULTS_PAUSE_MS = 8000;
+// The pause after a round, sized to what the dealer has to do in it: turn
+// the hole card and draw, then settle each box and pick its cards up. A
+// fixed pause (4 s, then 8 s) either cut a full table's settling off or
+// kept a lone player waiting on nothing.
+export function resultsPauseFor(r) {
+  const boxes = (r.dealtIn || []).length;
+  const draws = Math.max(0, ((r.dealer && r.dealer.hand) || []).length - 2);
+  return 3000 + draws * 750 + boxes * 1800;
+}
 export const DEALER_REVEAL_DELAY = 650;
 
 export const SUITS = ['S', 'H', 'D', 'C'];
@@ -58,6 +64,7 @@ export function shuffleShoe(r) {
   r.cutCardAt = cutCardDepth();
   for (let i = 0; i < BURN_ON_SHUFFLE; i++) r.deck.pop();
   r.shuffledAt = Date.now();
+  r.cutCardOut = false;
 }
 
 export function shoeNeedsShuffle(r) {
@@ -66,9 +73,16 @@ export function shoeNeedsShuffle(r) {
 
 // Every card drawn anywhere in the game comes through here, so an
 // unexpectedly empty shoe can never hand out an undefined card mid-hand.
+// The cut card coming out doesn't stop the hand: it is played to the end,
+// and the shoe is shuffled before the next one (startRoundLogic).
 export function drawCard(r) {
   if (!r.deck || !r.deck.length) shuffleShoe(r);
-  return r.deck.pop();
+  const card = r.deck.pop();
+  if (!r.cutCardOut && r.cutCardAt && r.deck.length <= r.cutCardAt) {
+    r.cutCardOut = true;
+    r.log = (r.log || []).concat('Cut card is out — last hand before the shuffle.').slice(-8);
+  }
+  return card;
 }
 export function rankOf(card) { return card.split('-')[0]; }
 export function suitOf(card) { return card.split('-')[1]; }
@@ -180,8 +194,11 @@ export function addPlayerToRoom(room, uid, name, chips, character) {
 
 export function startRoundLogic(r) {
   r.round = (r.round || 0) + 1;
-  // The shoe deliberately carries over between rounds — it is only
-  // reshuffled once the cut card shows up (see dealRoundCards).
+  // The shoe carries over between rounds, and is shuffled between hands
+  // once the cut card has come out — here, at the start of the round, so
+  // the dealer shuffles while bets go down instead of holding up a deal.
+  const shuffling = shoeNeedsShuffle(r);
+  if (shuffling) shuffleShoe(r);
   r.dealer = { hand: [], hiddenRevealed: false };
   for (const key of r.playerOrder) {
     const p = r.players[key];
@@ -194,15 +211,17 @@ export function startRoundLogic(r) {
   r.phase = 'betting';
   r.bettingDeadline = Date.now() + BETTING_SECONDS * 1000;
   r.resultsAt = null;
-  r.log = ['Round ' + r.round + ' — place your bets.'];
+  r.log = (shuffling ? ['The dealer shuffles a fresh shoe.'] : []).concat('Round ' + r.round + ' — place your bets.');
 }
 
 export function dealRoundCards(r) {
   const bettors = r.playerOrder.filter((key) => r.players[key].status === 'bet-placed');
   if (bettors.length === 0) return;
-  if (shoeNeedsShuffle(r)) {
+  // Normally already shuffled at the start of the round; a table that
+  // never had a shoe, or an old one, gets one here.
+  if (!r.deck || !r.deck.length || !r.cutCardAt) {
     shuffleShoe(r);
-    r.log = (r.log || []).concat('Cut card — shuffling ' + DECKS_IN_SHOE + ' fresh decks.').slice(-8);
+    r.log = (r.log || []).concat('Shuffling ' + DECKS_IN_SHOE + ' fresh decks.').slice(-8);
   }
   // A real table deals round the table, not one player at a time: a single
   // card to every box in seat order, then the dealer's upcard, then a
@@ -246,18 +265,37 @@ export function dealRoundCards(r) {
   r.currentTurnIndex = 0;
   r.bettingDeadline = null;
   r.log = (r.log || []).concat('Cards dealt.').slice(-8);
-  // Dealer showing an Ace: insurance is offered before anyone plays.
+  // Dealer showing an Ace: insurance is offered before anyone plays, and the
+  // dealer checks the hole card once it is settled (resolveInsurance).
   if (rankOf(r.dealer.hand[0]) === 'A' && (r.dealtIn || []).length > 0) {
     openInsurance(r);
     return;
   }
+  // Showing a ten, the dealer checks the hole card for blackjack straight
+  // away. Without the check, players went on to double and split into a
+  // dealer blackjack and lost the extra stakes too — at a hole-card table
+  // they never get the chance.
+  if (cardValue(rankOf(r.dealer.hand[0])) === 10) {
+    r.dealer.peeked = true;
+    if (isBlackjack(r.dealer.hand)) { dealerBlackjack(r, []); return; }
+  }
   beginPlay(r);
+}
+
+// The dealer turns up a blackjack found on the peek and the round ends before
+// anyone plays: every hand loses its stake but a blackjack, which pushes.
+function dealerBlackjack(r, notes) {
+  r.dealer.hiddenRevealed = true;
+  r.log = (r.log || []).concat(notes.concat('Dealer has blackjack.')).slice(-8);
+  r.turnDeadline = null;
+  r.phase = 'dealer';
+  resolveDealerAndPayouts(r);
 }
 
 // Where a round goes once any insurance question is settled.
 function beginPlay(r) {
   if (r.turnOrder.length === 0) { r.turnDeadline = null; r.phase = 'dealer'; resolveDealerAndPayouts(r); }
-  else { r.turnDeadline = Date.now() + TURN_SECONDS * 1000; r.phase = 'playing'; }
+  else { r.phase = 'playing'; enterTurn(r); }
 }
 
 export function openInsurance(r) {
@@ -295,14 +333,8 @@ export function resolveInsurance(r) {
     }
   }
   r.insuranceDeadline = null;
-  if (dealerBJ) {
-    r.dealer.hiddenRevealed = true;
-    r.log = (r.log || []).concat(notes.concat('Dealer has blackjack.')).slice(-8);
-    r.turnDeadline = null;
-    r.phase = 'dealer';
-    resolveDealerAndPayouts(r);
-    return;
-  }
+  r.dealer.peeked = true;
+  if (dealerBJ) { dealerBlackjack(r, notes); return; }
   r.log = (r.log || []).concat(notes.length ? notes : ['No dealer blackjack — insurance lost.']).slice(-8);
   beginPlay(r);
 }
@@ -360,9 +392,25 @@ export function processBettingTimeoutLogic(r) {
   }
 }
 
+// A hand the dealer still has to beat: one that stood (doubled hands stand
+// too). Busted and surrendered hands have already lost, and a blackjack is
+// paid whatever the dealer goes on to make.
+function handStillLive(hand) {
+  return hand.status === 'stood' || hand.status === 'playing';
+}
+
 export function resolveDealerAndPayouts(r) {
   if (!r.dealer.hand) r.dealer.hand = [];
-  while (handValue(r.dealer.hand) < 17) r.dealer.hand.push(drawCard(r));
+  // The hole card is always turned over, but the dealer draws only if
+  // someone is still waiting on the dealer's total — with every hand bust,
+  // surrendered or a blackjack, there is nothing to draw to, and a real
+  // dealer just turns the card and settles.
+  const anyLive = (r.dealtIn || []).some((key) => {
+    const p = r.players[key];
+    return p && (p.hands || []).some(handStillLive);
+  });
+  // Stands on every 17, soft ones included (the felt says so).
+  if (anyLive) while (handValue(r.dealer.hand) < 17) r.dealer.hand.push(drawCard(r));
   r.dealer.hiddenRevealed = true;
   const dv = handValue(r.dealer.hand);
   const dealerBJ = isBlackjack(r.dealer.hand);
@@ -382,7 +430,11 @@ export function resolveDealerAndPayouts(r) {
       else if (hand.status === 'blackjack') {
         if (dealerBJ) { p.chips += hand.bet; outcome = 'push'; }
         else { const win = Math.floor(hand.bet * 1.5); p.chips += hand.bet + win; outcome = 'blackjack'; }
-      } else if (dealerBust || pv > dv) { p.chips += hand.bet * 2; outcome = 'win'; }
+      }
+      // A dealer blackjack beats every hand but another blackjack — a 21
+      // made with three cards, or on a split, included.
+      else if (dealerBJ) { outcome = 'lose'; }
+      else if (dealerBust || pv > dv) { p.chips += hand.bet * 2; outcome = 'win'; }
       else if (pv === dv) { p.chips += hand.bet; outcome = 'push'; }
       else { outcome = 'lose'; }
       hand.outcome = outcome;
@@ -400,15 +452,40 @@ export function advanceTurnIn(r) {
   // Realtime Database prunes empty-array fields off the stored JSON
   // entirely, so a room that emptied its turn order reads back with no
   // turnOrder key at all, not [].
-  const turnOrder = r.turnOrder || [];
   r.currentTurnIndex++;
-  if (r.currentTurnIndex >= turnOrder.length) {
-    r.turnDeadline = null;
-    r.phase = 'dealer';
-    resolveDealerAndPayouts(r);
-  } else {
-    r.turnDeadline = Date.now() + TURN_SECONDS * 1000;
+  enterTurn(r);
+}
+
+// Starts the turn at currentTurnIndex, or the dealer's once every hand has
+// played. A split hand is dealt its second card only now, when its turn
+// comes — the dealer finishes the first hand of a split before giving the
+// second one anything, so the cards out of the shoe go to the hands in that
+// order. A hand that comes to 21 has nothing to decide and stands.
+export function enterTurn(r) {
+  const turnOrder = r.turnOrder || [];
+  while (r.currentTurnIndex < turnOrder.length) {
+    const cur = turnOrder[r.currentTurnIndex];
+    const p = r.players[cur.pid];
+    const hand = p && p.hands && p.hands[cur.hi];
+    if (hand && hand.status === 'playing') {
+      if (hand.cards.length < 2) hand.cards.push(drawCard(r));
+      if (handValue(hand.cards) < 21) {
+        r.turnDeadline = Date.now() + TURN_SECONDS * 1000;
+        return;
+      }
+      hand.status = 'stood';
+    }
+    r.currentTurnIndex++;
   }
+  r.turnDeadline = null;
+  r.phase = 'dealer';
+  resolveDealerAndPayouts(r);
+}
+
+// Pairs split by value: any two ten-cards (a king and a queen too) split,
+// as at most tables, not only two of the same rank.
+export function canSplitCards(cards) {
+  return cards.length === 2 && cardValue(rankOf(cards[0])) === cardValue(rankOf(cards[1]));
 }
 
 // Mirrors processBettingTimeoutLogic for the "playing" phase: if the

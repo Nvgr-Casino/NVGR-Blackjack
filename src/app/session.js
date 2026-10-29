@@ -22,7 +22,8 @@ import {
   safeKey, genCode, shuffleShoe, drawCard, addPlayerToRoom, startRoundLogic, dealRoundCards,
   checkAutoDeal, processBettingTimeoutLogic, processTurnTimeoutLogic, resolveDealerAndPayouts,
   advanceTurnIn, rankOf, handValue, chipLadderForTable, stakesFor, TABLE_STAKES,
-  everyoneDecidedInsurance, resolveInsurance, processInsuranceTimeout, moveToSeat, countdownLabel, RESULTS_PAUSE_MS,
+  everyoneDecidedInsurance, resolveInsurance, processInsuranceTimeout, moveToSeat, countdownLabel, resultsPauseFor,
+  enterTurn, canSplitCards,
 } from './roomLogic.js';
 
 export let session = { screen: 'loading', uid: null, name: null, photo: null, chips: 0, character: null, code: null, isAdmin: false, room: null };
@@ -260,7 +261,7 @@ function startTick() {
         mutateRoom(session.code, (rr) => processInsuranceTimeout(rr));
       } else if (r.phase === 'playing' && (!r.turnDeadline || Date.now() >= r.turnDeadline)) {
         mutateRoom(session.code, (rr) => processTurnTimeoutLogic(rr));
-      } else if (r.isPublic && r.phase === 'results' && r.resultsAt && (Date.now() - r.resultsAt) >= RESULTS_PAUSE_MS) {
+      } else if (r.isPublic && r.phase === 'results' && r.resultsAt && (Date.now() - r.resultsAt) >= resultsPauseFor(r)) {
         mutateRoom(session.code, (rr) => { if (rr.phase === 'results') startRoundLogic(rr); });
       }
     }
@@ -672,9 +673,14 @@ export async function hit() {
     const hand = p.hands[cur.hi];
     if (!hand || hand.status !== 'playing') return;
     hand.cards.push(drawCard(r));
-    if (handValue(hand.cards) > 21) {
+    const total = handValue(hand.cards);
+    if (total > 21) {
       hand.status = 'busted';
       r.log = (r.log || []).concat(p.name + ' busted.').slice(-8);
+      advanceTurnIn(r);
+    } else if (total === 21) {
+      // Nothing left to decide on 21.
+      hand.status = 'stood';
       advanceTurnIn(r);
     }
   });
@@ -717,24 +723,28 @@ export async function splitHand() {
     const p = r.players[key];
     const hand = p.hands[cur.hi];
     if (!hand || hand.status !== 'playing' || hand.cards.length !== 2) return;
+    // One split per box: two hands at most.
     if (p.hands.length > 1) return;
-    if (rankOf(hand.cards[0]) !== rankOf(hand.cards[1])) return;
+    if (!canSplitCards(hand.cards)) return;
     if (p.chips < hand.bet) return;
     p.chips -= hand.bet;
-    const originalRank = rankOf(hand.cards[0]);
-    const movedCard = hand.cards.pop();
-    const newHand = { cards: [movedCard, drawCard(r)], bet: hand.bet, status: 'playing' };
-    hand.cards.push(drawCard(r));
-    if (originalRank === 'A') {
-      hand.status = handValue(hand.cards) > 21 ? 'busted' : 'stood';
-      newHand.status = handValue(newHand.cards) > 21 ? 'busted' : 'stood';
-    }
+    const aces = rankOf(hand.cards[0]) === 'A';
+    const newHand = { cards: [hand.cards.pop()], bet: hand.bet, status: 'playing' };
     p.hands.splice(cur.hi + 1, 0, newHand);
-    if (newHand.status === 'playing') {
-      r.turnOrder.splice(r.currentTurnIndex + 1, 0, { pid: cur.pid, hi: cur.hi + 1 });
-    }
     r.log = (r.log || []).concat(p.name + ' splits.').slice(-8);
-    if (hand.status !== 'playing') { advanceTurnIn(r); }
-    else { r.turnDeadline = Date.now() + TURN_SECONDS * 1000; }
+    if (aces) {
+      // Split aces take one card each and stand — and an ace with a ten
+      // after a split is 21, not a blackjack.
+      hand.cards.push(drawCard(r));
+      newHand.cards.push(drawCard(r));
+      hand.status = 'stood';
+      newHand.status = 'stood';
+      advanceTurnIn(r);
+      return;
+    }
+    // The first hand is dealt its second card now and played out; the
+    // second waits for its own turn (enterTurn).
+    r.turnOrder.splice(r.currentTurnIndex + 1, 0, { pid: cur.pid, hi: cur.hi + 1 });
+    enterTurn(r);
   });
 }

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { hasRoles, ARM_ROLES } from './rig.js';
+import { hasRoles, ARM_ROLES, LEFT_ARM_ROLES } from './rig.js';
 
 // A hand that moves through the table: the dealer taking a card from the
 // shoe and setting it down, sweeping in a losing bet, setting down a
@@ -55,13 +55,20 @@ function rotateWorld(bone, axis, angle) {
 const firstBoneChild = (bone) => bone.children.find((c) => c.isBone) || null;
 
 /**
- * Builds a reach for a figure, or null if its rig has no right arm.
- * `pole` is where the elbow points, in the figure's own frame (it faces
- * +Z): out to its right (-X), back and down, as a reaching arm's does.
+ * Builds a reach for one of a figure's arms — `side` 'right' (the default)
+ * or 'left' — or null if its rig lacks that arm. `pole` is where the elbow
+ * points, in the figure's own frame (it faces +Z): out to that side, back
+ * and down, as a reaching arm's does. A figure with both arms reaching
+ * shares its waist between them; see dealer.js for the order they run in.
  */
-export function createReach(root, bones, { pole = new THREE.Vector3(-0.55, -0.45, -0.7) } = {}) {
-  if (!hasRoles(bones, ARM_ROLES)) return null;
-  const { upperArmR: upper, lowerArmR: lower, wristR: wrist, spine, spineLow } = bones;
+export function createReach(root, bones, { side = 'right', pole, body = 1 } = {}) {
+  const left = side === 'left';
+  if (!hasRoles(bones, left ? LEFT_ARM_ROLES : ARM_ROLES)) return null;
+  pole = pole || new THREE.Vector3(left ? 0.55 : -0.55, -0.45, -0.7);
+  const upper = left ? bones.upperArmL : bones.upperArmR;
+  const lower = left ? bones.lowerArmL : bones.lowerArmR;
+  const wrist = left ? bones.wristL : bones.wristR;
+  const { spine, spineLow } = bones;
   root.updateMatrixWorld(true);
   const p1 = upper.getWorldPosition(new THREE.Vector3());
   const p2 = lower.getWorldPosition(new THREE.Vector3());
@@ -189,7 +196,7 @@ export function createReach(root, bones, { pole = new THREE.Vector3(-0.55, -0.45
       motion.target = st.target.clone();
       if (st.done) { motion = null; return; }
 
-      bodyTo(st.target, st.weight);
+      bodyTo(st.target, st.weight * body);
       const anim = [upper, lower, wrist].map((b) => b.quaternion.clone());
       // Along the line toward the target, no further than a bent arm goes.
       const s = shoulder();
