@@ -7,7 +7,7 @@ import { place } from './furniture.js';
 import { updateSeatedCharacters } from './character.js';
 import { createDealerFigure, setDealerModel, startDealerIdle, updateDealerAnimations } from './dealer.js';
 import { createBetRing, createCardShoe, createChipRack, createDiscardHolder, SHOE_MOUTH } from './props.js';
-import { createRoom, ROOM_HALF, CEILING_Y } from './room.js';
+import { createRoom, disposeRoom, ROOM_HALF, CEILING_Y } from './room.js';
 import { FLOOR_Y, m } from './scale.js';
 import { SEATS, DEALER, cameraPositionForSeat, cameraLookAtForSeat } from './seats.js';
 import { tickAnimations } from './animator.js';
@@ -127,9 +127,37 @@ export function initScene(canvas) {
   scene.add(wash.target);
   scene.add(wash);
 
-  // The room the table stands in — carpet, panelled walls, ceiling and the
-  // house signage. Static, so it is built once and never touched again.
-  scene.add(createRoom());
+  // The room the table stands in — carpet, walls, ceiling, fittings and
+  // furniture — one per stakes tier (rooms.js). Built for the middle tier
+  // to begin with; the table's own room replaces it once the room is known
+  // (setRoomTheme, from table3dBridge.js).
+  let room = null;
+  let roomTier = 0;
+  function setRoomTheme(tier) {
+    if (tier === roomTier) return;
+    roomTier = tier;
+    const next = createRoom(tier);
+    if (room) { scene.remove(room); disposeRoom(room); }
+    room = next;
+    scene.add(room);
+    // The table's light hangs from this room's ceiling, and the wash lights
+    // this room's back wall.
+    const { half, ceiling } = room.userData.dims;
+    key.position.y = ceiling - 0.2;
+    wash.position.set(0, ceiling - 0.3, -half + 4);
+    wash.target.position.set(0, FLOOR_Y + m(1.2), -half);
+    const l = room.userData.theme.light;
+    fill.color.setHex(l.sky);
+    fill.groundColor.setHex(l.ground);
+    fill.intensity = l.fill * (lowPower ? 1.2 : 1);
+    key.color.setHex(l.key);
+    key.intensity = l.keyPower;
+    wash.color.setHex(l.wash);
+    wash.intensity = l.washPower;
+    scene.background.setHex(l.fog);
+    scene.fog.color.setHex(l.fog);
+  }
+  setRoomTheme(3);
 
   const table = createTable();
   scene.add(table);
@@ -308,6 +336,7 @@ export function initScene(canvas) {
     scene, camera, renderer, controls, dealer, shoe, discard, chairsBySeat,
     setFeltTheme: table.userData.setFeltTheme,
     setDealerModel: (key) => setDealerModel(dealer, key),
+    setRoomTheme,
   };
 }
 

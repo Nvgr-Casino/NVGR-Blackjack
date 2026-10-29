@@ -22,8 +22,10 @@ function piece(id) {
  * size where a room needs it. Shadows are cast only by what is near the
  * table's light; the rest of the room is in its own dim light anyway.
  */
-export function place(parent, id, { x = 0, y = FLOOR_Y, z = 0, yaw = 0, size = 1, shadows = false } = {}) {
+export function place(parent, id, { x = 0, y = FLOOR_Y, z = 0, yaw = 0, size = 1, shadows = false, stain = null } = {}) {
   const holder = new THREE.Group();
+  holder.userData.furniture = true;
+  holder.userData.materials = [];
   holder.position.set(x, y, z);
   holder.rotation.y = yaw;
   holder.scale.setScalar(UNITS_PER_METRE * size);
@@ -34,6 +36,13 @@ export function place(parent, id, { x = 0, y = FLOOR_Y, z = 0, yaw = 0, size = 1
       if (!o.isMesh) return;
       o.castShadow = shadows;
       o.receiveShadow = true;
+      // A stain darkens a piece's own finish to a room's wood, on a copy of
+      // its material so the other rooms keep the original.
+      if (stain !== null) {
+        o.material = o.material.clone();
+        o.material.color.multiply(new THREE.Color(stain));
+        holder.userData.materials.push(o.material);
+      }
     });
     holder.add(copy);
   }).catch(() => { /* a missing piece leaves the spot empty */ });

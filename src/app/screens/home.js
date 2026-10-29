@@ -1,6 +1,6 @@
 // The lobby: who you are, the three ways to sit down (play now, a code, or
 // your own table), and the open tables as a plain list.
-import { MAX_PUBLIC_SEATS, stakesLabel } from '../roomLogic.js';
+import { MAX_PUBLIC_SEATS, stakesLabel, roomName } from '../roomLogic.js';
 import { feltTheme } from '../../scene/table.js';
 import { characterPortraitDataURL, defaultCharacterFor } from '../../scene/character.js';
 import { brandMark, esc } from '../uiHelpers.js';
@@ -30,7 +30,7 @@ function tableRow(t) {
     <li class="table-row ${full ? 'is-full' : ''}" ${full ? '' : `data-join-table="${esc(t.code)}" tabindex="0" role="button"`}>
       <span class="felt-swatch" style="background:linear-gradient(135deg, ${felt.hi}, ${felt.lo});"></span>
       <div class="tr-main">
-        <span class="tr-name">Table ${esc(t.code)}</span>
+        <span class="tr-name">${esc(roomName(t))} <span class="tr-code">${esc(t.code)}</span></span>
         <span class="tr-meta"><span class="${open ? 'live' : ''}">${PHASE_LABEL[t.phase] || 'Open'}</span> · ${stakesLabel(t.minBet || 100, t.maxBet || 2000)} · ${t.count}/${MAX_PUBLIC_SEATS} seated</span>
       </div>
       <div class="tr-seats">${seatsHtml(t.seats || [])}</div>

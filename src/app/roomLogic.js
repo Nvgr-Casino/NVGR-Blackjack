@@ -533,6 +533,20 @@ export function stakesFor(room) {
   return { min, max };
 }
 
+// Each tier's table stands in a room of its own (src/scene/rooms.js).
+export const ROOM_NAMES = ['The Lounge', 'The Parlour', 'The Library', 'The Gold Room', 'The Penthouse'];
+export function roomName(room) { return ROOM_NAMES[stakesTier(room) - 1]; }
+
+// Which of the five tiers a table is, 1 (lowest) to 5 — what its room and
+// its dealer are dressed for. A private table at stakes of its own counts
+// as the tier whose minimum it reaches.
+export function stakesTier(room) {
+  const { min } = stakesFor(room);
+  let tier = 1;
+  TABLE_STAKES.forEach((s, i) => { if (min >= s.min) tier = i + 1; });
+  return tier;
+}
+
 export function stakesLabel(min, max) {
   const short = (n) => (n >= 1000 ? (n % 1000 ? (n / 1000).toFixed(1) : n / 1000) + 'K' : String(n));
   return short(min) + ' / ' + short(max);

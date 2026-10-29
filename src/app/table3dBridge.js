@@ -6,8 +6,9 @@
 import { createTableDriver } from '../ui/gameController.js';
 import {
   MAX_PUBLIC_SEATS, MAX_TIMEOUTS, rankOf, suitOf, handValueLabel,
-  chipLadderForTable, stakesFor, stakesLabel, safeKey, seatOf, countdownLabel, canSplitCards,
+  chipLadderForTable, stakesFor, stakesLabel, safeKey, seatOf, countdownLabel, canSplitCards, stakesTier, roomName,
 } from './roomLogic.js';
+import { dealerKeyFor } from '../scene/dealer.js';
 import { chipButtonDataURL } from '../scene/chip.js';
 import { prefetchCardFaces, cardFaceUrl } from '../scene/card.js';
 import { DEAL_MS } from '../scene/deal.js';
@@ -96,11 +97,13 @@ let roundToken = 0;
 
 let setFeltTheme = () => {};
 let setDealerModel = () => {};
+let setRoomTheme = () => {};
 
 export function mountTable3D(sceneHandles) {
   driver = createTableDriver(sceneHandles);
   setFeltTheme = sceneHandles.setFeltTheme || (() => {});
   setDealerModel = sceneHandles.setDealerModel || (() => {});
+  setRoomTheme = sceneHandles.setRoomTheme || (() => {});
   return driver;
 }
 
@@ -161,8 +164,11 @@ export function syncRoomToScene(room, myKey) {
   if (!driver || !room) return;
   prefetchCardFaces();
 
+  // Each table has a room and a dealer of its own, by its stakes.
+  const tier = stakesTier(room);
   setFeltTheme(room.felt);
-  setDealerModel(room.dealerType);
+  setRoomTheme(tier);
+  setDealerModel(dealerKeyFor(tier, room.dealerType));
 
   if (room.round !== lastRound) {
     lastRound = room.round;
@@ -799,7 +805,7 @@ export function renderTableScreen() {
       <div class="hud-left">
         <button class="hud-btn" id="leaveBtn">← Leave</button>
         <div class="hud-table">
-          <span class="hud-code">Table ${esc(r.code)}</span>
+          <span class="hud-code">${esc(roomName(r))} · ${esc(r.code)}</span>
           <span class="hud-sub">${tableSub}</span>
         </div>
       </div>

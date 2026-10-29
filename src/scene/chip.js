@@ -102,6 +102,12 @@ function buildFaceCanvas(denom) {
     ctx.fillText(label, cx + 2, cy + 4);
     ctx.fillStyle = ink;
     ctx.fillText(label, cx, cy + 2);
+    // The house name, small, above and below the value.
+    ctx.font = `700 ${size * 0.075}px Cinzel, Georgia, serif`;
+    ctx.globalAlpha = 0.85;
+    ctx.fillText('NVGR', cx, cy - size * 0.17);
+    ctx.fillText('CASINO', cx, cy + size * 0.19);
+    ctx.globalAlpha = 1;
   }
   return canvas;
 }

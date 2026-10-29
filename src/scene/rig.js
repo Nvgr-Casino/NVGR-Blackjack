@@ -35,6 +35,9 @@ const ROLE_NAMES = {
   // reaching across the table.
   spineLow: ['Spine'],
   spine: ['Spine1'],
+  chest: ['Spine2'],
+  neck: ['Neck'],
+  head: ['Head'],
 };
 
 // The leg roles are what a seated pose needs; without all of them the

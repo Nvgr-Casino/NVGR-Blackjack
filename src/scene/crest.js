@@ -74,3 +74,26 @@ export function drawCasinoCrest(ctx, { x, y, width, alpha = 1, rgb = '255,236,17
   ctx.letterSpacing = '0px';
   ctx.restore();
 }
+
+/**
+ * The crest on a plate: brass on black lacquer within a fine brass border —
+ * for the bar front, the shoe, a dealer's name badge. `w` by `h` are the
+ * plate's proportions; returns a canvas to make a texture from.
+ */
+export function crestPlateCanvas(w, h, { background = '#121114', rgb = '216,180,110', px = 1024 } = {}) {
+  const canvas = document.createElement('canvas');
+  canvas.width = px;
+  canvas.height = Math.max(8, Math.round((px * h) / w));
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = background;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const inset = Math.max(4, canvas.height * 0.06);
+  ctx.strokeStyle = `rgba(${rgb},0.8)`;
+  ctx.lineWidth = Math.max(2, canvas.height * 0.015);
+  ctx.strokeRect(inset, inset, canvas.width - inset * 2, canvas.height - inset * 2);
+  drawCasinoCrest(ctx, {
+    x: canvas.width / 2, y: canvas.height / 2 + canvas.height * 0.03,
+    width: Math.min(canvas.width * 0.8, canvas.height * 1.35), alpha: 0.95, rgb,
+  });
+  return canvas;
+}

@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { BRASS } from './table.js';
 import { CHIP_RADIUS, CHIP_HEIGHT, createChipColumn } from './chip.js';
 import { CARD_WIDTH, CARD_HEIGHT, cardBackMaterial, cardEdgeMaterial } from './card.js';
+import { crestPlateCanvas } from './crest.js';
 
 // A betting circle printed on the felt, in the same cream ink as the
 // felt's own markings. It used to be a glowing gold torus standing proud of
@@ -137,6 +138,14 @@ export function createCardShoe() {
   ramp.rotation.z = 0.22;
   ramp.position.set(MOUTH_X + 0.02, 0.02, 0);
   group.add(ramp);
+
+  // The house crest on a brass-edged plate on the side the players see.
+  const crestW = SHOE_LENGTH * 0.42, crestH = SHOE_HEIGHT * 0.42;
+  const crestTex = new THREE.CanvasTexture(crestPlateCanvas(crestW, crestH, { px: 512 }));
+  crestTex.colorSpace = THREE.SRGBColorSpace;
+  const crest = new THREE.Mesh(new THREE.PlaneGeometry(crestW, crestH), new THREE.MeshLambertMaterial({ map: crestTex }));
+  crest.position.set(0.04, 0.022 + SHOE_HEIGHT * 0.5, w / 2 + 0.002);
+  group.add(crest);
 
   // The cards: one stack standing on the sloping floor.
   const cards = stackMesh();

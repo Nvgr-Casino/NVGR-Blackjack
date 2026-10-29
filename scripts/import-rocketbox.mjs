@@ -3,6 +3,10 @@
 //
 //   npm run rocketbox -- avatar Professions/Business_Male_01 rb_bm01
 //   npm run rocketbox -- clip m_sit_table_breathe_01 rb_sit_m
+//   npm run rocketbox -- avatar Professions/Business_Male_04 rb_dealer_m4 black-vest
+//
+// An avatar may take a recipe from scripts/dealer-recolor.mjs, which re-dyes
+// its clothes into a house uniform — for the dealers at the higher tables.
 //
 // An avatar is an FBX whose textures are separate 2048px TGAs. fbx2gltf
 // cannot read TGA, so it converts the mesh and skeleton and leaves 1x1
@@ -22,13 +26,18 @@ import { tmpdir } from 'node:os';
 import convert from 'fbx2gltf';
 import sharp from 'sharp';
 import { NodeIO } from '@gltf-transform/core';
+import { recolor, RECIPES } from './dealer-recolor.mjs';
 
 const REPO = 'https://raw.githubusercontent.com/microsoft/Microsoft-Rocketbox/master/Assets';
 const API = 'https://api.github.com/repos/microsoft/Microsoft-Rocketbox/contents/Assets';
 const OUT_DIR = 'public/models/characters';
 const TEXTURE_SIZE = 1024;
 
-const [kind, src, name] = process.argv.slice(2);
+const [kind, src, name, recipe] = process.argv.slice(2);
+if (recipe && !RECIPES[recipe]) {
+  console.error('unknown recipe ' + recipe + ' (have: ' + Object.keys(RECIPES).join(', ') + ')');
+  process.exit(1);
+}
 if (!['avatar', 'clip'].includes(kind) || !src || !name) {
   console.error('usage: npm run rocketbox -- avatar <Group/Avatar_Name> <out-name>');
   console.error('       npm run rocketbox -- clip <animation_name> <out-name>');
@@ -46,7 +55,7 @@ async function download(url, file) {
 }
 
 // Uncompressed true-colour TGA (type 2), 24 or 32 bit, to PNG.
-async function tgaToPng(file) {
+async function tgaToPng(file, dyeWith = null) {
   const b = readFileSync(file);
   const type = b[2], width = b.readUInt16LE(12), height = b.readUInt16LE(14), bpp = b[16], desc = b[17];
   if (type !== 2 || (bpp !== 24 && bpp !== 32)) throw new Error(`unsupported TGA (type ${type}, ${bpp}bpp): ${file}`);
@@ -63,6 +72,7 @@ async function tgaToPng(file) {
       if (channels === 4) rgba[d + 3] = b[s + 3];
     }
   }
+  if (dyeWith) recolor(rgba, channels, dyeWith);
   return sharp(rgba, { raw: { width, height, channels } })
     .resize(TEXTURE_SIZE, TEXTURE_SIZE, { kernel: 'lanczos3' })
     .png()
@@ -100,7 +110,9 @@ if (kind === 'avatar') {
   const texture = async (key) => {
     const file = tgas.get(key);
     if (!file) return null;
-    return doc.createTexture(key).setImage(await tgaToPng(file)).setMimeType('image/png');
+    // Only the clothes are re-dyed: the body sheet, never the head.
+    const dyeWith = recipe && /_body_color$/.test(key) ? recipe : null;
+    return doc.createTexture(key).setImage(await tgaToPng(file, dyeWith)).setMimeType('image/png');
   };
   for (const mat of doc.getRoot().listMaterials()) {
     const key = mat.getName().toLowerCase();
