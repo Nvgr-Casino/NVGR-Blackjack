@@ -215,7 +215,7 @@ function createFeltTexture(themeKey) {
 
 // Burl walnut for the rim: the swirled, figured grain casino tables are
 // finished in, built up from scattered knots and eyes over a warm ground.
-function createBurlTexture() {
+export function createBurlTexture() {
   const S = 1024;
   const canvas = document.createElement('canvas');
   canvas.width = S;
@@ -267,7 +267,7 @@ function createBurlTexture() {
 }
 
 // Dark walnut for the apron: long soft grain on a deep brown.
-function createWoodTexture() {
+export function createWoodTexture() {
   const w = 1024, h = 128;
   const canvas = document.createElement('canvas');
   canvas.width = w;

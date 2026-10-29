@@ -98,12 +98,14 @@ let roundToken = 0;
 let setFeltTheme = () => {};
 let setDealerModel = () => {};
 let setRoomTheme = () => {};
+let setGame = () => {};
 
 export function mountTable3D(sceneHandles) {
   driver = createTableDriver(sceneHandles);
   setFeltTheme = sceneHandles.setFeltTheme || (() => {});
   setDealerModel = sceneHandles.setDealerModel || (() => {});
   setRoomTheme = sceneHandles.setRoomTheme || (() => {});
+  setGame = sceneHandles.setGame || (() => {});
   return driver;
 }
 
@@ -166,6 +168,7 @@ export function syncRoomToScene(room, myKey) {
 
   // Each table has a room and a dealer of its own, by its stakes.
   const tier = stakesTier(room);
+  setGame('blackjack');
   setFeltTheme(room.felt);
   setRoomTheme(tier);
   setDealerModel(dealerKeyFor(tier, room.dealerType));
@@ -911,6 +914,15 @@ export function attachTableScreen() {
   document.querySelectorAll('[data-take-seat]').forEach((btn) => {
     btn.onclick = () => S.changeSeat(Number(btn.getAttribute('data-take-seat')));
   });
+}
+
+/** Clears the blackjack table of everything a room put on it — for a poker table to take over the scene. */
+export function hideBlackjackTable() {
+  if (!driver) return;
+  driver.clearAllMeshes();
+  for (let i = 0; i < MAX_PUBLIC_SEATS; i++) { driver.clearSeatCharacter(i); driver.clearBetChipsForSeat(i); driver.hideSeatBadges(i); }
+  driver.hideDealerBadge();
+  resetTableDiffState();
 }
 
 export function resetTableDiffState() {

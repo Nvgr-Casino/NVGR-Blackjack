@@ -278,6 +278,10 @@ export function createTableDriver({ scene, camera, controls, dealer, shoe, disca
   // from, and gliding in from the default view reads as a glitch.
   function followSeat(seatIndex) {
     if (seatIndex === null || seatIndex === undefined || seatIndex < 0) return;
+    // The first view at a table snaps there even if it is the seat the
+    // camera was last told about: it may have been moved since (the poker
+    // table shares the camera).
+    if (!seatFollowed) viewSeatIndex = -1;
     setViewSeat(seatIndex, { animated: seatFollowed });
     seatFollowed = true;
   }

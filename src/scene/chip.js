@@ -281,3 +281,13 @@ export function createChipColumn(count, colorIndex) {
   run.rotation.x = Math.PI / 2;
   return run;
 }
+
+// A stack of `count` chips of one bet-ladder value, standing at the group's
+// origin, drawn as one mesh — for poker bets, stacks and the pot.
+export function createValueStack(value, colorIndex, count) {
+  const group = new THREE.Group();
+  const run = chipRun(ladderDenom(value, colorIndex), count);
+  run.position.y = (CHIP_HEIGHT * count) / 2;
+  group.add(run);
+  return group;
+}

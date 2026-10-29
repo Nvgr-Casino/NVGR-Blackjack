@@ -541,6 +541,8 @@ export function roomName(room) { return ROOM_NAMES[stakesTier(room) - 1]; }
 // its dealer are dressed for. A private table at stakes of its own counts
 // as the tier whose minimum it reaches.
 export function stakesTier(room) {
+  // Poker tables carry their tier outright (src/poker/rules.js's stakes).
+  if (room && room.tier) return room.tier;
   const { min } = stakesFor(room);
   let tier = 1;
   TABLE_STAKES.forEach((s, i) => { if (min >= s.min) tier = i + 1; });

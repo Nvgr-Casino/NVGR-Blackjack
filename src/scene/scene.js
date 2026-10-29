@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { createTable } from './table.js';
+import { createPokerTable, POKER_SEATS_3D, POKER_DEALER } from './pokerTable.js';
 import { playShoeShuffle } from './shuffle.js';
 import { place } from './furniture.js';
 import { updateSeatedCharacters } from './character.js';
@@ -159,8 +160,18 @@ export function initScene(canvas) {
   }
   setRoomTheme(3);
 
+  // Two tables, one shown at a time (setGame): the blackjack table with its
+  // shoe, rack, discard holder, circles and five chairs, and the Hold'em
+  // table with its six. The room, the light and the dealer are shared; the
+  // dealer moves to the side of whichever table is out.
+  const blackjackSet = new THREE.Group();
+  scene.add(blackjackSet);
+  const pokerSet = new THREE.Group();
+  pokerSet.visible = false;
+  scene.add(pokerSet);
+
   const table = createTable();
-  scene.add(table);
+  blackjackSet.add(table);
 
   // The dealer's gear sits directly on the felt at its back edge, laid out
   // as at a casino table (see seats.js): the shoe on the dealer's left, its
@@ -168,12 +179,12 @@ export function initScene(canvas) {
   // front of them; the discard holder on their right.
   const rack = createChipRack();
   rack.position.copy(DEALER.trayPosition);
-  scene.add(rack);
+  blackjackSet.add(rack);
 
   const shoe = createCardShoe();
   shoe.position.copy(DEALER.shoePosition);
   shoe.rotation.y = 0.35;
-  scene.add(shoe);
+  blackjackSet.add(shoe);
   shoe.updateMatrixWorld(true);
   // Cards come out at the shoe's mouth, lying along it.
   DEALER.deckPosition.copy(shoe.localToWorld(SHOE_MOUTH.clone()));
@@ -182,7 +193,7 @@ export function initScene(canvas) {
   const discard = createDiscardHolder();
   discard.position.copy(DEALER.discardPosition);
   discard.rotation.y = -0.3;
-  scene.add(discard);
+  blackjackSet.add(discard);
   discard.updateMatrixWorld(true);
 
   // No chair for the dealer — they stand, like every real one.
@@ -200,14 +211,34 @@ export function initScene(canvas) {
   SEATS.forEach((seat) => {
     const ring = createBetRing(0.22);
     ring.position.copy(seat.betSpot);
-    scene.add(ring);
+    blackjackSet.add(ring);
 
     // A tufted leather dining chair (Poly Haven), turned to face the table.
-    const chair = place(scene, 'dining_chair_02', {
+    const chair = place(blackjackSet, 'dining_chair_02', {
       x: seat.position.x, z: seat.position.z, yaw: seat.facingAngle, shadows: true,
     });
     chairsBySeat.set(seat.index, chair);
   });
+
+  // The Hold'em table and its six chairs.
+  const pokerTable = createPokerTable();
+  pokerSet.add(pokerTable);
+  const pokerChairs = new Map();
+  POKER_SEATS_3D.forEach((seat) => {
+    pokerChairs.set(seat.index, place(pokerSet, 'dining_chair_02', {
+      x: seat.position.x, z: seat.position.z, yaw: seat.facingAngle, shadows: true,
+    }));
+  });
+
+  let game = 'blackjack';
+  function setGame(next) {
+    if (next === game) return;
+    game = next;
+    const poker = game === 'holdem';
+    blackjackSet.visible = !poker;
+    pokerSet.visible = poker;
+    dealer.position.copy(poker ? POKER_DEALER.position : DEALER.position);
+  }
 
   window.addEventListener('resize', onResize);
 
@@ -337,6 +368,9 @@ export function initScene(canvas) {
     setFeltTheme: table.userData.setFeltTheme,
     setDealerModel: (key) => setDealerModel(dealer, key),
     setRoomTheme,
+    setGame,
+    pokerChairs,
+    setPokerFelt: pokerTable.userData.setFeltTheme,
   };
 }
 

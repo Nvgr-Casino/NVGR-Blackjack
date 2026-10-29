@@ -5,7 +5,8 @@ import { initScene } from './scene/scene.js';
 import { auth } from './firebase/config.js';
 import { safeKey } from './app/roomLogic.js';
 import { session, initAuth, setOnChange, joinRoom } from './app/session.js';
-import { mountTable3D, syncRoomToScene, renderTableScreen, attachTableScreen, resetTableDiffState } from './app/table3dBridge.js';
+import { mountTable3D, syncRoomToScene, renderTableScreen, attachTableScreen, resetTableDiffState, hideBlackjackTable } from './app/table3dBridge.js';
+import { mountPoker3D, syncPokerToScene, renderPokerScreen, attachPokerScreen, leavePokerView } from './app/pokerBridge.js';
 import { renderAuth, attachAuth } from './app/screens/auth.js';
 import { renderHome, attachHome } from './app/screens/home.js';
 import { renderJoin, attachJoin } from './app/screens/join.js';
@@ -17,6 +18,8 @@ const canvas = document.getElementById('scene');
 const root = document.getElementById('root');
 
 let lastScreen = null;
+// Which table the scene is showing, so switching game clears the other.
+let shownGame = null;
 
 function render() {
   const showTable = session.screen === 'table';
@@ -24,7 +27,11 @@ function render() {
   // At the table the page layer sits over the 3D view; it must let drags
   // through to the canvas, or the view can't be turned (see app.css).
   root.classList.toggle('on-table', showTable);
-  if (lastScreen === 'table' && session.screen !== 'table') resetTableDiffState();
+  if (lastScreen === 'table' && session.screen !== 'table') {
+    resetTableDiffState();
+    if (shownGame === 'holdem') leavePokerView();
+    shownGame = null;
+  }
   lastScreen = session.screen;
 
   if (session.screen === 'loading') {
@@ -62,9 +69,18 @@ function render() {
     return;
   }
   if (session.screen === 'table') {
+    const myKey = session.uid ? safeKey(session.uid) : null;
+    if (session.room && session.room.game === 'holdem') {
+      if (shownGame !== 'holdem') { hideBlackjackTable(); shownGame = 'holdem'; }
+      root.innerHTML = renderPokerScreen();
+      attachPokerScreen();
+      syncPokerToScene(session.room, myKey);
+      return;
+    }
+    if (shownGame === 'holdem') { leavePokerView(); resetTableDiffState(); }
+    shownGame = session.room ? 'blackjack' : shownGame;
     root.innerHTML = renderTableScreen();
     attachTableScreen();
-    const myKey = session.uid ? safeKey(session.uid) : null;
     syncRoomToScene(session.room, myKey);
   }
 }
@@ -94,7 +110,9 @@ async function boot() {
     // cached with the fallback face for the rest of the session.
     document.fonts.load("700 40px 'Inter'"),
   ]);
-  mountTable3D(initScene(canvas));
+  const sceneHandles = initScene(canvas);
+  mountTable3D(sceneHandles);
+  mountPoker3D(sceneHandles);
   setOnChange(render);
   initAuth();
   checkInviteParam();

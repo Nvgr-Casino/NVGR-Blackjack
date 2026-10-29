@@ -1,6 +1,6 @@
 # Texas Hold'em for NVGR Casino — research and plan
 
-Status: research only. Nothing here is built or deployed.
+Status: built. The game shipped with **mental poker** — the players' browsers shuffle and deal between them — rather than the dealer server below, which needs an account or billing setup only the owner can do. See `docs/texas-holdem-rules.md` for what was built; this page is kept as the research behind it.
 
 ---
 

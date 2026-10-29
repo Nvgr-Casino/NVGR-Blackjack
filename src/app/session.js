@@ -17,6 +17,9 @@ import { defaultCharacterFor } from '../scene/character.js';
 // Both sides only touch each other inside functions, never at module load,
 // so the cycle resolves fine.
 import { initSocial, stopSocial, goOffline } from './social.js';
+// Circular too, and the same way: pokerSession.js runs Hold'em tables and
+// reads the session; this module hands it poker rooms.
+import * as Poker from './pokerSession.js';
 import {
   STARTING_CHIPS, BETTING_SECONDS, TURN_SECONDS, MAX_PUBLIC_SEATS, MIN_PUBLIC_TABLES,
   safeKey, genCode, shuffleShoe, drawCard, addPlayerToRoom, startRoundLogic, dealRoundCards,
@@ -36,6 +39,16 @@ export let authMode = 'signin';
 export let connLost = false;
 export let lobbyTables = null;
 export let lobbyLoading = false;
+// Which game the lobby shows — the player's last choice, kept between visits.
+export let lobbyGame = (() => { try { return localStorage.getItem('nvgr-lobby-game') || 'blackjack'; } catch { return 'blackjack'; } })();
+export let pokerTables = null;
+export function setLobbyGame(game) {
+  lobbyGame = game;
+  try { localStorage.setItem('nvgr-lobby-game', game); } catch { /* private mode */ }
+  formError = '';
+  render();
+  loadLobby();
+}
 export let chatOpen = false;
 export let hostOpen = false;
 export let pendingBet = 0;
@@ -53,6 +66,7 @@ export function setChatOpen(open) { chatOpen = open; render(); }
 export function setHostOpen(open) { hostOpen = open; render(); }
 export function clearFormNotice() { formNotice = ''; }
 export function goToScreen(screen) { session.screen = screen; formError = ''; render(); }
+export function setFormError(message) { formError = message; render(); }
 
 // ---------- Account helpers ----------
 async function loadAccount(uid) {
@@ -73,7 +87,7 @@ function stakedBalance(chips) {
   return typeof chips === 'number' && chips > 0 ? chips : STARTING_CHIPS;
 }
 
-async function ensureAccount(uid, name) {
+export async function ensureAccount(uid, name) {
   const existing = await loadAccount(uid);
   if (existing) {
     const chips = stakedBalance(existing.chips);
@@ -109,10 +123,10 @@ export async function chooseCharacter(id) {
 // update(), not set(): a full write here would drop the sibling fields on
 // the account — the chosen character and currentRoom — every time a hand
 // settled.
-async function saveAccountChips(uid, name, chips) {
+export async function saveAccountChips(uid, name, chips) {
   await update(ref(db, 'accounts/' + safeKey(uid)), { name, chips, updatedAt: Date.now() });
 }
-async function setCurrentRoom(uid, code) {
+export async function setCurrentRoom(uid, code) {
   await set(ref(db, 'accounts/' + safeKey(uid) + '/currentRoom'), code || null);
 }
 
@@ -135,9 +149,12 @@ export function initAuth() {
         if (room && room.players && room.players[safeKey(user.uid)]) {
           enterTable(lastRoom);
           return;
-        } else {
-          await setCurrentRoom(user.uid, null);
         }
+        // Stood up from a poker table while away: the stack is waiting.
+        if (room && room.game === 'holdem' && room.cashout && room.cashout[safeKey(user.uid)]) {
+          await Poker.collectCashout(lastRoom);
+        }
+        await setCurrentRoom(user.uid, null);
       }
       session.screen = 'home';
       render();
@@ -208,6 +225,16 @@ export function enterTable(code) {
     const newRoom = snap.val();
     const nowSeated = !!(newRoom && newRoom.players && newRoom.players[myKey]);
     if (nowSeated) sawSelfSeated = true;
+    if (newRoom && newRoom.game === 'holdem') {
+      // A poker table can be watched without a seat, and a seat given up
+      // without leaving: the poker module keeps track of its own.
+      session.room = newRoom;
+      session.isAdmin = newRoom.adminId === myKey;
+      if (sawSelfSeated && !nowSeated) { sawSelfSeated = false; Poker.onStoodUp(newRoom); }
+      Poker.onRoom(newRoom);
+      render();
+      return;
+    }
     if (sawSelfSeated && !nowSeated) {
       handleRemovedFromTable();
       return;
@@ -245,7 +272,7 @@ function handleRemovedFromTable() {
   loadLobby();
 }
 
-function updateHash() {
+export function updateHash() {
   if (session.code) location.hash = 'room=' + session.code;
   else history.replaceState(null, '', location.pathname);
 }
@@ -254,7 +281,9 @@ function startTick() {
   if (tickTimer) return;
   tickTimer = setInterval(() => {
     const r = session.room;
-    if (r) {
+    if (r && r.game === 'holdem') {
+      Poker.tick(r);
+    } else if (r) {
       if (r.phase === 'betting' && r.bettingDeadline && Date.now() >= r.bettingDeadline) {
         mutateRoom(session.code, (rr) => processBettingTimeoutLogic(rr));
       } else if (r.phase === 'insurance' && (!r.insuranceDeadline || Date.now() >= r.insuranceDeadline)) {
@@ -272,6 +301,11 @@ function clearTick() { if (tickTimer) { clearInterval(tickTimer); tickTimer = nu
 function tickCountdownOnly() {
   const el = document.getElementById('countdownText');
   if (!el || !session.room) return;
+  if (session.room.game === 'holdem') {
+    const text = Poker.countdownText(session.room, safeKey(session.uid));
+    if (text) el.textContent = text;
+    return;
+  }
   // The pill only exists during your own turn once play starts, so it is
   // always your turn whenever there is one to update.
   const label = countdownLabel(session.room, true);
@@ -350,6 +384,8 @@ export async function joinRoom(code) {
   if (!code) { formError = 'Enter a table code.'; render(); return; }
   const snap = await get(ref(db, 'rooms/' + code));
   if (!snap.exists()) { formError = 'No table found with that code.'; render(); return; }
+  // A poker table opens to watch; a seat is taken from there.
+  if (snap.val().game === 'holdem') { await Poker.openPokerTable(code); return; }
   const chips = (await ensureAccount(session.uid, session.name)).chips;
   const key = safeKey(session.uid);
   if (!snap.val().players || !snap.val().players[key]) {
@@ -390,6 +426,8 @@ export async function playNow() {
   for (const code of codes) {
     const result = await runTransaction(ref(db, 'rooms/' + code), (current) => {
       if (!current) return current;
+      // The index lists poker tables too.
+      if (current.game === 'holdem') return;
       const count = Object.keys(current.players || {}).length;
       // Already seated is not a no-op: seatPlayerIn is what brings someone
       // back in who sat a window out, so it still has to run. Only a full
@@ -452,6 +490,17 @@ export async function leaveTable() {
   const code = session.code;
   const key = safeKey(session.uid);
   const wasPublic = session.room && session.room.isPublic;
+  if (session.room && session.room.game === 'holdem') {
+    await Poker.leavePoker(code);
+    Poker.stopPoker();
+    await setCurrentRoom(session.uid, null);
+    if (roomUnsub) { roomUnsub(); roomUnsub = null; }
+    clearTick();
+    session.code = null; session.room = null; session.screen = 'home';
+    updateHash(); render();
+    loadLobby();
+    return;
+  }
   if (code && wasPublic) {
     runTransaction(ref(db, 'rooms/' + code), (current) => {
       if (!current) return current;
@@ -525,6 +574,12 @@ async function ensureOpenTables(tables) {
 
 export async function loadLobby() {
   lobbyLoading = true; render();
+  if (lobbyGame === 'holdem') {
+    try { pokerTables = await Poker.loadPokerTables(); } catch (e) { pokerTables = []; }
+    lobbyLoading = false;
+    render();
+    return;
+  }
   try {
     const idxSnap = await get(ref(db, 'publicIndex/tables'));
     const codes = idxSnap.exists() ? Object.keys(idxSnap.val()) : [];
@@ -532,7 +587,7 @@ export async function loadLobby() {
     for (const code of codes) {
       const snap = await get(ref(db, 'rooms/' + code));
       const r = snap.val();
-      if (!r || !r.isPublic) continue;
+      if (!r || !r.isPublic || r.game === 'holdem') continue;
       const seats = Object.values(r.players || {}).map((p) => ({ name: p.name, chips: p.chips || 0, character: p.character || null }));
       // Tables opened before stakes existed would all read as the lowest
       // tier, leaving a lobby of identical rooms — give each one a tier the
