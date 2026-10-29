@@ -53,8 +53,11 @@ export function createPokerDriver({ scene, camera, controls, dealer }) {
     if (group.userData.release) group.userData.release();
   }
 
-  // A figure whose head is between the camera and the middle of the table
-  // is not drawn — your own, seen from just behind your chair.
+  // A figure whose head is between the camera and what it is looking at is
+  // not drawn, nor one the camera is inside — the whole figure, as at the
+  // blackjack table. Otherwise everyone is, you included: from behind your
+  // chair you see your own shoulders, and turning the view round shows
+  // you in your seat.
   const head = new THREE.Vector3();
   const seg = new THREE.Line3();
   const near = new THREE.Vector3();
@@ -62,12 +65,12 @@ export function createPokerDriver({ scene, camera, controls, dealer }) {
   const prior = scene.onBeforeRender;
   scene.onBeforeRender = (...args) => {
     if (root.visible) {
+      // Where the camera is aimed: the board, or wherever it was turned to.
+      lookPoint.copy(cameraOverride.active ? lookPoint : controls.target);
       figures.forEach(({ group }, seatIndex) => {
         const model = group.children[0];
         if (!model) return;
         const seat = SEATS[seatIndex];
-        // Your own figure, from your own seat, is always in the way.
-        if (seatIndex === viewSeat) { model.visible = false; return; }
         head.copy(seat.position).addScaledVector(seat.outward, -m(0.2)).setY(SEAT_TOP_Y + m(0.72));
         let hidden = camera.position.distanceTo(head) < m(0.35);
         if (!hidden) {
