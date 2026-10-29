@@ -1,4 +1,4 @@
-// Sign in / create account. One column: the logo, Google, or email.
+﻿// Sign in / create account. One column: the logo, Google, or email.
 import { STARTING_CHIPS } from '../roomLogic.js';
 import { brandMark, esc } from '../uiHelpers.js';
 import * as S from '../session.js';
@@ -10,7 +10,7 @@ export function renderAuth() {
   return `
     <main class="auth">
       ${brandMark('auth-logo')}
-      <p class="auth-tag">Multiplayer blackjack from NVGR Casino</p>
+      <p class="auth-tag">Multiplayer blackjack and Texas Hold'em from NVGR Casino</p>
       <section class="panel auth-panel">
         <button class="btn btn-google" id="googleBtn" ${S.authBusy ? 'disabled' : ''}>${GOOGLE_ICON} Continue with Google</button>
         <div class="or">or</div>
@@ -32,7 +32,7 @@ export function renderAuth() {
           <input id="authPassword" type="password" placeholder="${isSignup ? 'At least 6 characters' : 'Your password'}" autocomplete="${isSignup ? 'new-password' : 'current-password'}">
         </div>
         ${S.formError ? '<p class="error-text">' + esc(S.formError) + '</p>' : ''}
-        <button class="btn btn-primary btn-block" id="emailSubmitBtn" ${S.authBusy ? 'disabled' : ''}>${S.authBusy ? 'Please wait…' : (isSignup ? 'Create account' : 'Sign in')}</button>
+        <button class="btn btn-primary btn-block" id="emailSubmitBtn" ${S.authBusy ? 'disabled' : ''}>${S.authBusy ? 'Please waitâ€¦' : (isSignup ? 'Create account' : 'Sign in')}</button>
       </section>
       <p class="fine">Everyone starts with ${STARTING_CHIPS.toLocaleString()} chips.</p>
     </main>
