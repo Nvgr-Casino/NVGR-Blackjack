@@ -74,10 +74,12 @@ const trophy = (cx, top, s = 1) => `
     <rect x="-5" y="41" width="10" height="12" fill="#a77c3a"/>
     <rect x="-18" y="53" width="36" height="10" rx="2" fill="url(#gold${s})"/>
     <text y="24" font-size="15" text-anchor="middle" font-family="Georgia, serif" font-weight="700" fill="#5a3e14">1</text>
+    <clipPath id="cup${s}"><path d="M-20 0h40v16c0 15-9 26-20 26S-20 31-20 16z"/></clipPath>
+    <g clip-path="url(#cup${s})"><rect class="shine" x="-6" y="-4" width="9" height="50" fill="#fffdf4"/></g>
   </g>`;
 const ART = {
-  blackjack: `<svg viewBox="0 0 160 120" aria-hidden="true">${card(34, 22, -16, 'A', '♠', false, 46)}${card(70, 16, 10, 'K', '♥', true, 46)}${chipStack(132, 104, 3, ['#1f6b47', '#c8a46a', '#1f6b47'])}</svg>`,
-  holdem: `<svg viewBox="0 0 160 120" aria-hidden="true">${card(22, 22, -12, 'A', '♦', true, 44)}${card(52, 18, 6, 'A', '♣', false, 44)}${chipStack(126, 104, 5, ['#7c1f24', '#1f3d6b', '#f1ece2', '#7c1f24', '#c8a46a'])}</svg>`,
+  blackjack: `<svg viewBox="0 0 160 120" aria-hidden="true"><g class="fan fan-l">${card(34, 22, -16, 'A', '♠', false, 46)}</g><g class="fan fan-r">${card(70, 16, 10, 'K', '♥', true, 46)}</g><g class="hop">${chipStack(132, 104, 3, ['#1f6b47', '#c8a46a', '#1f6b47'])}</g></svg>`,
+  holdem: `<svg viewBox="0 0 160 120" aria-hidden="true"><g class="fan fan-l">${card(22, 22, -12, 'A', '♦', true, 44)}</g><g class="fan fan-r">${card(52, 18, 6, 'A', '♣', false, 44)}</g><g class="hop">${chipStack(126, 104, 5, ['#7c1f24', '#1f3d6b', '#f1ece2', '#7c1f24', '#c8a46a'])}</g></svg>`,
   tournaments: `<svg viewBox="0 0 160 120" aria-hidden="true">${trophy(80, 22, 1.25)}</svg>`,
 };
 
@@ -149,13 +151,14 @@ function homePage() {
   ];
   const top = Leaderboard.ranked('chips').slice(0, 3);
   return `
-    <section class="welcome-card">
-      <img class="welcome-avatar" src="${portrait(S.session.character, '', 128)}" alt="">
-      <div class="welcome-text">
-        <span class="welcome-greet">${greet}</span>
-        <h1 class="welcome-name">${esc(S.session.name)}</h1>
+    <section class="marquee">
+      <div class="marquee-text">
+        <span class="marquee-greet">${greet}, ${esc(S.session.name.split(' ')[0])}</span>
+        <h1 class="marquee-title">Tonight at <span class="gold-num">the Penthouse</span></h1>
+        <p class="marquee-line">Two games, five rooms, and tournaments up to ${short(T.TOURNAMENTS[T.TOURNAMENTS.length - 1].prizes[0])} — pull up a chair.</p>
       </div>
-      <div class="welcome-stats">
+      <div class="marquee-me">
+        <img class="welcome-avatar" src="${portrait(S.session.character, '', 128)}" alt="">
         <div class="stat"><span class="stat-label">Balance</span><span class="stat-value gold">${(S.session.chips || 0).toLocaleString()}</span></div>
         <div class="stat"><span class="stat-label">Rank</span><span class="stat-value">${rank ? '#' + rank : '—'}</span></div>
       </div>
@@ -181,7 +184,7 @@ function homePage() {
       <button class="promo theme-tournaments" data-go="tournaments" data-open-tour="${featured.id}">
         <span class="kicker">Featured tournament</span>
         <span class="promo-name">${esc(featured.name)}</span>
-        <span class="promo-prize">${featured.prizes[0].toLocaleString()}</span>
+        <span class="promo-prize" data-count="${featured.prizes[0]}">${featured.prizes[0].toLocaleString()}</span>
         <span class="promo-line">to the winner · ${short(featured.buyIn)} buy-in · six players</span>
         <span class="poster-cta">See it ${arrow}</span>
       </button>` : ''}
@@ -563,8 +566,47 @@ function go(page) {
   window.scrollTo({ top: 0 });
 }
 
+// The featured prize counts up the first time the lobby opens — carried
+// on across the re-renders that land while it runs.
+const COUNT_MS = 1600;
+let countFrom = null;
+function countUp() {
+  if (stillMotion()) return;
+  if (countFrom === null) countFrom = performance.now();
+  const step = () => {
+    const t = Math.min(1, (performance.now() - countFrom) / COUNT_MS);
+    const ease = 1 - Math.pow(1 - t, 3);
+    document.querySelectorAll('[data-count]').forEach((el) => { el.textContent = Math.round(Number(el.dataset.count) * ease).toLocaleString(); });
+    if (t < 1) requestAnimationFrame(step);
+  };
+  if (performance.now() - countFrom < COUNT_MS) step();
+}
+const stillMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// A poster leans toward the pointer, and the light follows it.
+function tilt(el) {
+  el.onpointermove = (e) => {
+    if (e.pointerType !== 'mouse' || stillMotion()) return;
+    const r = el.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width;
+    const y = (e.clientY - r.top) / r.height;
+    el.classList.add('tilting');
+    el.style.setProperty('--ry', ((x - 0.5) * 10).toFixed(2) + 'deg');
+    el.style.setProperty('--rx', ((0.5 - y) * 8).toFixed(2) + 'deg');
+    el.style.setProperty('--mx', (x * 100).toFixed(1) + '%');
+    el.style.setProperty('--my', (y * 100).toFixed(1) + '%');
+  };
+  el.onpointerleave = () => {
+    el.classList.remove('tilting');
+    el.style.removeProperty('--rx');
+    el.style.removeProperty('--ry');
+  };
+}
+
 export function attachHome() {
   keepCurrent();
+  if (S.lobbyGame === 'home') countUp();
+  document.querySelectorAll('.poster').forEach(tilt);
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
   const all = (sel, fn) => document.querySelectorAll(sel).forEach(fn);
 

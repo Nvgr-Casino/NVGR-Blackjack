@@ -158,7 +158,8 @@ export function initScene(canvas) {
     scene.background.setHex(l.fog);
     scene.fog.color.setHex(l.fog);
   }
-  setRoomTheme(3);
+  // The Penthouse first: it is what the lobby shows behind it (setBackdrop).
+  setRoomTheme(5);
 
   // Two tables, one shown at a time (setGame): the blackjack table with its
   // shoe, rack, discard holder, circles and five chairs, and the Hold'em
@@ -238,6 +239,52 @@ export function initScene(canvas) {
     blackjackSet.visible = !poker;
     pokerSet.visible = poker;
     dealer.position.copy(poker ? POKER_DEALER.position : DEALER.position);
+  }
+
+  // ---------- the lobby's backdrop ----------
+  // Behind the sign-in page and the lobby, the casino itself: an empty
+  // table in a room, the dealer waiting at it, and the camera drifting
+  // slowly round — leaning a little toward the pointer. It is drawn at a
+  // lower resolution and frame rate than a table (it sits behind the page,
+  // dimmed), and holds still for anyone who has asked for less motion.
+  const stillMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let backdrop = false;
+  let backdropT = 0;
+  let lastBackdropDraw = 0;
+  const pointer = { x: 0, y: 0, ex: 0, ey: 0 };
+  window.addEventListener('pointermove', (e) => {
+    pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+    pointer.y = (e.clientY / window.innerHeight) * 2 - 1;
+  }, { passive: true });
+  const backdropLook = new THREE.Vector3();
+  function setBackdrop(on, { tier = 5, show = 'blackjack', dealerKey = null } = {}) {
+    if (on) {
+      setRoomTheme(tier);
+      setGame(show);
+      if (dealerKey) setDealerModel(dealer, dealerKey);
+    }
+    if (on === backdrop) return;
+    backdrop = on;
+    if (on) renderer.setPixelRatio(Math.min(window.devicePixelRatio, lowPower ? 1 : 1.25));
+    else applyPixelRatio();
+  }
+  function placeBackdropCamera(delta) {
+    if (!stillMotion.matches) backdropT += delta;
+    const half = room ? room.userData.dims.half : ROOM_HALF;
+    const radius = Math.min(m(3.4), half - 3);
+    const a = 0.6 + backdropT * 0.045;
+    pointer.ex += (pointer.x - pointer.ex) * 0.04;
+    pointer.ey += (pointer.y - pointer.ey) * 0.04;
+    const lean = stillMotion.matches ? 0 : 0.18;
+    camera.position.set(
+      Math.sin(a + pointer.ex * lean) * radius,
+      FLOOR_Y + m(1.8) + Math.sin(backdropT * 0.12) * m(0.08) - pointer.ey * m(0.12) * (lean ? 1 : 0),
+      Math.cos(a + pointer.ex * lean) * radius,
+    );
+    // Level, past the table to the windows: the lit room and the city are
+    // the picture, the table and the dealer part of it.
+    backdropLook.set(0, FLOOR_Y + m(1.15), 0);
+    camera.lookAt(backdropLook);
   }
 
   window.addEventListener('resize', onResize);
@@ -335,6 +382,19 @@ export function initScene(canvas) {
       clock.getDelta();
       return;
     }
+    if (backdrop) {
+      // About thirty frames a second is plenty for a slow drift.
+      if (now - lastBackdropDraw < 32) return;
+      lastBackdropDraw = now;
+      lastFrame = now;
+      settleUntil = now + SETTLE_MS;
+      const d = Math.min(0.1, clock.getDelta());
+      tickAnimations();
+      updateDealerAnimations(d);
+      placeBackdropCamera(d);
+      renderer.render(scene, camera);
+      return;
+    }
     adaptQuality(now - lastFrame, now);
     lastFrame = now;
     tickAnimations();
@@ -369,6 +429,7 @@ export function initScene(canvas) {
     setDealerModel: (key) => setDealerModel(dealer, key),
     setRoomTheme,
     setGame,
+    setBackdrop,
     pokerChairs,
     setPokerFelt: pokerTable.userData.setFeltTheme,
   };
