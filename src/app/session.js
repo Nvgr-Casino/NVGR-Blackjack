@@ -22,13 +22,16 @@ import { initSocial, stopSocial, goOffline } from './social.js';
 import * as Poker from './pokerSession.js';
 import * as Offline from './offlinePoker.js';
 import * as Leaderboard from './leaderboard.js';
+import * as OfflineBJ from './offlineBlackjack.js';
+import * as BJT from './bjTournamentSession.js';
+import { isBjTournament, registering as bjRegistering, registrationLabel } from '../blackjack/tournament.js';
 import {
   STARTING_CHIPS, BETTING_SECONDS, TURN_SECONDS, MAX_PUBLIC_SEATS, MIN_PUBLIC_TABLES,
-  safeKey, genCode, shuffleShoe, drawCard, addPlayerToRoom, startRoundLogic, dealRoundCards,
+  safeKey, genCode, shuffleShoe, addPlayerToRoom, startRoundLogic, dealRoundCards,
   checkAutoDeal, processBettingTimeoutLogic, processTurnTimeoutLogic, resolveDealerAndPayouts,
-  advanceTurnIn, rankOf, handValue, chipLadderForTable, stakesFor, TABLE_STAKES,
-  everyoneDecidedInsurance, resolveInsurance, processInsuranceTimeout, moveToSeat, countdownLabel, resultsPauseFor,
-  enterTurn, canSplitCards,
+  chipLadderForTable, stakesFor, TABLE_STAKES,
+  processInsuranceTimeout, moveToSeat, countdownLabel, resultsPauseFor,
+  applyBet, applyInsurance, applyHit, applyStand, applyDouble, applySplit, applySurrender,
 } from './roomLogic.js';
 
 export let session = { screen: 'loading', uid: null, name: null, photo: null, chips: 0, character: null, code: null, isAdmin: false, room: null };
@@ -46,6 +49,8 @@ export let lobbyLoading = false;
 // visit starts at home; leaving a table returns to the page you came from.
 export let lobbyGame = 'home';
 export let pokerTables = null;
+// Blackjack tournaments' tables, for the tournaments page.
+export let bjTournaments = null;
 export function setLobbyGame(game) {
   lobbyGame = game;
   formError = '';
@@ -160,8 +165,9 @@ export function initAuth() {
         if (room && room.game === 'holdem' && room.cashout && room.cashout[safeKey(user.uid)]) {
           await Poker.collectCashout(lastRoom);
         }
-        if (room && room.game === 'holdem' && room.prizes && room.prizes[safeKey(user.uid)]) {
-          await Poker.collectPrize(lastRoom);
+        if (room && room.prizes && room.prizes[safeKey(user.uid)]) {
+          if (room.game === 'holdem') await Poker.collectPrize(lastRoom);
+          else await BJT.collectBjPrize(lastRoom);
         }
         await setCurrentRoom(user.uid, null);
       }
@@ -244,6 +250,15 @@ export function enterTable(code) {
       render();
       return;
     }
+    // At a tournament a seat given up — knocked out, or over — is no reason
+    // to leave: the result is on the table. A prize is collected at once.
+    if (isBjTournament(newRoom)) {
+      session.room = newRoom;
+      session.isAdmin = false;
+      if (newRoom.prizes && newRoom.prizes[myKey]) BJT.collectBjPrize(code);
+      render();
+      return;
+    }
     if (sawSelfSeated && !nowSeated) {
       handleRemovedFromTable();
       return;
@@ -292,6 +307,9 @@ function startTick() {
     const r = session.room;
     if (r && r.game === 'holdem') {
       Poker.tick(r);
+    } else if (r && isBjTournament(r) && BJT.tick(r)) {
+      // The tournament's own steps: its start, the minimum bet for the
+      // absent, and what follows each hand.
     } else if (r) {
       if (r.phase === 'betting' && r.bettingDeadline && Date.now() >= r.bettingDeadline) {
         mutateRoom(session.code, (rr) => processBettingTimeoutLogic(rr));
@@ -315,6 +333,7 @@ function tickCountdownOnly() {
     if (text) el.textContent = text;
     return;
   }
+  if (bjRegistering(session.room)) { el.textContent = registrationLabel(session.room); return; }
   // The pill only exists during your own turn once play starts, so it is
   // always your turn whenever there is one to update.
   const label = countdownLabel(session.room, true);
@@ -326,7 +345,8 @@ function tickCountdownOnly() {
 // listener too — not just after this client's own mutations.
 let lastSavedChips = null;
 function persistMyChips(room) {
-  if (!room || !session.uid) return;
+  // A tournament's chips are its own, never the account's.
+  if (!room || !session.uid || room.tournament || room.offline) return;
   const me = room.players && room.players[safeKey(session.uid)];
   if (!me || typeof me.chips !== 'number') return;
   if (me.chips === lastSavedChips) return;
@@ -336,6 +356,8 @@ function persistMyChips(room) {
 }
 
 export async function mutateRoom(code, fn) {
+  // A blackjack table against bots lives in this browser.
+  if (OfflineBJ.isOfflineBlackjack(session.room) && OfflineBJ.active()) { OfflineBJ.mutate(fn); return; }
   try {
     const result = await runTransaction(ref(db, 'rooms/' + code), (current) => {
       if (current === null || current === undefined) return current;
@@ -395,6 +417,8 @@ export async function joinRoom(code) {
   if (!snap.exists()) { formError = 'No table found with that code.'; render(); return; }
   // A poker table opens to watch; a seat is taken from there.
   if (snap.val().game === 'holdem') { await Poker.openPokerTable(code); return; }
+  // A tournament is watched; registering is from its table.
+  if (isBjTournament(snap.val())) { await BJT.watchBj(code); return; }
   const chips = (await ensureAccount(session.uid, session.name)).chips;
   const key = safeKey(session.uid);
   if (!snap.val().players || !snap.val().players[key]) {
@@ -436,7 +460,7 @@ export async function playNow() {
     const result = await runTransaction(ref(db, 'rooms/' + code), (current) => {
       if (!current) return current;
       // The index lists poker tables too.
-      if (current.game === 'holdem') return;
+      if (current.game === 'holdem' || current.tournament) return;
       const count = Object.keys(current.players || {}).length;
       // Already seated is not a no-op: seatPlayerIn is what brings someone
       // back in who sat a window out, so it still has to run. Only a full
@@ -500,7 +524,18 @@ export async function leaveTable() {
   const key = safeKey(session.uid);
   const wasPublic = session.room && session.room.isPublic;
   if (session.room && session.room.offline) {
-    Offline.leavePractice();
+    if (OfflineBJ.isOfflineBlackjack(session.room)) OfflineBJ.leave();
+    else Offline.leavePractice();
+    session.code = null; session.room = null; session.screen = 'home';
+    updateHash(); render();
+    loadLobby();
+    return;
+  }
+  if (isBjTournament(session.room)) {
+    await BJT.leaveBj(code);
+    await setCurrentRoom(session.uid, null);
+    if (roomUnsub) { roomUnsub(); roomUnsub = null; }
+    clearTick();
     session.code = null; session.room = null; session.screen = 'home';
     updateHash(); render();
     loadLobby();
@@ -597,7 +632,12 @@ export async function loadLobby() {
     return;
   }
   if (lobbyGame === 'holdem' || lobbyGame === 'tournaments') {
-    try { pokerTables = await Poker.loadPokerTables(); } catch (e) { pokerTables = { tables: [], tournaments: [] }; }
+    const [poker, bj] = await Promise.all([
+      Poker.loadPokerTables().catch(() => ({ tables: [], tournaments: [] })),
+      lobbyGame === 'tournaments' ? BJT.loadBjTournaments().catch(() => []) : Promise.resolve(bjTournaments),
+    ]);
+    pokerTables = poker;
+    bjTournaments = bj;
     lobbyLoading = false;
     render();
     return;
@@ -609,7 +649,7 @@ export async function loadLobby() {
     for (const code of codes) {
       const snap = await get(ref(db, 'rooms/' + code));
       const r = snap.val();
-      if (!r || !r.isPublic || r.game === 'holdem') continue;
+      if (!r || !r.isPublic || r.game === 'holdem' || r.tournament) continue;
       const seats = Object.values(r.players || {}).map((p) => ({ name: p.name, chips: p.chips || 0, character: p.character || null }));
       // Tables opened before stakes existed would all read as the lowest
       // tier, leaving a lobby of identical rooms — give each one a tier the
@@ -643,61 +683,14 @@ export async function startRound() { await mutateRoom(session.code, (r) => start
 export async function dealCards() { await mutateRoom(session.code, (r) => dealRoundCards(r)); }
 
 export async function placeBet(amount) {
-  amount = Math.floor(Number(amount));
-  await mutateRoom(session.code, (r) => {
-    const key = safeKey(session.uid);
-    const p = r.players[key];
-    if (!p || p.status !== 'betting') return;
-    if (!amount || amount <= 0 || amount > p.chips) return;
-    // The table's limits are enforced here, inside the transaction, not
-    // just greyed out in the UI.
-    const { min, max } = stakesFor(r);
-    if (amount < min || amount > max) return;
-    p.bet = amount; p.lastBet = amount; p.status = 'bet-placed';
-    r.log = (r.log || []).concat(p.name + ' bet ' + amount + '.').slice(-8);
-    checkAutoDeal(r);
-  });
+  await mutateRoom(session.code, (r) => { applyBet(r, safeKey(session.uid), amount); });
   pendingBet = 0;
 }
-
-// Insurance costs half the original bet and is offered only while the
-// dealer's Ace is showing, before any cards are played.
 export async function takeInsurance(yes) {
-  await mutateRoom(session.code, (r) => {
-    if (r.phase !== 'insurance') return;
-    const key = safeKey(session.uid);
-    const p = r.players[key];
-    if (!p || p.insuranceDecided) return;
-    if (yes) {
-      const bet = (p.hands && p.hands[0] && p.hands[0].bet) || p.bet || 0;
-      const cost = Math.floor(bet / 2);
-      if (cost > 0 && p.chips >= cost) {
-        p.chips -= cost;
-        p.insurance = cost;
-        r.log = (r.log || []).concat(p.name + ' takes insurance.').slice(-8);
-      }
-    }
-    p.insuranceDecided = true;
-    if (everyoneDecidedInsurance(r)) resolveInsurance(r);
-  });
+  await mutateRoom(session.code, (r) => { applyInsurance(r, safeKey(session.uid), yes); });
 }
-
-// Late surrender: fold a two-card hand for half the stake back. Not offered
-// once a hand has been hit or split.
 export async function surrender() {
-  await mutateRoom(session.code, (r) => {
-    const key = safeKey(session.uid);
-    const cur = (r.turnOrder || [])[r.currentTurnIndex];
-    if (!cur || cur.pid !== key) return;
-    const p = r.players[key];
-    const hand = p && p.hands && p.hands[cur.hi];
-    if (!hand || hand.status !== 'playing') return;
-    if (hand.cards.length !== 2 || p.hands.length > 1) return;
-    p.chips += Math.floor(hand.bet / 2);
-    hand.status = 'surrendered';
-    r.log = (r.log || []).concat(p.name + ' surrenders.').slice(-8);
-    advanceTurnIn(r);
-  });
+  await mutateRoom(session.code, (r) => { applySurrender(r, safeKey(session.uid)); });
 }
 
 export async function sitOutRound() {
@@ -741,87 +734,7 @@ export function setPendingBetClamped(max) {
 
 export { chipLadderForTable, stakesFor };
 
-export async function hit() {
-  await mutateRoom(session.code, (r) => {
-    const key = safeKey(session.uid);
-    const cur = r.turnOrder[r.currentTurnIndex];
-    if (!cur || cur.pid !== key) return;
-    const p = r.players[key];
-    const hand = p.hands[cur.hi];
-    if (!hand || hand.status !== 'playing') return;
-    hand.cards.push(drawCard(r));
-    const total = handValue(hand.cards);
-    if (total > 21) {
-      hand.status = 'busted';
-      r.log = (r.log || []).concat(p.name + ' busted.').slice(-8);
-      advanceTurnIn(r);
-    } else if (total === 21) {
-      // Nothing left to decide on 21.
-      hand.status = 'stood';
-      advanceTurnIn(r);
-    }
-  });
-}
-export async function stand() {
-  await mutateRoom(session.code, (r) => {
-    const key = safeKey(session.uid);
-    const cur = r.turnOrder[r.currentTurnIndex];
-    if (!cur || cur.pid !== key) return;
-    const p = r.players[key];
-    const hand = p.hands[cur.hi];
-    if (!hand || hand.status !== 'playing') return;
-    hand.status = 'stood';
-    r.log = (r.log || []).concat(p.name + ' stands.').slice(-8);
-    advanceTurnIn(r);
-  });
-}
-export async function doubleDown() {
-  await mutateRoom(session.code, (r) => {
-    const key = safeKey(session.uid);
-    const cur = r.turnOrder[r.currentTurnIndex];
-    if (!cur || cur.pid !== key) return;
-    const p = r.players[key];
-    const hand = p.hands[cur.hi];
-    if (!hand || hand.status !== 'playing' || hand.cards.length !== 2) return;
-    if (p.chips < hand.bet) return;
-    p.chips -= hand.bet;
-    hand.bet *= 2;
-    hand.cards.push(drawCard(r));
-    hand.status = handValue(hand.cards) > 21 ? 'busted' : 'stood';
-    r.log = (r.log || []).concat(p.name + ' doubles down.').slice(-8);
-    advanceTurnIn(r);
-  });
-}
-export async function splitHand() {
-  await mutateRoom(session.code, (r) => {
-    const key = safeKey(session.uid);
-    const cur = r.turnOrder[r.currentTurnIndex];
-    if (!cur || cur.pid !== key) return;
-    const p = r.players[key];
-    const hand = p.hands[cur.hi];
-    if (!hand || hand.status !== 'playing' || hand.cards.length !== 2) return;
-    // One split per box: two hands at most.
-    if (p.hands.length > 1) return;
-    if (!canSplitCards(hand.cards)) return;
-    if (p.chips < hand.bet) return;
-    p.chips -= hand.bet;
-    const aces = rankOf(hand.cards[0]) === 'A';
-    const newHand = { cards: [hand.cards.pop()], bet: hand.bet, status: 'playing' };
-    p.hands.splice(cur.hi + 1, 0, newHand);
-    r.log = (r.log || []).concat(p.name + ' splits.').slice(-8);
-    if (aces) {
-      // Split aces take one card each and stand — and an ace with a ten
-      // after a split is 21, not a blackjack.
-      hand.cards.push(drawCard(r));
-      newHand.cards.push(drawCard(r));
-      hand.status = 'stood';
-      newHand.status = 'stood';
-      advanceTurnIn(r);
-      return;
-    }
-    // The first hand is dealt its second card now and played out; the
-    // second waits for its own turn (enterTurn).
-    r.turnOrder.splice(r.currentTurnIndex + 1, 0, { pid: cur.pid, hi: cur.hi + 1 });
-    enterTurn(r);
-  });
-}
+export async function hit() { await mutateRoom(session.code, (r) => { applyHit(r, safeKey(session.uid)); }); }
+export async function stand() { await mutateRoom(session.code, (r) => { applyStand(r, safeKey(session.uid)); }); }
+export async function doubleDown() { await mutateRoom(session.code, (r) => { applyDouble(r, safeKey(session.uid)); }); }
+export async function splitHand() { await mutateRoom(session.code, (r) => { applySplit(r, safeKey(session.uid)); }); }

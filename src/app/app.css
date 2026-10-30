@@ -754,6 +754,7 @@ input:focus { outline: none; border-color: var(--accent); }
 .pre-actions input { accent-color: var(--accent); margin-right: 6px; }
 .sit-panel input[type=range] { width: 100%; margin: 2px 0 12px; }
 .sit-panel .dock-actions { align-items: center; justify-content: center; gap: 12px; }
+.rank-tag { color: var(--accent); font-weight: 800; font-variant-numeric: tabular-nums; }
 .role { font-size: 10px; font-weight: 700; color: var(--accent-ink); background: var(--accent); border-radius: 6px; padding: 1px 5px; margin-left: 4px; vertical-align: 1px; }
 
 .dock-msg {
@@ -798,6 +799,8 @@ input:focus { outline: none; border-color: var(--accent); }
   .hud-dock .dock-bet { width: 100%; display: grid; }
   .hud-dock .dock-poker { display: block; width: 520px; }
   .hud-dock .dock-poker.pre-actions { display: flex; align-items: center; justify-content: center; }
+  /* A tournament's registration and result read top to bottom, as on a phone. */
+  .hud-dock .dock-panel.tour-panel, .hud-dock .dock-panel.tour-result { display: block; width: 480px; }
   .dock-bet {
     max-width: 940px; display: grid; grid-template-columns: auto 1fr auto;
     align-items: center; gap: 18px; padding: 10px 14px;

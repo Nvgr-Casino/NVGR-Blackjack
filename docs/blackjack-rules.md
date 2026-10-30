@@ -65,3 +65,25 @@ Source: standard Las Vegas hole-card rules (e.g. Wizard of Odds' blackjack
 rules and rule-variation pages; casino dealer procedure manuals). These are
 house-rule choices where casinos differ: S17, double after split allowed,
 one split, late surrender.
+
+## Tournaments
+
+`src/blackjack/tournament.js`, the format casinos run: five seats,
+10,000 tournament chips each, 20 hands, bets from 100 to 5,000. A player who
+can no longer cover the minimum bet is out. After the last hand the biggest
+stack wins; level stacks share a place and split its prizes. The top three
+are paid, with the same buy-ins and prizes as the Hold'em tournaments
+(Starter 10K to 100K, Classic 50K to 500K, High Roller 100K to 1M,
+Millionaire 250K to 2.5M, Diamond 1M to 10M).
+
+- **Online:** each tournament always has a table taking registrations. It
+  starts when five are in, or 90 seconds after the second; a short field
+  plays for prizes in proportion. Nobody can stall it: anyone who hasn't bet
+  in time is bet the minimum, and anyone who doesn't act stands.
+  Unregistering refunds the buy-in; leaving once it is running forfeits the
+  seat, in the place reached. The chips never touch the account; a prize
+  waits in the room's `prizes` for the winner's own client.
+- **Against bots:** four computer players (`src/blackjack/bot.js`), played
+  in the browser for the real buy-in and prize. They play basic strategy and
+  bet like tournament players: modestly early, harder when behind, and
+  everything in the last two hands if they trail the leader.

@@ -17,6 +17,9 @@ import { characterPortraitDataURL, defaultCharacterFor } from '../scene/characte
 import { esc } from './uiHelpers.js';
 import * as S from './session.js';
 import * as Social from './social.js';
+import * as BT from '../blackjack/tournament.js';
+import * as BJT from './bjTournamentSession.js';
+import * as OfflineBJ from './offlineBlackjack.js';
 
 // One card every DEAL_STEP_MS: long enough for the dealer's hand to take
 // each card from the shoe and set it down before reaching for the next.
@@ -599,7 +602,8 @@ export function renderTableScreen() {
 
   // ----- status line: the clock when there is one, and the last thing that
   // happened underneath it.
-  const countdown = countdownLabel(r, myTurn);
+  const tour = BT.isBjTournament(r) ? r.tournament : null;
+  const countdown = BT.registering(r) ? BT.registrationLabel(r) : BT.finished(r) ? 'Tournament over' : countdownLabel(r, myTurn);
   const lastLog = (r.log || []).slice(-1).map(esc).join('');
   const statusHtml = (countdown || lastLog) ? `
     <div class="hud-status">
@@ -609,7 +613,14 @@ export function renderTableScreen() {
 
   // ----- the dock: only what this player can do right now.
   let dock = '';
-  if (me) {
+  const myPlace = tour ? BT.placeOf(r, myKey) : null;
+  if (tour && (BT.finished(r) || myPlace)) {
+    dock = bjResultPanel(r, myKey);
+  } else if (tour && BT.registering(r)) {
+    dock = bjRegistrationPanel(r, me);
+  } else if (tour && !me) {
+    dock = '<p class="dock-msg">The tournament is in play — you are watching.</p>';
+  } else if (me) {
     if (phase === 'betting' && me.status === 'betting') {
       S.syncPendingBetRound(r.round);
       if (S.pendingBet > me.chips) S.setPendingBetClamped(me.chips);
@@ -628,8 +639,8 @@ export function renderTableScreen() {
       dock = `
         <div class="dock-panel dock-bet">
           <div class="dock-head">
-            <span class="dock-balance">Balance<b>${me.chips.toLocaleString()}</b></span>
-            <button class="link" id="sitOutBtn">Sit out this round</button>
+            <span class="dock-balance">${tour ? 'Chips' : 'Balance'}<b>${me.chips.toLocaleString()}</b></span>
+            ${tour ? `<span class="muted">${BT.handsLeft(r) ? `Hand ${r.round} of ${BT.HANDS}` : 'Final hand'}</span>` : '<button class="link" id="sitOutBtn">Sit out this round</button>'}
           </div>
           <div class="chip-row">${chipsHtml}</div>
           <div class="dock-actions">
@@ -703,7 +714,10 @@ export function renderTableScreen() {
     </div>`;
 
   // ----- players: who's who, their chips, and what they're doing.
-  const playersHtml = (r.playerOrder || []).map((key) => {
+  const order = (r.playerOrder || []).filter((k) => r.players && r.players[k]);
+  // At a tournament, by stack: the race is the point.
+  if (tour) order.sort((a, b) => r.players[b].chips - r.players[a].chips);
+  const playersHtml = order.map((key, rank) => {
     const p = r.players[key];
     if (!p) return '';
     const isMe = key === myKey;
@@ -731,14 +745,15 @@ export function renderTableScreen() {
       else if (!resultsShown) statusText = 'Waiting on the dealer';
       else statusText = p.hands.map((h) => (h.outcome ? OUTCOME_LABEL[h.outcome](h.bet) : '')).join(' / ');
     }
-    if (phase === 'betting' && p.timeouts > 0) statusText += ` (${p.timeouts}/${MAX_TIMEOUTS} missed)`;
+    if (phase === 'betting' && p.timeouts > 0 && !tour) statusText += ` (${p.timeouts}/${MAX_TIMEOUTS} missed)`;
+    if (tour && phase === 'lobby') statusText = BT.registering(r) ? 'Registered' : 'Finished';
     // Tapping another player offers a friend request.
     const addable = !isMe && !Social.isFriend(key);
     return `
       <div class="player ${onTurn ? 'on-turn' : ''} ${addable ? 'addable' : ''}" ${addable ? `data-add-friend="${esc(key)}" data-add-name="${esc(p.name)}" title="Add ${esc(p.name)} as a friend"` : ''}>
         <img class="player-avatar" src="${characterPortraitDataURL(p.character || defaultCharacterFor(key), 64)}" alt="">
         <div class="player-info">
-          <span class="player-name">${esc(p.name)}${isMe ? ' <span class="you">(you)</span>' : ''}</span>
+          <span class="player-name">${tour && !BT.registering(r) ? `<span class="rank-tag">#${rank + 1}</span> ` : ''}${esc(p.name)}${isMe ? ' <span class="you">(you)</span>' : ''}${p.bot ? ' <span class="role">BOT</span>' : ''}</span>
           <span class="player-status">${esc(statusText)}</span>
         </div>
         <span class="player-chips">${p.chips.toLocaleString()}</span>
@@ -797,7 +812,7 @@ export function renderTableScreen() {
 
   const readout = handStripHtml(r, myKey);
 
-  const tableSub = [
+  const tableSub = tour ? bjTournamentSub(r) : [
     stakesLabel(min, max),
     r.isPublic ? 'Public · ' + (r.playerOrder || []).length + '/' + MAX_PUBLIC_SEATS : 'Private',
     shoeLabel(r),
@@ -808,12 +823,12 @@ export function renderTableScreen() {
       <div class="hud-left">
         <button class="hud-btn" id="leaveBtn">← Leave</button>
         <div class="hud-table">
-          <span class="hud-code">${esc(roomName(r))} · ${esc(r.code)}</span>
+          <span class="hud-code">${tour ? esc(tour.name) + ' · ' + esc(roomName(r)) : esc(roomName(r)) + ' · ' + esc(r.code)}</span>
           <span class="hud-sub">${tableSub}</span>
         </div>
       </div>
       <div class="hud-right">
-        ${seatPicker}
+        ${tour ? '' : seatPicker}
         ${hostBtn}
         ${chatBtn}
       </div>
@@ -827,6 +842,70 @@ export function renderTableScreen() {
   `;
 }
 
+
+// ----- tournaments
+
+const shortNum = (n) => (n >= 1e6 ? (n % 1e6 ? (n / 1e6).toFixed(n % 1e5 ? 2 : 1) : n / 1e6) + 'M' : n >= 1000 ? (n % 1000 ? (n / 1000).toFixed(1) : n / 1000) + 'K' : String(n));
+
+function bjTournamentSub(r) {
+  const x = r.tournament;
+  const where = r.offline ? 'vs bots' : 'Tournament';
+  if (BT.registering(r)) return `${where} · Buy-in ${shortNum(x.buyIn)} · 1st ${shortNum(x.prizes[0])}`;
+  const left = (r.playerOrder || []).filter((k) => r.players && r.players[k]).length;
+  if (BT.finished(r)) return `${where} · ${x.entrants} played`;
+  return `${where} · Hand ${r.round} of ${BT.HANDS} · Bets ${shortNum(BT.MIN_BET)}–${shortNum(BT.MAX_BET)} · ${left}/${x.entrants || left} left`;
+}
+
+function bjRegistrationPanel(r, me) {
+  const x = r.tournament;
+  const n = (r.playerOrder || []).filter((k) => r.players && r.players[k]).length;
+  const short = S.session.chips < x.buyIn;
+  const when = BT.registrationLabel(r).replace(/^Registering · \d+\/\d+ · /, '');
+  return `
+    <div class="dock-panel tour-panel">
+      <div class="tp-head">
+        <span class="tp-title">${esc(x.name)}</span>
+        <span class="muted">${n}/${BT.SEATS} registered · ${esc(when)}</span>
+      </div>
+      <div class="tp-prizes">${(x.prizes || []).map((p, i) => `<span class="tp-prize"><b>${BT.ordinal(i + 1)}</b>${p.toLocaleString()}</span>`).join('')}</div>
+      <p class="tp-fine">${BT.START_STACK.toLocaleString()} chips each · ${BT.HANDS} hands · bets ${BT.MIN_BET.toLocaleString()} to ${BT.MAX_BET.toLocaleString()} · most chips at the end wins. Prizes for a full table, in proportion if it starts short.</p>
+      <div class="dock-actions">
+        ${me
+          ? '<span class="tp-in">You are registered</span><button class="btn btn-sm btn-quiet" id="bjUnregisterBtn">Unregister</button>'
+          : `<button class="btn btn-primary" id="bjRegisterBtn" ${short ? 'disabled' : ''}>Register · ${x.buyIn.toLocaleString()}</button>${short ? `<span class="muted">You have ${S.session.chips.toLocaleString()}</span>` : ''}`}
+      </div>
+    </div>`;
+}
+
+function bjResultPanel(r, key) {
+  const x = r.tournament;
+  const mine = BT.placeOf(r, key);
+  const rows = BT.standings(r).slice(0, BT.SEATS).map((e) => `
+    <li class="${e.key === key ? 'me' : ''}">
+      <span class="ts-place">${e.place ? BT.ordinal(e.place) : '—'}</span>
+      <img src="${characterPortraitDataURL(e.character || defaultCharacterFor(e.key), 48)}" alt="">
+      <span class="ts-name">${esc(e.name)}${e.bot ? ' <span class="role">BOT</span>' : ''}</span>
+      <span class="ts-prize">${e.prize ? e.prize.toLocaleString() : (e.chips || 0).toLocaleString() + ' chips'}</span>
+    </li>`).join('');
+  let head;
+  if (mine && mine.place === 1) head = `<span class="tr-big">Champion</span><span class="tr-line">You won the ${esc(x.name)}${mine.prize ? ' — ' + mine.prize.toLocaleString() + ' chips' : ''}</span>`;
+  else if (mine) head = `<span class="tr-big">${BT.ordinal(mine.place)}</span><span class="tr-line">You finished ${BT.ordinal(mine.place)} of ${x.entrants}${mine.prize ? ' — ' + mine.prize.toLocaleString() + ' chips' : ''}</span>`;
+  else {
+    const w = Object.values(x.places || {}).find((v) => v.place === 1);
+    head = `<span class="tr-big">Over</span><span class="tr-line">${w ? esc(w.name) + ' won the ' + esc(x.name) : 'The tournament is over'}</span>`;
+  }
+  const again = r.offline && x.id ? `<button class="btn btn-primary" id="bjPlayAgainBtn" ${S.session.chips < x.buyIn ? 'disabled' : ''}>Play again · ${x.buyIn.toLocaleString()}</button>` : '';
+  return `
+    <div class="dock-panel tour-result ${mine && mine.place === 1 ? 'won' : ''}">
+      <div class="tr-head">${head}</div>
+      ${BT.running(r) ? '<p class="tp-fine" style="text-align:center;">Still playing:</p>' : ''}
+      <ol class="tour-standings">${rows}</ol>
+      <div class="dock-actions" style="justify-content:center;">
+        ${again}
+        <button class="btn ${again ? 'btn-quiet' : 'btn-primary'}" id="bjLobbyBtn">Back to the lobby</button>
+      </div>
+    </div>`;
+}
 
 export function attachTableScreen() {
   const r = S.session.room;
@@ -879,7 +958,18 @@ export function attachTableScreen() {
   };
   const startRoundBtn = document.getElementById('startRoundBtn'); if (startRoundBtn) startRoundBtn.onclick = S.startRound;
   const dealBtn = document.getElementById('dealBtn'); if (dealBtn) dealBtn.onclick = S.dealCards;
-  const leaveBtn = document.getElementById('leaveBtn'); if (leaveBtn) leaveBtn.onclick = S.leaveTable;
+  const leaveBtn = document.getElementById('leaveBtn');
+  // Leaving a tournament still being played forfeits the seat: ask first.
+  const forfeit = r && BT.running(r) && me;
+  if (leaveBtn) leaveBtn.onclick = () => {
+    if (forfeit && !window.confirm('Leave the tournament? Your seat is forfeit: you finish in the place you have reached, and the buy-in is not returned.')) return;
+    S.leaveTable();
+  };
+  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+  on('bjLobbyBtn', S.leaveTable);
+  on('bjUnregisterBtn', S.leaveTable);
+  on('bjRegisterBtn', () => BJT.registerBj(r.code));
+  on('bjPlayAgainBtn', () => OfflineBJ.playAgain());
   const copyBtn = document.getElementById('copyInviteBtn');
   if (copyBtn) copyBtn.onclick = () => {
     const input = document.getElementById('inviteUrlInput');

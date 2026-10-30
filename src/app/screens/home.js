@@ -12,6 +12,9 @@
 import { MAX_PUBLIC_SEATS, stakesLabel, roomName, ROOM_NAMES, safeKey } from '../roomLogic.js';
 import { POKER_SEATS, POKER_STAKES, buyInRange } from '../../poker/rules.js';
 import * as T from '../../poker/tournament.js';
+import * as BT from '../../blackjack/tournament.js';
+import * as BJT from '../bjTournamentSession.js';
+import * as OfflineBJ from '../offlineBlackjack.js';
 import * as Poker from '../pokerSession.js';
 import * as Offline from '../offlinePoker.js';
 import * as Leaderboard from '../leaderboard.js';
@@ -42,6 +45,7 @@ const arrow = '<svg class="arrow" viewBox="0 0 20 20" aria-hidden="true"><path d
 // What is open over the page, and the page's own small choices.
 let sheet = null;        // { kind: 'tour' | 'poker' | 'bj' | 'join', key, confirm }
 let holdemTab = 'cash';  // 'cash' | 'practice'
+let tourGame = 'blackjack'; // which game's tournaments: 'blackjack' | 'holdem'
 let boardBy = (() => { try { return localStorage.getItem('nvgr-board') || 'chips'; } catch { return 'chips'; } })();
 
 function seatsHtml(seats, total) {
@@ -147,7 +151,7 @@ function homePage() {
   const posters = [
     ['blackjack', 'Table game', 'Blackjack', 'Beat the dealer to 21'],
     ['holdem', 'Poker', "Texas Hold'em", 'No-limit cash games and practice'],
-    ['tournaments', 'Sit & Go', 'Tournaments', `Win up to ${short(T.TOURNAMENTS[T.TOURNAMENTS.length - 1].prizes[0])}`],
+    ['tournaments', 'Blackjack & Hold\'em', 'Tournaments', `Win up to ${short(T.TOURNAMENTS[T.TOURNAMENTS.length - 1].prizes[0])}`],
   ];
   const top = Leaderboard.ranked('chips').slice(0, 3);
   return `
@@ -181,11 +185,11 @@ function homePage() {
 
     <div class="home-row">
       ${featured ? `
-      <button class="promo theme-tournaments" data-go="tournaments" data-open-tour="${featured.id}">
+      <button class="promo theme-tournaments" data-go="tournaments" data-show-tour="${featured.id}">
         <span class="kicker">Featured tournament</span>
         <span class="promo-name">${esc(featured.name)}</span>
         <span class="promo-prize" data-count="${featured.prizes[0]}">${featured.prizes[0].toLocaleString()}</span>
-        <span class="promo-line">to the winner · ${short(featured.buyIn)} buy-in · six players</span>
+        <span class="promo-line">to the winner · ${short(featured.buyIn)} buy-in · blackjack or Hold'em</span>
         <span class="poster-cta">See it ${arrow}</span>
       </button>` : ''}
       <button class="promo theme-gold mini-board" data-go="leaderboard">
@@ -281,9 +285,40 @@ function holdemPage() {
 }
 
 // ---------- 2c. tournaments ----------
+// Two games' tournaments, one page: a tab for each. Each game keeps its own
+// rules module and tables; what differs here is gathered in GAMES.
+
+const GAMES = {
+  blackjack: {
+    defs: BT.BJ_TOURNAMENTS,
+    byId: BT.bjTournamentById,
+    list: () => S.bjTournaments || [],
+    seats: BT.SEATS,
+    blurb: `Five players, ${BT.START_STACK.toLocaleString()} chips each, ${BT.HANDS} hands. Most chips after the last hand wins; second and third are paid too.`,
+    facts: () => [['Players', String(BT.SEATS)], ['Starting chips', BT.START_STACK.toLocaleString()], ['Hands', String(BT.HANDS)], ['Bets', `${BT.MIN_BET.toLocaleString()} – ${BT.MAX_BET.toLocaleString()}`]],
+    bots: 'four bots',
+    full: 'five',
+    wait: BT.START_WAIT_MS,
+    win: 'Most chips after the last hand',
+  },
+  holdem: {
+    defs: T.TOURNAMENTS,
+    byId: T.tournamentById,
+    list: () => (S.pokerTables && S.pokerTables.tournaments) || [],
+    seats: T.SEATS,
+    blurb: `Six players, ${T.START_STACK.toLocaleString()} chips each, blinds up every ${T.HANDS_PER_LEVEL} hands. Last one standing takes first prize; second and third are paid too.`,
+    facts: () => [['Players', String(T.SEATS)], ['Starting chips', T.START_STACK.toLocaleString()], ['Blinds up', `every ${T.HANDS_PER_LEVEL} hands`], ['Blinds start', `${T.LEVELS[0][0]} / ${T.LEVELS[0][1]}`]],
+    bots: 'five bots',
+    full: 'six',
+    wait: T.START_WAIT_MS,
+    win: 'Last one standing',
+  },
+};
+const gameOf = (id) => (String(id).startsWith('bj-') ? 'blackjack' : 'holdem');
+const tourDef = (id) => GAMES[gameOf(id)].byId(id);
 
 function tourState(def) {
-  const list = (S.pokerTables && S.pokerTables.tournaments) || [];
+  const list = GAMES[gameOf(def.id)].list();
   return {
     open: list.find((t) => t.id === def.id && t.status === 'registering'),
     inPlay: list.filter((t) => t.id === def.id && t.status === 'running'),
@@ -294,8 +329,9 @@ function tourState(def) {
 
 function tourTile(def) {
   const { open, mine } = tourState(def);
+  const g = GAMES[gameOf(def.id)];
   const sky = def.tier === 5 ? ` style="--sky:url('${SKYLINE}')"` : '';
-  const status = mine ? 'You are in' : open && open.count ? `${open.count}/${T.SEATS} registered` : 'Open';
+  const status = mine ? 'You are in' : open && open.count ? `${open.count}/${g.seats} registered` : 'Open';
   return `
     <button class="tour-tile tier-${def.tier} ${def.featured ? 'featured' : ''}" data-sheet="tour" data-key="${def.id}"${sky}>
       <span class="tt-top">
@@ -313,13 +349,15 @@ function tourTile(def) {
 }
 
 function tournamentsPage() {
-  const loading = S.lobbyLoading && !(S.pokerTables && S.pokerTables.tournaments);
-  const defs = T.TOURNAMENTS.filter((d) => d.featured).concat(T.TOURNAMENTS.filter((d) => !d.featured));
+  const g = GAMES[tourGame];
+  const loading = S.lobbyLoading && !(tourGame === 'blackjack' ? S.bjTournaments : S.pokerTables && S.pokerTables.tournaments);
+  const defs = g.defs.filter((d) => d.featured).concat(g.defs.filter((d) => !d.featured));
   return `
     ${banner('tournaments', {
-      kicker: 'Sit & Go · six players',
+      kicker: tourGame === 'blackjack' ? 'Blackjack · five players' : "Hold'em · Sit & Go · six players",
       title: 'Tournaments',
-      line: 'Last one standing takes first prize — second and third are paid too. Online, or against five bots.',
+      line: g.blurb + ` Online, or against ${g.bots}.`,
+      tabs: tabs([['blackjack', 'Blackjack'], ['holdem', "Texas Hold'em"]], tourGame, 'data-tour-game'),
     })}
     <section class="list-section">
       ${listHead('Choose a tournament')}
@@ -388,12 +426,15 @@ function clock(at) {
 }
 
 function tourSheet(def) {
+  const game = gameOf(def.id);
+  const g = GAMES[game];
   const { open, inPlay, mine, recent } = tourState(def);
   const afford = S.session.chips >= def.buyIn;
   const sky = def.tier === 5 ? ` style="--sky:url('${SKYLINE}')"` : '';
+  const kind = game === 'blackjack' ? 'Blackjack' : "Texas Hold'em";
   if (sheet.confirm) {
     return `
-      <div class="sheet-band tier-${def.tier}"${sky}><span class="tt-room">Against five bots</span><h2 class="ls-title">${esc(def.name)}</h2></div>
+      <div class="sheet-band tier-${def.tier}"${sky}><span class="tt-room">${kind} · against ${g.bots}</span><h2 class="ls-title">${esc(def.name)}</h2></div>
       <div class="sheet-body">
         <p class="sheet-text">${def.buyIn.toLocaleString()} comes off your balance now. Finish in the top three for a prize — <b>${def.prizes[0].toLocaleString()}</b> to the winner. Leaving before the end forfeits your seat.</p>
         <div class="sheet-actions">
@@ -403,15 +444,15 @@ function tourSheet(def) {
       </div>`;
   }
   let online;
-  if (mine) online = `<button class="btn btn-primary" data-open-poker="${esc(mine.code)}">Return to your table</button>`;
-  else if (open) online = `<button class="btn btn-primary" data-register="${esc(open.code)}" ${afford ? '' : 'disabled'}>Register online</button>`;
+  if (mine) online = `<button class="btn btn-primary" data-open-tour="${esc(mine.code)}" data-game="${game}">Return to your table</button>`;
+  else if (open) online = `<button class="btn btn-primary" data-register="${esc(open.code)}" data-game="${game}" ${afford ? '' : 'disabled'}>Register online</button>`;
   else online = '<button class="btn btn-primary" disabled>Opening…</button>';
   return `
     <div class="sheet-band tier-${def.tier}"${sky}>
-      <span class="tt-room">${esc(ROOM_NAMES[def.tier - 1])}</span>
+      <span class="tt-room">${kind} · ${esc(ROOM_NAMES[def.tier - 1])}</span>
       <h2 class="ls-title">${esc(def.name)}</h2>
       <span class="gold-num big">${def.prizes[0].toLocaleString()}</span>
-      <span class="sheet-sub">to the winner</span>
+      <span class="sheet-sub">to the winner · ${g.win.toLowerCase()} takes it</span>
     </div>
     <div class="sheet-body">
       <div class="payouts">
@@ -419,16 +460,14 @@ function tourSheet(def) {
       </div>
       <div class="facts">
         ${fact('Buy-in', def.buyIn.toLocaleString())}
-        ${fact('Players', '6')}
-        ${fact('Starting chips', T.START_STACK.toLocaleString())}
-        ${fact('Blinds up', `every ${T.HANDS_PER_LEVEL} hands`)}
+        ${g.facts().slice(0, 3).map(([l, v]) => fact(l, v)).join('')}
       </div>
       <div class="sheet-status">
         <span class="status-title">Online now</span>
-        <div class="status-line"><span class="seat-faces">${seatsHtml(open ? open.seats : [], T.SEATS)}</span><span class="muted">${open ? `${open.count}/${T.SEATS} · ${startsIn(open)}` : ''}</span></div>
+        <div class="status-line"><span class="seat-faces">${seatsHtml(open ? open.seats : [], g.seats)}</span><span class="muted">${open ? `${open.count}/${g.seats} · ${startsIn(open)}` : ''}</span></div>
         ${inPlay.length || recent ? `<span class="muted small">${inPlay.length ? `${inPlay.length} in play` : ''}${inPlay.length && recent ? ' · ' : ''}${recent ? `Last won by ${esc(recent.winner)}` : ''}</span>` : ''}
       </div>
-      <p class="sheet-fine">Online it starts when six have registered, or ${T.START_WAIT_MS / 1000} seconds after the second; a smaller field plays for prizes in proportion.</p>
+      <p class="sheet-fine">Online it starts when ${g.full} have registered, or ${g.wait / 1000} seconds after the second; a smaller field plays for prizes in proportion.</p>
       ${S.formError ? '<p class="sheet-warn">' + esc(S.formError) + '</p>' : ''}
       <div class="sheet-actions">
         ${online}
@@ -508,7 +547,7 @@ function joinSheet(game) {
 function sheetHtml() {
   if (!sheet) return '';
   let inner = '';
-  if (sheet.kind === 'tour') { const def = T.tournamentById(sheet.key); if (def) inner = tourSheet(def); }
+  if (sheet.kind === 'tour') { const def = tourDef(sheet.key); if (def) inner = tourSheet(def); }
   else if (sheet.kind === 'poker') { const t = ((S.pokerTables && S.pokerTables.tables) || []).find((x) => x.code === sheet.key); if (t) inner = pokerSheet(t); }
   else if (sheet.kind === 'bj') { const t = (S.lobbyTables || []).find((x) => x.code === sheet.key); if (t) inner = bjSheet(t); }
   else if (sheet.kind === 'join') inner = joinSheet(sheet.key);
@@ -613,7 +652,7 @@ export function attachHome() {
   all('[data-go]', (el) => {
     el.onclick = () => {
       go(el.dataset.go);
-      if (el.dataset.openTour) openSheet({ kind: 'tour', key: el.dataset.openTour });
+      if (el.dataset.showTour) { tourGame = gameOf(el.dataset.showTour); openSheet({ kind: 'tour', key: el.dataset.showTour }); }
     };
   });
   on('signOutBtn', S.doSignOut);
@@ -649,11 +688,25 @@ export function attachHome() {
   const overlay = document.getElementById('sheetOverlay');
   if (overlay) overlay.onclick = (e) => { if (e.target === overlay) closeSheet(); };
   all('[data-confirm]', (el) => { el.onclick = () => { sheet = { ...sheet, confirm: el.dataset.confirm === '1' }; S.refresh(); }; });
-  on('startBotsBtn', () => { const id = sheet && sheet.key; sheet = null; if (id) Offline.startTournament(id); });
+  on('startBotsBtn', () => {
+    const id = sheet && sheet.key;
+    sheet = null;
+    if (!id) return;
+    if (gameOf(id) === 'blackjack') OfflineBJ.startBjTournament(id);
+    else Offline.startTournament(id);
+  });
+  all('[data-tour-game]', (el) => { el.onclick = () => { tourGame = el.dataset.tourGame; S.refresh(); }; });
+  all('[data-open-tour]', (el) => {
+    el.onclick = () => {
+      sheet = null;
+      if (el.dataset.game === 'blackjack') BJT.watchBj(el.dataset.openTour);
+      else Poker.openPokerTable(el.dataset.openTour);
+    };
+  });
   all('[data-register]', (el) => {
     el.onclick = async () => {
       el.disabled = true;
-      const ok = await Poker.registerTournament(el.dataset.register);
+      const ok = el.dataset.game === 'blackjack' ? await BJT.registerBj(el.dataset.register) : await Poker.registerTournament(el.dataset.register);
       if (ok) sheet = null; else el.disabled = false;
     };
   });

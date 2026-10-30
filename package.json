@@ -12,7 +12,7 @@
     "cards": "node scripts/build-cards.mjs",
     "rocketbox": "node scripts/import-rocketbox.mjs",
     "polyhaven": "node scripts/import-polyhaven.mjs",
-    "test": "node tests/blackjack-rules.test.mjs && node tests/holdem-rules.test.mjs && node tests/mental-poker.test.mjs && node tests/holdem-bots.test.mjs && node tests/holdem-tournament.test.mjs"
+    "test": "node tests/blackjack-rules.test.mjs && node tests/holdem-rules.test.mjs && node tests/mental-poker.test.mjs && node tests/holdem-bots.test.mjs && node tests/holdem-tournament.test.mjs && node tests/blackjack-tournament.test.mjs"
   },
   "dependencies": {
     "firebase": "^12.1.0",

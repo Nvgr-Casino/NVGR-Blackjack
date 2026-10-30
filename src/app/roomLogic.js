@@ -204,7 +204,8 @@ export function startRoundLogic(r) {
     const p = r.players[key];
     p.hands = []; p.bet = 0; delete p.outcome;
     p.insurance = 0; p.insuranceDecided = false;
-    if (r.isPublic && p.chips <= 0) p.chips = STARTING_CHIPS;
+    // A tournament's stacks are never topped up (src/blackjack/tournament.js).
+    if (r.isPublic && !r.tournament && p.chips <= 0) p.chips = STARTING_CHIPS;
     p.status = p.chips > 0 ? 'betting' : 'sitout';
   }
   r.turnOrder = []; r.currentTurnIndex = 0; r.dealtIn = [];
@@ -581,4 +582,133 @@ export function countdownLabel(r, myTurn) {
     return 'Your turn · ' + Math.max(0, Math.ceil((r.turnDeadline - Date.now()) / 1000)) + 's';
   }
   return '';
+}
+
+// ---------- a player's moves ----------
+// The moves themselves, on the room, for one player — the same whether the
+// player is at a table over the network (session.js wraps each in a
+// transaction), a computer player at a practice table, or a test. Each one
+// checks it is allowed and does nothing if it is not; each returns whether
+// it happened.
+
+export function applyBet(r, key, amount) {
+  amount = Math.floor(Number(amount));
+  const p = r.players && r.players[key];
+  if (!p || p.status !== 'betting') return false;
+  if (!amount || amount <= 0 || amount > p.chips) return false;
+  // The table's limits are enforced here, not just greyed out in the UI.
+  const { min, max } = stakesFor(r);
+  if (amount < min || amount > max) return false;
+  p.bet = amount; p.lastBet = amount; p.status = 'bet-placed';
+  r.log = (r.log || []).concat(p.name + ' bet ' + amount + '.').slice(-8);
+  checkAutoDeal(r);
+  return true;
+}
+
+// Insurance costs half the original bet and is offered only while the
+// dealer's Ace is showing, before any cards are played.
+export function applyInsurance(r, key, yes) {
+  if (r.phase !== 'insurance') return false;
+  const p = r.players && r.players[key];
+  if (!p || p.insuranceDecided) return false;
+  if (yes) {
+    const bet = (p.hands && p.hands[0] && p.hands[0].bet) || p.bet || 0;
+    const cost = Math.floor(bet / 2);
+    if (cost > 0 && p.chips >= cost) {
+      p.chips -= cost;
+      p.insurance = cost;
+      r.log = (r.log || []).concat(p.name + ' takes insurance.').slice(-8);
+    }
+  }
+  p.insuranceDecided = true;
+  if (everyoneDecidedInsurance(r)) resolveInsurance(r);
+  return true;
+}
+
+// The hand whose turn it is, if it is `key`'s and still being played.
+function turnHand(r, key) {
+  const cur = (r.turnOrder || [])[r.currentTurnIndex];
+  if (r.phase !== 'playing' || !cur || cur.pid !== key) return null;
+  const p = r.players[key];
+  const hand = p && p.hands && p.hands[cur.hi];
+  if (!hand || hand.status !== 'playing') return null;
+  return { cur, p, hand };
+}
+
+export function applyHit(r, key) {
+  const t = turnHand(r, key);
+  if (!t) return false;
+  t.hand.cards.push(drawCard(r));
+  const total = handValue(t.hand.cards);
+  if (total > 21) {
+    t.hand.status = 'busted';
+    r.log = (r.log || []).concat(t.p.name + ' busted.').slice(-8);
+    advanceTurnIn(r);
+  } else if (total === 21) {
+    // Nothing left to decide on 21.
+    t.hand.status = 'stood';
+    advanceTurnIn(r);
+  }
+  return true;
+}
+
+export function applyStand(r, key) {
+  const t = turnHand(r, key);
+  if (!t) return false;
+  t.hand.status = 'stood';
+  r.log = (r.log || []).concat(t.p.name + ' stands.').slice(-8);
+  advanceTurnIn(r);
+  return true;
+}
+
+export function applyDouble(r, key) {
+  const t = turnHand(r, key);
+  if (!t || t.hand.cards.length !== 2 || t.p.chips < t.hand.bet) return false;
+  t.p.chips -= t.hand.bet;
+  t.hand.bet *= 2;
+  t.hand.cards.push(drawCard(r));
+  t.hand.status = handValue(t.hand.cards) > 21 ? 'busted' : 'stood';
+  r.log = (r.log || []).concat(t.p.name + ' doubles down.').slice(-8);
+  advanceTurnIn(r);
+  return true;
+}
+
+export function applySplit(r, key) {
+  const t = turnHand(r, key);
+  if (!t || t.hand.cards.length !== 2) return false;
+  const { cur, p, hand } = t;
+  // One split per box: two hands at most.
+  if (p.hands.length > 1 || !canSplitCards(hand.cards) || p.chips < hand.bet) return false;
+  p.chips -= hand.bet;
+  const aces = rankOf(hand.cards[0]) === 'A';
+  const newHand = { cards: [hand.cards.pop()], bet: hand.bet, status: 'playing' };
+  p.hands.splice(cur.hi + 1, 0, newHand);
+  r.log = (r.log || []).concat(p.name + ' splits.').slice(-8);
+  if (aces) {
+    // Split aces take one card each and stand — and an ace with a ten
+    // after a split is 21, not a blackjack.
+    hand.cards.push(drawCard(r));
+    newHand.cards.push(drawCard(r));
+    hand.status = 'stood';
+    newHand.status = 'stood';
+    advanceTurnIn(r);
+    return true;
+  }
+  // The first hand is dealt its second card now and played out; the
+  // second waits for its own turn (enterTurn).
+  r.turnOrder.splice(r.currentTurnIndex + 1, 0, { pid: cur.pid, hi: cur.hi + 1 });
+  enterTurn(r);
+  return true;
+}
+
+// Late surrender: fold a two-card hand for half the stake back. Not offered
+// once a hand has been hit or split.
+export function applySurrender(r, key) {
+  const t = turnHand(r, key);
+  if (!t || t.hand.cards.length !== 2 || t.p.hands.length > 1) return false;
+  t.p.chips += Math.floor(t.hand.bet / 2);
+  t.hand.status = 'surrendered';
+  r.log = (r.log || []).concat(t.p.name + ' surrenders.').slice(-8);
+  advanceTurnIn(r);
+  return true;
 }
