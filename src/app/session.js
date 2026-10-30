@@ -41,12 +41,13 @@ export let authMode = 'signin';
 export let connLost = false;
 export let lobbyTables = null;
 export let lobbyLoading = false;
-// Which game the lobby shows — the player's last choice, kept between visits.
-export let lobbyGame = (() => { try { return localStorage.getItem('nvgr-lobby-game') || 'blackjack'; } catch { return 'blackjack'; } })();
+// Which page of the lobby is open: 'home' (the choice of game), a game's
+// own page — 'blackjack', 'holdem', 'tournaments' — or 'leaderboard'. A
+// visit starts at home; leaving a table returns to the page you came from.
+export let lobbyGame = 'home';
 export let pokerTables = null;
 export function setLobbyGame(game) {
   lobbyGame = game;
-  try { localStorage.setItem('nvgr-lobby-game', game); } catch { /* private mode */ }
   formError = '';
   render();
   loadLobby();
@@ -590,6 +591,11 @@ async function ensureOpenTables(tables) {
 export async function loadLobby() {
   lobbyLoading = true; render();
   Leaderboard.loadLeaderboard().then(render, () => {});
+  if (lobbyGame === 'home' || lobbyGame === 'leaderboard') {
+    lobbyLoading = false;
+    render();
+    return;
+  }
   if (lobbyGame === 'holdem' || lobbyGame === 'tournaments') {
     try { pokerTables = await Poker.loadPokerTables(); } catch (e) { pokerTables = { tables: [], tournaments: [] }; }
     lobbyLoading = false;
