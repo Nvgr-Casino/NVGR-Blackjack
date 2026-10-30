@@ -67,6 +67,10 @@ export function createPokerDriver({ scene, camera, controls, dealer }) {
     if (root.visible) {
       // Where the camera is aimed: the board, or wherever it was turned to.
       lookPoint.copy(cameraOverride.active ? lookPoint : controls.target);
+      // Plates are sized by the screen's height; on a narrow phone that
+      // made each a fifth of its width, so they shrink with the aspect.
+      const k = Math.max(0.85, Math.min(1, camera.aspect / 0.7));
+      labels.forEach((sprite) => sprite.scale.set(0.19 * k, 0.06 * k, 1));
       figures.forEach(({ group }, seatIndex) => {
         const model = group.children[0];
         if (!model) return;
@@ -85,7 +89,7 @@ export function createPokerDriver({ scene, camera, controls, dealer }) {
   };
 
   // ---------- camera ----------
-  const VIEWS = { wide: { back: m(0.6), height: m(1.95) }, tall: { back: m(1.3), height: m(2.6) } };
+  const VIEWS = { wide: { back: m(0.6), height: m(1.95), toDealer: 0.18 }, tall: { back: m(1.5), height: m(2.8), toDealer: 0.05 } };
   function viewFor(seatIndex) {
     const v = isTallScreen() ? VIEWS.tall : VIEWS.wide;
     // Watching without a seat: from in front of the table, between the two
@@ -96,7 +100,7 @@ export function createPokerDriver({ scene, camera, controls, dealer }) {
     const position = base.addScaledVector(out, v.back).setY(FLOOR_Y + v.height);
     // Aimed at the board, drawn a little toward the dealer so they are in
     // the picture too.
-    const look = new THREE.Vector3(0, 0.1, 0).lerp(POKER_DEALER.position, 0.18);
+    const look = new THREE.Vector3(0, 0.1, 0).lerp(POKER_DEALER.position, v.toDealer);
     return { position, look };
   }
   function followSeat(seatIndex, animated = true) {

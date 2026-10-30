@@ -203,6 +203,9 @@ function sizing(room, key, legal, frac) {
 
 let raiseTo = null;
 let raiseFor = null;
+// The sizing controls stay folded away until you choose to bet or raise:
+// the dock is one row of three buttons, and the table stays in view.
+let raiseOpen = false;
 
 export function renderPokerScreen() {
   const r = S.session.room;
@@ -251,25 +254,35 @@ export function renderPokerScreen() {
   } else {
     const legal = R.legalActions(r, myKey);
     if (legal) {
-      if (raiseFor !== h.id + h.street + h.currentBet) { raiseFor = h.id + h.street + h.currentBet; raiseTo = legal.minTo; }
+      if (raiseFor !== h.id + h.street + h.currentBet) { raiseFor = h.id + h.street + h.currentBet; raiseTo = legal.minTo; raiseOpen = false; }
       raiseTo = Math.max(legal.minTo, Math.min(legal.maxTo, raiseTo || legal.minTo));
       const raiseWord = h.currentBet === 0 ? 'Bet' : 'Raise to';
       const presets = [['Min', null], ['½ Pot', 0.5], ['¾ Pot', 0.75], ['Pot', 1], ['All in', 'all']].map(([label, f]) => {
         const v = f === null ? legal.minTo : f === 'all' ? legal.maxTo : sizing(r, myKey, legal, f);
         return `<button class="btn btn-sm btn-quiet" data-raise="${v}">${label}</button>`;
       }).join('');
-      dock = `
-        <div class="dock-panel dock-poker">
-          ${legal.raise ? `
+      const callBtn = legal.check ? '<button class="btn" id="checkBtn">Check</button>' : `<button class="btn" id="callBtn">Call ${legal.callAmount.toLocaleString()}</button>`;
+      // Only all in is left to raise to: no sizing to choose.
+      const onlyAllIn = legal.raise && legal.minTo >= legal.maxTo;
+      dock = legal.raise && raiseOpen && !onlyAllIn ? `
+        <div class="dock-panel dock-poker raising">
+          <div class="preset-row">${presets}</div>
           <div class="raise-row">
             <input type="range" id="raiseSlider" min="${legal.minTo}" max="${legal.maxTo}" step="${r.sb}" value="${raiseTo}" aria-label="Raise amount">
-            <input type="number" id="raiseInput" min="${legal.minTo}" max="${legal.maxTo}" step="${r.sb}" value="${raiseTo}" aria-label="Raise to">
+            <input type="number" id="raiseInput" min="${legal.minTo}" max="${legal.maxTo}" step="${r.sb}" value="${raiseTo}" aria-label="Raise to" inputmode="numeric">
           </div>
-          <div class="preset-row">${presets}</div>` : ''}
+          <div class="action-row poker-actions two">
+            <button class="btn btn-quiet" id="raiseBackBtn">Back</button>
+            <button class="btn btn-primary" id="raiseBtn">${raiseTo >= legal.maxTo ? 'All in ' + legal.maxTo.toLocaleString() : raiseWord + ' ' + raiseTo.toLocaleString()}</button>
+          </div>
+        </div>` : `
+        <div class="dock-panel dock-poker">
           <div class="action-row poker-actions">
             <button class="btn" id="foldBtn">Fold</button>
-            ${legal.check ? '<button class="btn" id="checkBtn">Check</button>' : `<button class="btn" id="callBtn">Call ${legal.callAmount.toLocaleString()}</button>`}
-            ${legal.raise ? `<button class="btn btn-primary" id="raiseBtn">${raiseTo >= legal.maxTo ? 'All in ' + legal.maxTo.toLocaleString() : raiseWord + ' ' + raiseTo.toLocaleString()}</button>` : ''}
+            ${callBtn}
+            ${!legal.raise ? '' : onlyAllIn
+              ? `<button class="btn btn-primary" id="raiseBtn">All in ${legal.maxTo.toLocaleString()}</button>`
+              : `<button class="btn btn-primary" id="raiseOpenBtn">${h.currentBet === 0 ? 'Bet' : 'Raise'} …</button>`}
           </div>
         </div>`;
     } else if (h && h.players.includes(myKey) && !(h.folded && h.folded[myKey]) && !(h.allIn && h.allIn[myKey]) && h.phase === 'betting') {
@@ -496,7 +509,9 @@ export function attachPokerScreen() {
   on('foldBtn', () => Poker.act('fold'));
   on('checkBtn', () => Poker.act('check'));
   on('callBtn', () => Poker.act('call'));
-  on('raiseBtn', () => Poker.act('raise', raiseTo));
+  on('raiseBtn', () => { raiseOpen = false; Poker.act('raise', raiseTo); });
+  on('raiseOpenBtn', () => { raiseOpen = true; S.refresh(); });
+  on('raiseBackBtn', () => { raiseOpen = false; S.refresh(); });
   const slider = document.getElementById('raiseSlider');
   const input = document.getElementById('raiseInput');
   const raiseBtn = document.getElementById('raiseBtn');
