@@ -32,20 +32,20 @@ const TRAY_ON_HAND = new THREE.Vector3(m(0.01), m(0.052), m(0.075));
 const PALM_ROLL = -Math.PI / 2;
 
 const modelUrl = (file) => import.meta.env.BASE_URL + 'models/characters/' + file;
-// The waiters never dress like the room's dealer, so you can tell who
-// brings the drinks: in shirt and blouse, except in the Parlour, whose
-// dealers wear those — there, the grey waistcoat.
+// The waiters wear the house waistcoat, never the same one as the room's
+// dealer, so you can tell who brings the drinks: grey, except in the
+// Library, whose dealers wear grey — there, black.
 const STAFF = {
-  shirts: [
-    { file: 'rb_dealer_m2.glb', idle: 'rb_idle_m.glb', walk: 'rb_walk_m.glb' },
-    { file: 'rb_dealer_f2.glb', idle: 'rb_idle_f.glb', walk: 'rb_walk_f.glb' },
-  ],
-  waistcoats: [
+  grey: [
     { file: 'rb_dealer_m3.glb', idle: 'rb_idle_m.glb', walk: 'rb_walk_m.glb' },
     { file: 'rb_dealer_f3.glb', idle: 'rb_idle_f.glb', walk: 'rb_walk_f.glb' },
   ],
+  black: [
+    { file: 'rb_dealer_m4.glb', idle: 'rb_idle_m.glb', walk: 'rb_walk_m.glb' },
+    { file: 'rb_dealer_f4.glb', idle: 'rb_idle_f.glb', walk: 'rb_walk_f.glb' },
+  ],
 };
-const staffFor = (tier) => (tier === 2 ? 'waistcoats' : 'shirts');
+const staffFor = (tier) => (tier === 3 ? 'black' : 'grey');
 const DECOR = ['champagne', 'whiskey', 'wine', 'martini', 'mojito', 'beer'];
 
 function standOnFloor(model, bones) {
@@ -126,7 +126,7 @@ export function createWaiters(scene, { count = 2 } = {}) {
       if (reach) reach.hold(() => group.localToWorld(HAND_AT_REST.clone()), { blendMs: 1, flat: true, roll: () => (import.meta.env.DEV && window.__palmRoll !== undefined ? window.__palmRoll : PALM_ROLL) });
       Object.assign(w, { model, mixer, idle, walk, reach, ready: true, moving: true });
       if (path) group.position.copy(path.getPointAt(w.u));
-      group.visible = true;
+      // Shown after its first animated frame (update), not in its bind pose.
     }).catch(() => {});
     return w;
   }
@@ -232,6 +232,7 @@ export function createWaiters(scene, { count = 2 } = {}) {
         w.group.updateMatrixWorld(true);
         w.tray.position.copy(w.group.worldToLocal(hand)).add(TRAY_ON_HAND);
       }
+      w.group.visible = true;
       const p = w.group.position;
       if (w.state === 'loop') {
         if (now > w.nextPause) { w.state = 'pause'; w.pauseUntil = now + 2500 + Math.random() * 3000; moving(w, false); return; }
