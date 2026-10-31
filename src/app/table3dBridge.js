@@ -22,6 +22,7 @@ import * as BJT from './bjTournamentSession.js';
 import * as OfflineBJ from './offlineBlackjack.js';
 import { syncService, serviceButton, serviceSheet, attachService } from './service.js';
 import { syncVoice, voiceButtons, voiceBadge, attachVoice } from './voice.js';
+import { playerCardAttrs, playerCardSheet, attachPlayerCard } from './playerCard.js';
 
 // One card every DEAL_STEP_MS: long enough for the dealer's hand to take
 // each card from the shoe and set it down before reaching for the next.
@@ -761,10 +762,10 @@ export function renderTableScreen() {
     }
     if (phase === 'betting' && p.timeouts > 0 && !tour) statusText += ` (${p.timeouts}/${MAX_TIMEOUTS} missed)`;
     if (tour && phase === 'lobby') statusText = BT.registering(r) ? 'Registered' : 'Finished';
-    // Tapping another player offers a friend request.
-    const addable = !isMe && !Social.isFriend(key);
+    // Tapping another player opens their card: friends, voice.
+    const addable = !isMe && !p.bot && !Social.isFriend(key);
     return `
-      <div class="player ${onTurn ? 'on-turn' : ''} ${addable ? 'addable' : ''}" data-voice="${esc(key)}" ${addable ? `data-add-friend="${esc(key)}" data-add-name="${esc(p.name)}" title="Add ${esc(p.name)} as a friend"` : ''}>
+      <div class="player ${onTurn ? 'on-turn' : ''} ${isMe ? '' : 'tappable'}" data-voice="${esc(key)}" ${playerCardAttrs(key)}>
         <img class="player-avatar" src="${characterPortraitDataURL(p.character || defaultCharacterFor(key), 64)}" alt="">
         <div class="player-info">
           <span class="player-name">${tour && !BT.registering(r) ? `<span class="rank-tag">#${rank + 1}</span> ` : ''}${esc(p.name)}${isMe ? ' <span class="you">(you)</span>' : ''}${p.bot ? ' <span class="role">BOT</span>' : ''}</span>
@@ -772,7 +773,7 @@ export function renderTableScreen() {
         </div>
         <span class="player-chips">${p.chips.toLocaleString()}</span>
         ${voiceBadge(key)}
-        ${addable ? '<span class="player-add" aria-hidden="true">+</span>' : ''}
+        ${addable ? '<span class="player-add" aria-hidden="true" title="Not friends yet">+</span>' : ''}
       </div>`;
   }).join('');
 
@@ -856,6 +857,7 @@ export function renderTableScreen() {
     ${hostSheet}
     ${chatSheet}
     ${serviceSheet(r)}
+    ${playerCardSheet(r)}
     ${(dock || readout) ? `<div class="hud-dock">${readout}${dock}</div>` : ''}
   `;
 }
@@ -1019,9 +1021,7 @@ export function attachTableScreen() {
   const chatLog = document.getElementById('chatLog');
   if (chatLog) chatLog.scrollTop = chatLog.scrollHeight;
 
-  document.querySelectorAll('[data-add-friend]').forEach((el) => {
-    el.onclick = () => Social.sendFriendRequest(el.getAttribute('data-add-friend'), el.getAttribute('data-add-name'));
-  });
+  attachPlayerCard();
 
   document.querySelectorAll('[data-take-seat]').forEach((btn) => {
     btn.onclick = () => { seatsOpen = false; S.changeSeat(Number(btn.getAttribute('data-take-seat'))); S.refresh(); };

@@ -668,8 +668,8 @@ input:focus { outline: none; border-color: var(--accent); }
   border: 1px solid var(--line); font-size: 12px;
 }
 .player.on-turn { border-color: var(--accent); }
-.player.addable { cursor: pointer; }
-.player.addable:hover { border-color: var(--line-strong); }
+.player.tappable { cursor: pointer; }
+.player.tappable:hover { border-color: var(--line-strong); }
 .player-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: var(--surface-3); }
 .player-info { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
 .player-name { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -973,4 +973,40 @@ input:focus { outline: none; border-color: var(--accent); }
   /* A player's mute sits on the corner of their face. */
   .voice-mute { position: absolute; right: -5px; bottom: -5px; width: 18px; height: 18px; background: var(--hud); }
   .voice-mute svg { width: 10px; height: 10px; }
+}
+
+/* ---------- a player's card ---------- */
+.pcard {
+  position: fixed; z-index: 8; top: calc(70px + env(safe-area-inset-top, 0px)); right: 258px; width: 270px;
+  padding: 16px; border-radius: 16px; background: rgba(23, 20, 18, 0.97); backdrop-filter: blur(12px);
+  border: 1px solid var(--line-strong); box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
+  display: flex; flex-direction: column; gap: 12px; animation: pcard-in 0.16s ease-out;
+}
+@keyframes pcard-in { from { opacity: 0; transform: translateX(8px) scale(0.97); } to { opacity: 1; transform: none; } }
+.pc-close {
+  position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
+  border: none; background: transparent; color: var(--muted); font-size: 20px; line-height: 1;
+}
+.pc-close:hover { color: var(--text); background: var(--surface-3); }
+.pc-head { display: flex; align-items: center; gap: 12px; padding-right: 24px; }
+.pc-avatar { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; background: var(--surface-3); border: 2px solid var(--line-strong); flex-shrink: 0; }
+.pc-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pc-name { font-weight: 700; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-chips { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.pc-relation { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.pc-friends { color: #3ecf7a; font-weight: 600; }
+.pc-actions { display: flex; flex-direction: column; gap: 8px; }
+.pc-actions .btn { width: 100%; }
+@media (max-width: 640px) {
+  /* Left of the column of faces. */
+  .pcard { right: 52px; width: min(270px, calc(100vw - 112px)); }
+  /* Not friends yet: a small + on the corner of the face. */
+  .player .player-add {
+    display: flex; position: absolute; top: -4px; right: -4px; width: 15px; height: 15px; border-radius: 50%;
+    align-items: center; justify-content: center; font-size: 12px; line-height: 1;
+    background: var(--accent); color: var(--accent-ink);
+  }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .pcard { right: 214px; }
 }

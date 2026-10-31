@@ -17,6 +17,7 @@ import * as Poker from './pokerSession.js';
 import * as Offline from './offlinePoker.js';
 import { syncService, serviceButton, serviceSheet, attachService } from './service.js';
 import { syncVoice, voiceButtons, voiceBadge, attachVoice } from './voice.js';
+import { playerCardAttrs, playerCardSheet, attachPlayerCard } from './playerCard.js';
 import * as Social from './social.js';
 
 let driver = null;
@@ -325,9 +326,9 @@ export function renderPokerScreen() {
       if (h.hands && h.hands[k]) status = h.hands[k].name;
     }
     const roles = [p.bot ? 'BOT' : '', h && h.button === k ? 'D' : '', h && h.sb === k && h.players.length > 2 ? 'SB' : '', h && h.bb === k ? 'BB' : ''].filter(Boolean).join(' ');
-    const addable = !isMe && !Social.isFriend(k);
+    const addable = !isMe && !p.bot && !Social.isFriend(k);
     return `
-      <div class="player ${onTurn ? 'on-turn' : ''} ${addable ? 'addable' : ''}" data-voice="${esc(k)}" ${addable ? `data-add-friend="${esc(k)}" data-add-name="${esc(p.name)}"` : ''}>
+      <div class="player ${onTurn ? 'on-turn' : ''} ${isMe ? '' : 'tappable'}" data-voice="${esc(k)}" ${playerCardAttrs(k)}>
         <img class="player-avatar" src="${characterPortraitDataURL(p.character || defaultCharacterFor(k), 64)}" alt="">
         <div class="player-info">
           <span class="player-name">${esc(p.name)}${isMe ? ' <span class="you">(you)</span>' : ''}${roles ? ` <span class="role">${roles}</span>` : ''}</span>
@@ -335,6 +336,7 @@ export function renderPokerScreen() {
         </div>
         <span class="player-chips">${p.stack.toLocaleString()}</span>
         ${voiceBadge(k)}
+        ${addable ? '<span class="player-add" aria-hidden="true" title="Not friends yet">+</span>' : ''}
       </div>`;
   }).join('');
 
@@ -369,6 +371,7 @@ export function renderPokerScreen() {
     ${playersHtml ? `<aside class="hud-players">${playersHtml}</aside>` : ''}
     ${chatSheet}
     ${serviceSheet(r)}
+    ${playerCardSheet(r)}
     <div class="hud-dock">${readout}${dock}</div>
   `;
 }
@@ -581,7 +584,5 @@ export function attachPokerScreen() {
   }
   const chatLog = document.getElementById('chatLog');
   if (chatLog) chatLog.scrollTop = chatLog.scrollHeight;
-  document.querySelectorAll('[data-add-friend]').forEach((el) => {
-    el.onclick = () => Social.sendFriendRequest(el.getAttribute('data-add-friend'), el.getAttribute('data-add-name'));
-  });
+  attachPlayerCard();
 }

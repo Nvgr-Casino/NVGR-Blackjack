@@ -338,6 +338,11 @@ function stopMic() {
   if (code && wasOn) update(voiceRef(code, 'peers/' + me()), { mic: false }).catch(() => {});
 }
 
+/** If in voice with player `k`: whether they're muted from this side. */
+export function voiceWith(k) {
+  return code && peers.has(k) && others[k] ? { muted: muted.has(k), mic: !!others[k].mic } : null;
+}
+
 export function setMuted(k, on) {
   if (on) muted.add(k); else muted.delete(k);
   const p = peers.get(k);
