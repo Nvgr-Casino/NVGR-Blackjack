@@ -228,7 +228,16 @@ export function renderPokerScreen() {
   let readout = '';
   const mine = Poker.myHoleCards(r);
   const boardCards = (h && h.board) || [];
-  if (h && (me || boardCards.length)) {
+  // Your own stack, always in sight: your seat's plate is hidden (it would
+  // sit in front of the camera) and on a phone the player list is faces only.
+  const myStack = me ? `<b class="rs-stack">${me.stack < 100000 ? me.stack.toLocaleString() : short(me.stack)}</b>` : '';
+  if (me && !(h && h.players.includes(myKey))) {
+    readout = `
+      <div class="readout poker-strip" id="handStrip">
+        <div class="rs-hand"><span class="rs-label">Your chips</span>${myStack}</div>
+        ${h ? `<div class="rs-hand"><div class="rs-cards">${boardCards.map(cardImg).join('') || '<span class="rs-empty">Board</span>'}</div><span class="rs-label">POT ${R.pot(r).toLocaleString()}</span></div>` : ''}
+      </div>`;
+  } else if (h && (me || boardCards.length)) {
     const inHand = me && h.players.includes(myKey) && !(h.folded && h.folded[myKey]);
     const myCardsHtml = me && h.players.includes(myKey)
       ? (mine ? mine.map(cardImg).join('') : backImg() + backImg())
@@ -236,7 +245,7 @@ export function renderPokerScreen() {
     const made = mine && inHand && boardCards.length ? bestHand(mine.concat(boardCards)).name : (mine && inHand ? holeName(mine) : '');
     readout = `
       <div class="readout poker-strip" id="handStrip">
-        ${myCardsHtml ? `<div class="rs-hand"><div class="rs-cards">${myCardsHtml}</div><span class="rs-label">YOU</span></div>` : ''}
+        ${myCardsHtml ? `<div class="rs-hand"><div class="rs-cards">${myCardsHtml}</div><span class="rs-label">YOU${me ? ' · ' : ''}${myStack}</span></div>` : ''}
         <div class="rs-hand"><div class="rs-cards">${boardCards.map(cardImg).join('') || '<span class="rs-empty">Board</span>'}</div><span class="rs-label">POT ${R.pot(r).toLocaleString()}</span></div>
         ${made ? `<span class="rs-made">${esc(made)}</span>` : ''}
       </div>`;

@@ -737,6 +737,8 @@ input:focus { outline: none; border-color: var(--accent); }
 .action-row { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr 1fr; gap: 8px; }
 .action-row .btn { padding: 0 8px; }
 /* ---------- the Hold'em dock ---------- */
+.rs-stack { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
+.rs-hand .rs-label + .rs-stack { font-size: 17px; }
 .poker-strip .rs-made { color: var(--accent); font-weight: 600; font-size: 14px; white-space: nowrap; }
 .rs-empty { color: var(--faint); font-size: 12px; padding: 0 8px; }
 .raise-row { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
