@@ -23,6 +23,10 @@ const RIM = m(0.05);
 const TRACK = m(0.07);                   // the wooden racetrack
 const RAIL = m(0.12);
 export const POKER_RAIL_OUTER = RIM + TRACK + RAIL;
+// The cup holders are let into the padded rail toward its outer edge, one
+// at every seat.
+export const POKER_HOLDER_GROW = POKER_RAIL_OUTER - RAIL * 0.42;
+export const POKER_HOLDER_RING = RAIL * 0.32;
 
 // A racetrack outline grown by `grow` past the felt's own edge.
 function stadium(grow) {

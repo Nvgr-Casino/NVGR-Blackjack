@@ -17,9 +17,11 @@ import { ROOM_THEMES } from './rooms.js';
 // material three.js has.
 
 export const CEILING_Y = 6.4;
-// A 7 m salon. It was 10 m, which left the walls — and anything against
-// them — as specks in the dark behind the dealer.
-export const ROOM_HALF = 9;  // walls at ±9 in x and z
+// A 9.4 m salon: room for a lounge on each side, and for waiters to walk
+// round the table between them. (At 10 m with nothing in it the walls were
+// specks in the dark, and at 7 m it was cramped; it is the furniture and
+// the sconces along the walls that make the larger room read.)
+export const ROOM_HALF = 12;  // walls at ±12 in x and z
 
 /**
  * Frees a room built by createRoom once it is out of the scene: its own
@@ -29,8 +31,10 @@ export const ROOM_HALF = 9;  // walls at ±9 in x and z
 export function disposeRoom(room) {
   room.children.forEach((child) => {
     if (child.userData.furniture) {
-      // Only the materials this placement made for itself (a stain).
+      // Only what this placement made for itself: a stain's materials, and
+      // anything it was dressed with (layout.js's books).
       (child.userData.materials || []).forEach((mat) => mat.dispose());
+      (child.userData.owned || []).forEach((o) => { o.geometry.dispose(); o.material.dispose(); });
       return;
     }
     child.traverse((o) => {

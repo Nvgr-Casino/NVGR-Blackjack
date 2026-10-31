@@ -168,6 +168,13 @@ export function myCards() {
 
 // ---------- what the player does ----------
 
+/** A change to the table from outside the hand — a drink, a tip (service.js). */
+export function mutate(fn) {
+  if (!room) return;
+  fn(room);
+  publish();
+}
+
 export function act(action, amount) {
   if (!room || !R.applyAction(room, me(), action, amount, Date.now())) return;
   waitUntil = performance.now() + 300;

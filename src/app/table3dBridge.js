@@ -20,6 +20,7 @@ import * as Social from './social.js';
 import * as BT from '../blackjack/tournament.js';
 import * as BJT from './bjTournamentSession.js';
 import * as OfflineBJ from './offlineBlackjack.js';
+import { syncService, serviceButton, serviceSheet, attachService } from './service.js';
 
 // One card every DEAL_STEP_MS: long enough for the dealer's hand to take
 // each card from the shoe and set it down before reaching for the next.
@@ -175,6 +176,8 @@ export function syncRoomToScene(room, myKey) {
   setFeltTheme(room.felt);
   setRoomTheme(tier);
   setDealerModel(dealerKeyFor(tier, room.dealerType));
+  // Drinks in the cup holders, and any waiter or tip on its way.
+  syncService(room);
 
   if (room.round !== lastRound) {
     lastRound = room.round;
@@ -830,6 +833,7 @@ export function renderTableScreen() {
       <div class="hud-right">
         ${tour ? '' : seatPicker}
         ${hostBtn}
+        ${me ? serviceButton() : ''}
         ${chatBtn}
       </div>
     </div>
@@ -838,6 +842,7 @@ export function renderTableScreen() {
     ${playersHtml ? `<aside class="hud-players">${playersHtml}</aside>` : ''}
     ${hostSheet}
     ${chatSheet}
+    ${serviceSheet(r)}
     ${(dock || readout) ? `<div class="hud-dock">${readout}${dock}</div>` : ''}
   `;
 }
@@ -970,6 +975,7 @@ export function attachTableScreen() {
   on('bjUnregisterBtn', S.leaveTable);
   on('bjRegisterBtn', () => BJT.registerBj(r.code));
   on('bjPlayAgainBtn', () => OfflineBJ.playAgain());
+  attachService();
   const copyBtn = document.getElementById('copyInviteBtn');
   if (copyBtn) copyBtn.onclick = () => {
     const input = document.getElementById('inviteUrlInput');

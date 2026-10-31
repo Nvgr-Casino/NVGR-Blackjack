@@ -358,6 +358,8 @@ function persistMyChips(room) {
 export async function mutateRoom(code, fn) {
   // A blackjack table against bots lives in this browser.
   if (OfflineBJ.isOfflineBlackjack(session.room) && OfflineBJ.active()) { OfflineBJ.mutate(fn); return; }
+  // And so does a poker table against bots.
+  if (session.room && session.room.offline && session.room.game === 'holdem') { Offline.mutate(fn); return; }
   try {
     const result = await runTransaction(ref(db, 'rooms/' + code), (current) => {
       if (current === null || current === undefined) return current;

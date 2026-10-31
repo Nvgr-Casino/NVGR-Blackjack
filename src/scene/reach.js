@@ -90,6 +90,7 @@ export function createReach(root, bones, { side = 'right', pole, body = 1 } = {}
   const saved = bonesKept.map(() => new THREE.Quaternion());
   let haveSaved = false;
   let motion = null;
+  let holding = null;   // a hand kept on a moving point (hold), not a path
 
   const shoulder = () => upper.getWorldPosition(new THREE.Vector3());
   const rootQuat = () => root.getWorldQuaternion(new THREE.Quaternion());
@@ -190,6 +191,28 @@ export function createReach(root, bones, { side = 'right', pole, body = 1 } = {}
     after(now = performance.now()) {
       bonesKept.forEach((b, i) => saved[i].copy(b.quaternion));
       haveSaved = true;
+      if (holding) {
+        const t = Math.min(1, (now - holding.start) / holding.blendMs);
+        if (holding.out && t >= 1) { holding = null; return; }
+        const weight = holding.out ? 1 - smooth(t) : smooth(t);
+        const anim = [upper, lower, wrist].map((b) => b.quaternion.clone());
+        const s = shoulder();
+        const toward = holding.fn().sub(s);
+        if (toward.length() > armLen * FARTHEST) toward.setLength(armLen * FARTHEST);
+        solve(s.add(toward));
+        // A hand flat under something it carries: fingers straight ahead,
+        // level, rather than turned down to the work.
+        if (holding.flat && handAxis) {
+          const ahead = new THREE.Vector3(0, 0, 1).applyQuaternion(rootQuat()).setY(0).normalize();
+          aim(wrist, handAxis, ahead);
+          // Turned about the fingers, palm up.
+          const roll = typeof holding.roll === 'function' ? holding.roll() : holding.roll;
+          if (roll) rotateWorld(wrist, ahead, roll);
+        }
+        [upper, lower, wrist].forEach((b, i) => b.quaternion.copy(anim[i].slerp(b.quaternion, weight)));
+        upper.updateMatrixWorld(true);
+        return;
+      }
       if (!motion) return;
       const st = state(now);
       motion.weight = st.weight;
@@ -222,6 +245,17 @@ export function createReach(root, bones, { side = 'right', pole, body = 1 } = {}
         weight: fromWeight,
         target: null,
       };
+    },
+    /**
+     * Keeps the hand on a point that may move — `target()` is asked for it
+     * every frame (a waiter's tray, carried as they walk) — blended in over
+     * `blendMs`, and out again by release().
+     */
+    hold(target, { blendMs = 450, flat = false, roll = 0 } = {}) {
+      holding = { fn: target, start: performance.now(), blendMs, out: false, flat, roll };
+    },
+    release({ blendMs = 450 } = {}) {
+      if (holding && !holding.out) Object.assign(holding, { out: true, start: performance.now(), blendMs });
     },
     /** Where the hand is now, in world space. */
     handPosition() { return wrist.getWorldPosition(new THREE.Vector3()); },

@@ -888,3 +888,26 @@ input:focus { outline: none; border-color: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
   .btn, .chip-btn, .table-row, .char-card { transition: none; }
 }
+
+/* ---------- drinks and tips (service.js) ---------- */
+.sheet.svc { right: 14px; width: 360px; }
+.svc-for { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 12px; }
+.svc-who {
+  display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 64px; padding: 6px 4px; border-radius: 12px;
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--text); font: inherit; font-size: 12px; cursor: pointer;
+}
+.svc-who img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+.svc-who small { display: block; color: var(--accent); font-size: 10px; }
+.svc-who.on { border-color: var(--accent); background: rgba(200, 164, 106, 0.12); }
+.svc-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.svc-drink {
+  display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 10px; cursor: pointer; text-align: left;
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--text); font: inherit; font-size: 13px;
+}
+.svc-drink:hover:not(:disabled) { border-color: rgba(200, 164, 106, 0.5); }
+.svc-drink:disabled { opacity: 0.4; cursor: not-allowed; }
+.svc-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35); }
+.svc-name { flex: 1; min-width: 0; }
+.svc-price { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+.svc-tips .btn { flex: 1; }
+.svc-note { margin-top: 10px; color: var(--faint); font-size: 12px; }

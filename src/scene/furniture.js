@@ -30,7 +30,9 @@ export function place(parent, id, { x = 0, y = FLOOR_Y, z = 0, yaw = 0, size = 1
   holder.rotation.y = yaw;
   holder.scale.setScalar(UNITS_PER_METRE * size);
   parent.add(holder);
-  piece(id).then((scene) => {
+  // Resolves once the piece is in, for anything that dresses it (layout.js
+  // fills a bookcase's shelves).
+  holder.userData.loaded = piece(id).then((scene) => {
     const copy = scene.clone(true);
     copy.traverse((o) => {
       if (!o.isMesh) return;
@@ -45,7 +47,8 @@ export function place(parent, id, { x = 0, y = FLOOR_Y, z = 0, yaw = 0, size = 1
       }
     });
     holder.add(copy);
-  }).catch(() => { /* a missing piece leaves the spot empty */ });
+    return holder;
+  }).catch(() => null); // a missing piece leaves the spot empty
   return holder;
 }
 

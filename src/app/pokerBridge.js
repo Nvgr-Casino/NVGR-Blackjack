@@ -15,6 +15,7 @@ import { esc } from './uiHelpers.js';
 import * as S from './session.js';
 import * as Poker from './pokerSession.js';
 import * as Offline from './offlinePoker.js';
+import { syncService, serviceButton, serviceSheet, attachService } from './service.js';
 import * as Social from './social.js';
 
 let driver = null;
@@ -71,6 +72,8 @@ export function syncPokerToScene(room, myKey) {
   scene.setRoomTheme(tier);
   scene.setDealerModel(dealerKeyFor(tier, room.dealerType));
   scene.setPokerFelt(room.felt);
+  // Drinks in the cup holders, and any waiter or tip on its way.
+  syncService(room);
   driver.setVisible(true);
   driver.setLadder(ladderFor(room));
 
@@ -355,12 +358,13 @@ export function renderPokerScreen() {
           <span class="hud-sub">${sub}</span>
         </div>
       </div>
-      <div class="hud-right">${chatBtn}</div>
+      <div class="hud-right">${me ? serviceButton() : ''}${chatBtn}</div>
     </div>
     ${S.connLost ? '<div class="conn-banner">Connection lost — reconnecting…</div>' : ''}
     ${statusHtml}
     ${playersHtml ? `<aside class="hud-players">${playersHtml}</aside>` : ''}
     ${chatSheet}
+    ${serviceSheet(r)}
     <div class="hud-dock">${readout}${dock}</div>
   `;
 }
@@ -514,6 +518,7 @@ export function attachPokerScreen() {
   on('unregisterBtn', S.leaveTable);
   on('registerBtn', () => Poker.registerTournament(r.code));
   on('playAgainBtn', () => Offline.playAgain());
+  attachService();
   on('chatToggleBtn', () => S.setChatOpen(!S.chatOpen));
   on('foldBtn', () => Poker.act('fold'));
   on('checkBtn', () => Poker.act('check'));

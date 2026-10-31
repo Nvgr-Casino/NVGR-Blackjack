@@ -3,6 +3,7 @@
 //
 //   npm run rocketbox -- avatar Professions/Business_Male_01 rb_bm01
 //   npm run rocketbox -- clip m_sit_table_breathe_01 rb_sit_m
+//   npm run rocketbox -- clip xy/m_walk_neutral_01 rb_walk_m
 //   npm run rocketbox -- avatar Professions/Business_Male_04 rb_dealer_m4 black-vest
 //
 // An avatar may take a recipe from scripts/dealer-recolor.mjs, which re-dyes
@@ -142,13 +143,17 @@ if (kind === 'avatar') {
   optimize(textured, dst);
 } else {
   console.log(`downloading ${src}…`);
-  const fbx = await download(`${REPO}/Animations/all_animations_max_motextr_static/${src}.max.fbx`, join(work, src + '.fbx'));
+  // Clips that travel (walks, runs) are in the library's xy folder:
+  // ask for them as xy/<name>. Their forward motion is stripped at load
+  // (rig.js's withoutRootMotion) and the figure moved by the scene instead.
+  const [folder, clipName] = src.startsWith('xy/') ? ['all_animations_max_motextr_xy', src.slice(3)] : ['all_animations_max_motextr_static', src];
+  const fbx = await download(`${REPO}/Animations/${folder}/${clipName}.max.fbx`, join(work, clipName + '.fbx'));
   const raw = join(work, 'raw.glb');
   await convert(fbx, raw, ['--binary']);
   const doc = await io.read(raw);
   // Skeleton and motion only: the capture carries a stand-in mesh.
   for (const node of doc.getRoot().listNodes()) { node.setMesh(null); node.setSkin(null); }
-  for (const anim of doc.getRoot().listAnimations()) anim.setName(src);
+  for (const anim of doc.getRoot().listAnimations()) anim.setName(clipName);
   const stripped = join(work, 'clip.glb');
   await io.write(stripped, doc);
   optimize(stripped, dst);

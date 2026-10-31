@@ -13,6 +13,7 @@ import { FLOOR_Y, m } from './scale.js';
 import { SEATS, DEALER, cameraPositionForSeat, cameraLookAtForSeat } from './seats.js';
 import { tickAnimations } from './animator.js';
 import { cameraOverride } from './cameraFocus.js';
+import { createService } from './service.js';
 
 // Step 1-2: static table + deal animation. Step 3 (current): seats, a
 // dealer figure, and empty chairs around the table — no fixed "you" seat or
@@ -134,6 +135,7 @@ export function initScene(canvas) {
   // (setRoomTheme, from table3dBridge.js).
   let room = null;
   let roomTier = 0;
+  let service = null;   // the waiters and cup holders, once the tables exist
   function setRoomTheme(tier) {
     if (tier === roomTier) return;
     roomTier = tier;
@@ -141,6 +143,7 @@ export function initScene(canvas) {
     if (room) { scene.remove(room); disposeRoom(room); }
     room = next;
     scene.add(room);
+    if (service) service.setRoom(room, tier);
     // The table's light hangs from this room's ceiling, and the wash lights
     // this room's back wall.
     const { half, ceiling } = room.userData.dims;
@@ -230,6 +233,12 @@ export function initScene(canvas) {
       x: seat.position.x, z: seat.position.z, yaw: seat.facingAngle, shadows: true,
     }));
   });
+
+  // Drinks and the waiters who bring them (service.js).
+  service = createService({ scene, blackjackSet, pokerSet, blackjackTable: table, pokerTable });
+  service.prepare('blackjack');
+  service.prepare('holdem', POKER_SEATS_3D);
+  service.setRoom(room, roomTier);
 
   let game = 'blackjack';
   function setGame(next) {
@@ -391,6 +400,7 @@ export function initScene(canvas) {
       const d = Math.min(0.1, clock.getDelta());
       tickAnimations();
       updateDealerAnimations(d);
+      service.update(d);
       placeBackdropCamera(d);
       renderer.render(scene, camera);
       return;
@@ -401,6 +411,7 @@ export function initScene(canvas) {
     const delta = clock.getDelta();
     updateDealerAnimations(delta);
     updateSeatedCharacters(delta);
+    service.update(Math.min(0.1, delta));
     if (!cameraOverride.active) controls.update();
     renderer.render(scene, camera);
   }
@@ -419,6 +430,8 @@ export function initScene(canvas) {
       // importing them from the console gets a second instance whose
       // animation queue nothing is draining.
       tickAnimations,
+      setBackdrop: (on) => setBackdrop(on),
+      service,
       shuffle: () => playShoeShuffle({ scene, dealer, shoe, discard, shoeLeft: 60, total: 312, cutAt: 70 }),
     };
   }
@@ -430,6 +443,7 @@ export function initScene(canvas) {
     setRoomTheme,
     setGame,
     setBackdrop,
+    service,
     pokerChairs,
     setPokerFelt: pokerTable.userData.setFeltTheme,
   };

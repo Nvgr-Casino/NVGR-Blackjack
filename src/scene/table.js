@@ -28,9 +28,11 @@ export const RAIL_OUTER = TABLE_RADIUS + RIM + RAIL_W;
 // Where a player's chips sit, in the channel in front of their seat.
 export const CHANNEL_RADIUS = TABLE_RADIUS + RIM_LIP + CHANNEL / 2;
 export const CHANNEL_Y = CHANNEL_FLOOR;
-// Cup holders, set into the rim between the seats (seats.js puts the seats
-// at -95, -45, 0, 45 and 95 degrees).
-const HOLDER_ANGLES = [-70, -22.5, 22.5, 70];
+// Where the cup holders are let into the padded rail, toward its outer
+// edge, one at every seat to the player's right — on the edge of the table,
+// clear of the playing area (scene/service.js places them).
+export const HOLDER_RADIUS = RAIL_OUTER - RAIL_W * 0.42;
+export const HOLDER_RING = RAIL_W * 0.3;
 
 // Builds the D-shaped outline: up the left straight side, across the front
 // semicircle, down the right straight side, then THREE.Shape auto-closes
@@ -362,24 +364,6 @@ export function createTable() {
   const cushion = { thickness: m(0.034), size: m(0.05) };
   // Deep enough to meet the apron below, with no gap under the cushion.
   band(TABLE_RADIUS + RIM + cushion.size, RAIL_OUTER - cushion.size, RIM_TOP + m(0.068), m(0.006) + 0.025, LEATHER, cushion);
-
-  // Brass cup holders let into the rim between the seats.
-  const holderR = RIM * 0.36;
-  const holderRing = new THREE.TorusGeometry(holderR, m(0.007), 10, 36);
-  const holderWell = new THREE.CircleGeometry(holderR * 0.94, 36);
-  const wellMat = new THREE.MeshStandardMaterial({ color: 0x0d0b0a, roughness: 0.6, metalness: 0.2 });
-  HOLDER_ANGLES.forEach((deg) => {
-    const rad = THREE.MathUtils.degToRad(deg);
-    const r = TABLE_RADIUS + RIM * 0.55;
-    const ring = new THREE.Mesh(holderRing, BRASS);
-    ring.rotation.x = Math.PI / 2;
-    ring.position.set(Math.sin(rad) * r, RIM_TOP + 0.004, Math.cos(rad) * r);
-    group.add(ring);
-    const well = new THREE.Mesh(holderWell, wellMat);
-    well.rotation.x = -Math.PI / 2;
-    well.position.set(Math.sin(rad) * r, RIM_TOP + 0.002, Math.cos(rad) * r);
-    group.add(well);
-  });
 
   // The apron below: lacquered walnut, carrying the outline round to the
   // dealer's ledge along the back.

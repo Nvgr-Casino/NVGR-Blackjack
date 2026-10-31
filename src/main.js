@@ -6,6 +6,7 @@ import { auth } from './firebase/config.js';
 import { safeKey } from './app/roomLogic.js';
 import { session, initAuth, setOnChange, joinRoom, lobbyGame } from './app/session.js';
 import { dealerKeyFor } from './scene/dealer.js';
+import { mountService, clearService } from './app/service.js';
 import { mountTable3D, syncRoomToScene, renderTableScreen, attachTableScreen, resetTableDiffState, hideBlackjackTable } from './app/table3dBridge.js';
 import { mountPoker3D, syncPokerToScene, renderPokerScreen, attachPokerScreen, leavePokerView } from './app/pokerBridge.js';
 import { renderAuth, attachAuth } from './app/screens/auth.js';
@@ -40,6 +41,7 @@ function render() {
     if (shownGame === 'holdem') leavePokerView();
     else hideBlackjackTable();
     resetTableDiffState();
+    clearService();
     shownGame = null;
   }
   lastScreen = session.screen;
@@ -127,6 +129,7 @@ async function boot() {
   sceneHandles = initScene(canvas);
   mountTable3D(sceneHandles);
   mountPoker3D(sceneHandles);
+  mountService(sceneHandles);
   setOnChange(render);
   initAuth();
   checkInviteParam();
