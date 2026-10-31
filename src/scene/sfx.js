@@ -118,6 +118,40 @@ export function chipSound(count = 1, delayMs = 0) {
   }
 }
 
+/**
+ * The shuffler in a poker table at work for `ms`: a muffled motor hum
+ * under the patter of cards being riffled inside it, and a soft clunk as
+ * the elevator brings the deck up. Quieter than anything dealt in the open.
+ */
+export function shufflerSound(ms = 1500, delayMs = 0) {
+  const c = ready();
+  if (!c) return;
+  const at = c.currentTime + delayMs / 1000;
+  const dur = ms / 1000;
+  const src = c.createBufferSource();
+  src.buffer = noise;
+  src.loop = true;
+  const f = c.createBiquadFilter();
+  f.type = 'lowpass';
+  f.frequency.value = 420;
+  f.Q.value = 2;
+  const g = c.createGain();
+  g.gain.setValueAtTime(0, at);
+  g.gain.linearRampToValueAtTime(0.05, at + 0.15);
+  g.gain.setValueAtTime(0.05, at + dur - 0.2);
+  g.gain.linearRampToValueAtTime(0, at + dur);
+  src.connect(f).connect(g).connect(effects);
+  src.start(at);
+  src.stop(at + dur + 0.05);
+  // The cards inside, heard through the lid.
+  const count = Math.round(ms / 45);
+  for (let i = 0; i < count; i++) {
+    const t = at + 0.2 + (i / count) * (dur - 0.4);
+    burst(c, t, { freq: 1500 + Math.random() * 900, q: 1.2, gain: 0.012, decay: 0.015, type: 'lowpass' });
+  }
+  ping(c, at + dur + 0.25, { freq: 150, gain: 0.05, decay: 0.12 });
+}
+
 /** A riffle: cards falling into each other for `ms`. */
 export function riffleSound(ms = 900, delayMs = 0) {
   const c = ready();

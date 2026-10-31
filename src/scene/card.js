@@ -184,6 +184,48 @@ function getFaceMaterial(rank, suit) {
   return faceMaterials.get(key);
 }
 
+// Sharp faces, for the cards lying face up on a poker table — the board,
+// a showdown — which a player zooms right in on: drawn from 1280 px images
+// (public/cards/hd) instead of 640. Each costs four times the memory of an
+// ordinary face, so only the most recently turned dozen-and-a-half are
+// kept sharp; past that the oldest falls back to its ordinary face, which
+// is all a card swept off the table needs.
+const SHARP_KEEP = 18;
+const sharpMaterials = new Map();   // key -> material; oldest first
+function getSharpMaterial(rank, suit) {
+  const key = rank + '-' + suit;
+  let mat = sharpMaterials.get(key);
+  if (mat) {
+    sharpMaterials.delete(key);
+    sharpMaterials.set(key, mat);
+    return mat;
+  }
+  // The ordinary face at once, the sharp one in its place once it's loaded.
+  mat = cardMaterial(getFaceTexture(rank, suit));
+  loader.load(`${import.meta.env.BASE_URL}cards/hd/${key}.webp`, (texture) => {
+    if (sharpMaterials.get(key) !== mat) { texture.dispose(); return; }
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = ANISOTROPY;
+    mat.map = texture;
+    mat.emissiveMap = texture;
+    mat.needsUpdate = true;
+  });
+  sharpMaterials.set(key, mat);
+  if (sharpMaterials.size > SHARP_KEEP) {
+    const [oldKey, old] = sharpMaterials.entries().next().value;
+    sharpMaterials.delete(oldKey);
+    const plain = getFaceTexture(...oldKey.split('-'));
+    if (old.map !== plain) {
+      const hd = old.map;
+      old.map = plain;
+      old.emissiveMap = plain;
+      old.needsUpdate = true;
+      hd.dispose();
+    }
+  }
+  return mat;
+}
+
 let backMaterial = null;
 let edgeMaterial = null;
 
@@ -199,11 +241,13 @@ export function cardEdgeMaterial() {
 }
 
 // A card lies flat with its face up (+Y) and back down (-Y), so a dealt
-// card sits on the table with no extra rotation.
-export function createCard(rank, suit) {
+// card sits on the table with no extra rotation. `sharp`: its face drawn
+// from the high-resolution set (see getSharpMaterial).
+export function createCard(rank, suit, { sharp = false } = {}) {
   if (!backMaterial) backMaterial = cardMaterial(makeBackTexture());
   if (!edgeMaterial) edgeMaterial = new THREE.MeshLambertMaterial({ color: 0xefede6 });
-  const mesh = new THREE.Mesh(getGeometry(), [getFaceMaterial(rank, suit), backMaterial, edgeMaterial]);
+  const face = sharp ? getSharpMaterial(rank, suit) : getFaceMaterial(rank, suit);
+  const mesh = new THREE.Mesh(getGeometry(), [face, backMaterial, edgeMaterial]);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   mesh.userData = { rank, suit };

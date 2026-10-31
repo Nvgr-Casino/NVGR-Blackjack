@@ -2,10 +2,12 @@ import * as THREE from 'three';
 import { FLOOR_Y, m } from './scale.js';
 import { BRASS, LEATHER, FELT_THEMES, feltTheme, createBurlTexture, createWoodTexture } from './table.js';
 import { drawCasinoCrest } from './crest.js';
+import { CARD_WIDTH, CARD_HEIGHT } from './card.js';
 
-// The Hold'em table: a six-seat racetrack oval, 2.5 m by 1.3 m of felt —
-// on the generous side of a six-max table, so the seats have room between
-// them and the board room around it. Felt inside a burl rim, a band of wood —
+// The Hold'em table: a six-seat racetrack oval, 3.0 m by 1.6 m of felt —
+// a broad table, so the seats have room between them and the board room
+// around it — with an automatic shuffler let into it at the dealer's left
+// (see SHUFFLER). Felt inside a burl rim, a band of wood —
 // the racetrack — between rim and rail, then the padded armrest, on a
 // walnut apron and pedestal. The dealer stands at the middle of the far
 // long side (-z); the six seats run clockwise from the dealer's left, as
@@ -16,8 +18,8 @@ import { drawCasinoCrest } from './crest.js';
 // space, so the driver (src/ui/pokerController.js) never computes a
 // position of its own.
 
-const LENGTH = m(2.5);
-const WIDTH = m(1.3);
+const LENGTH = m(3.0);
+const WIDTH = m(1.6);
 const END_R = WIDTH / 2;                 // the oval's round ends
 const STRAIGHT = LENGTH / 2 - END_R;     // half the straight run
 const RIM = m(0.05);
@@ -102,7 +104,88 @@ const CARD_PITCH = m(0.118);
 export const BOARD_SPOTS = [-2, -1, 0, 1, 2].map((i) => new THREE.Vector3(i * CARD_PITCH, 0.04, m(0.04)));
 export const POT_SPOT = new THREE.Vector3(0, 0.02, -m(0.13));
 export const MUCK_SPOT = new THREE.Vector3(-m(0.32), 0.03, -END_R + m(0.22));
-export const DECK_SPOT = new THREE.Vector3(m(0.3), 0.03, -END_R + m(0.22));
+
+// The shuffler, set flush into the felt at the dealer's left: no deck is
+// ever shuffled by hand at this table. Its lid has two openings — the
+// elevator, up which a shuffled deck rises for each hand, and the intake,
+// into which the cards of the hand just played are gathered — and a light
+// along the dealer's edge, green with a deck ready, amber while the machine
+// shuffles. The dealer lifts the deck off the elevator and sets it down by
+// their hands (`hold`), and deals from it. (Its moving parts — the deck,
+// the light — are the table driver's: src/ui/pokerController.js.)
+export const SHUFFLER = (() => {
+  const center = new THREE.Vector3(m(0.55), 0, -END_R + m(0.2));
+  const w = CARD_WIDTH * 2.3;
+  const d = CARD_HEIGHT + m(0.05);
+  const top = 0.028;
+  return {
+    center, w, d, top,
+    elevator: new THREE.Vector3(center.x + w * 0.18, top, center.z),
+    intake: new THREE.Vector3(center.x - w * 0.3, top, center.z),
+    light: new THREE.Vector3(center.x, top + 0.002, center.z - d / 2 + m(0.012)),
+    hold: new THREE.Vector3(m(0.22), 0.012, -END_R + m(0.33)),
+  };
+})();
+
+// A rounded rectangle, centred, `w` across x and `d` along z (in the
+// shape's own y, which becomes -z when laid flat).
+function roundedRect(w, d, r) {
+  const s = new THREE.Shape();
+  const x = -w / 2, y = -d / 2;
+  s.moveTo(x + r, y);
+  s.lineTo(x + w - r, y);
+  s.quadraticCurveTo(x + w, y, x + w, y + r);
+  s.lineTo(x + w, y + d - r);
+  s.quadraticCurveTo(x + w, y + d, x + w - r, y + d);
+  s.lineTo(x + r, y + d);
+  s.quadraticCurveTo(x, y + d, x, y + d - r);
+  s.lineTo(x, y + r);
+  s.quadraticCurveTo(x, y, x + r, y);
+  return s;
+}
+
+function createShuffler() {
+  const { center, w, d, top, elevator, intake } = SHUFFLER;
+  const g = new THREE.Group();
+  const flat = (shape, y, mat) => {
+    const mesh = new THREE.Mesh(new THREE.ShapeGeometry(shape, 8), mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.y = y;
+    g.add(mesh);
+    return mesh;
+  };
+  // A brass bezel in the felt, and the machine's lid, raised a little in
+  // brushed gunmetal.
+  const bezel = new THREE.Mesh(new THREE.ExtrudeGeometry(roundedRect(w + m(0.024), d + m(0.024), m(0.03)), {
+    depth: 0.012, bevelEnabled: true, bevelThickness: 0.003, bevelSize: 0.004, bevelSegments: 3, curveSegments: 8,
+  }), BRASS);
+  bezel.rotation.x = -Math.PI / 2;
+  bezel.position.y = 0.006;
+  g.add(bezel);
+  const lid = new THREE.Mesh(new THREE.ExtrudeGeometry(roundedRect(w, d, m(0.022)), {
+    depth: top - 0.012, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 2, curveSegments: 8,
+  }), new THREE.MeshStandardMaterial({ color: 0x1d1e23, roughness: 0.32, metalness: 0.75 }));
+  lid.rotation.x = -Math.PI / 2;
+  lid.position.y = 0.01;
+  lid.castShadow = true;
+  lid.receiveShadow = true;
+  g.add(lid);
+  // The elevator's mouth, a deck wide, and its platform down inside.
+  const well = new THREE.MeshStandardMaterial({ color: 0x050506, roughness: 0.5, metalness: 0.1 });
+  flat(roundedRect(CARD_WIDTH + m(0.02), CARD_HEIGHT + m(0.02), m(0.012)), top + 0.0006, well)
+    .position.set(elevator.x - center.x, top + 0.0006, elevator.z - center.z);
+  flat(roundedRect(CARD_WIDTH * 0.92, CARD_HEIGHT * 0.94, m(0.008)), top + 0.0009,
+    new THREE.MeshStandardMaterial({ color: 0x34353b, roughness: 0.4, metalness: 0.7 }))
+    .position.set(elevator.x - center.x, top + 0.0009, elevator.z - center.z);
+  // The intake: a slot the cards are swept into.
+  flat(roundedRect(w * 0.3, CARD_HEIGHT * 0.9, m(0.01)), top + 0.0006, well)
+    .position.set(intake.x - center.x, top + 0.0006, intake.z - center.z);
+  // The maker's plate between them, in brass.
+  flat(roundedRect(w * 0.06, CARD_HEIGHT * 0.5, m(0.004)), top + 0.0006, BRASS)
+    .position.set((intake.x + elevator.x) / 2 - center.x - w * 0.03, top + 0.0006, 0);
+  g.position.set(center.x, 0, center.z);
+  return g;
+}
 
 // ---------- the felt ----------
 
@@ -251,6 +334,8 @@ export function createPokerTable() {
   const trayRim = new THREE.Mesh(new THREE.BoxGeometry(m(0.44), 0.016, m(0.115)), BRASS);
   trayRim.position.copy(POKER_DEALER.traySpot).setY(0.006);
   group.add(trayRim);
+
+  group.add(createShuffler());
 
   return group;
 }

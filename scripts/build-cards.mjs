@@ -14,15 +14,17 @@
 // edge, so it is inset in a margin of plain stock, where a printed card's
 // would be. The card geometry rounds the corners itself.
 //
+// Two sizes: 640 px wide for every card the game deals, and 1280 px in
+// cards/hd for the cards lying face up on a poker table, which a player
+// zooms in to read (card.js loads those only for that).
+//
 // Run with `npm run cards` after changing anything in art/cards-svg.
 import { readdirSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
 
 const SRC = 'art/cards-svg';
-const OUT = 'public/cards';
-const WIDTH = 640;
-const HEIGHT = Math.round(WIDTH * (88.9 / 63.5));
+const SIZES = [{ out: 'public/cards', width: 640, quality: 90 }, { out: 'public/cards/hd', width: 1280, quality: 88 }];
 // The outline to trim, and the stock margin to add, as fractions of size.
 const TRIM = 0.006;
 const MARGIN = 0.03;
@@ -37,13 +39,14 @@ function cornerMask(w, h) {
   return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><path fill="${STOCK}" fill-rule="evenodd" d="${d}"/></svg>`);
 }
 
-mkdirSync(OUT, { recursive: true });
-
 const files = readdirSync(SRC).filter((f) => /^(10|[2-9AJQK])[CDHS]\.svg$/.test(f));
+for (const { out: OUT, width: WIDTH, quality } of SIZES) {
+mkdirSync(OUT, { recursive: true });
+const HEIGHT = Math.round(WIDTH * (88.9 / 63.5));
 for (const file of files) {
   const rank = file.slice(0, -5);
   const suit = file.slice(-5, -4);
-  const { data, info } = await sharp(join(SRC, file), { density: 600 })
+  const { data, info } = await sharp(join(SRC, file), { density: WIDTH > 640 ? 1200 : 600 })
     .flatten({ background: STOCK })
     .toBuffer({ resolveWithObject: true });
   const dx = Math.round(info.width * TRIM);
@@ -61,7 +64,8 @@ for (const file of files) {
     // corners behind; stock painted round a rounded rectangle covers them.
     .composite([{ input: cornerMask(w, h) }])
     .extend({ top: padY, bottom: padY, left: padX, right: padX, background: STOCK })
-    .webp({ quality: 90, smartSubsample: true })
+    .webp({ quality, smartSubsample: true })
     .toFile(join(OUT, `${rank}-${suit}.webp`));
 }
 console.log(`Rendered ${files.length} cards to ${OUT} at ${WIDTH}x${HEIGHT}.`);
+}

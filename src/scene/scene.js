@@ -95,7 +95,8 @@ export function initScene(canvas) {
   // would look straight through the back of a wall into the void. These two
   // limits keep the camera in the room at every distance it can reach.
   controls.minPolarAngle = Math.PI / 3;
-  controls.minDistance = 3;
+  // Close enough to read the board card by card.
+  controls.minDistance = 1.8;
   controls.maxDistance = ROOM_HALF - 2;
   controls.target.copy(cameraLookAtForSeat(openingSeat));
 

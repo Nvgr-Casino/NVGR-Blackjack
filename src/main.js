@@ -20,6 +20,14 @@ import { brandMark } from './app/uiHelpers.js';
 const canvas = document.getElementById('scene');
 const root = document.getElementById('root');
 
+// At a table a pinch is for the 3D view, never the page. Safari on an
+// iPhone ignores the viewport's maximum-scale, so a pinch that began over
+// the HUD zoomed the page itself — magnifying its pixels, the cards' most
+// of all, into a blur. (Over the table the canvas already takes it.)
+const atTable = () => session.screen === 'table';
+['gesturestart', 'gesturechange'].forEach((type) => document.addEventListener(type, (e) => { if (atTable()) e.preventDefault(); }, { passive: false }));
+document.addEventListener('touchmove', (e) => { if (atTable() && e.touches.length > 1) e.preventDefault(); }, { passive: false });
+
 let lastScreen = null;
 // Which table the scene is showing, so switching game clears the other.
 let shownGame = null;

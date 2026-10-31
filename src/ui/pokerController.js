@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { cardSound, chipSound } from '../scene/sfx.js';
-import { createCard, CARD_WIDTH, CARD_HEIGHT } from '../scene/card.js';
+import { cardSound, chipSound, shufflerSound } from '../scene/sfx.js';
+import { createCard, cardBackMaterial, cardEdgeMaterial, CARD_WIDTH, CARD_HEIGHT } from '../scene/card.js';
 import { createValueStack, CHIP_HEIGHT, CHIP_RADIUS } from '../scene/chip.js';
 import { createCharacter } from '../scene/character.js';
 import { dealerReach } from '../scene/dealer.js';
@@ -8,15 +8,18 @@ import { cameraOverride } from '../scene/cameraFocus.js';
 import { animate, easeOutCubic, easeInOutCubic } from '../scene/animator.js';
 import { isTallScreen } from '../scene/seats.js';
 import { m, FLOOR_Y, SEAT_TOP_Y } from '../scene/scale.js';
-import { POKER_SEATS_3D as SEATS, POKER_DEALER, BOARD_SPOTS, POT_SPOT, MUCK_SPOT, DECK_SPOT } from '../scene/pokerTable.js';
+import { POKER_SEATS_3D as SEATS, POKER_DEALER, BOARD_SPOTS, POT_SPOT, MUCK_SPOT, SHUFFLER } from '../scene/pokerTable.js';
 
 // The Hold'em table's 3D driver: what the table shows, and nothing of the
 // rules. src/app/pokerBridge.js watches the room and calls these.
 //
-// The dealer pitches each card low across the felt to its seat — a poker
-// dealer does not walk a card round a table this size, they slide it — and
-// turns the board from the deck in front of them, burning one first; at
-// the end they push the pot to the winner. Chips are built from the
+// The deck comes from the shuffler in the table: it rises up the
+// machine's elevator, shuffled, and the dealer lifts it off and sets it
+// down by their hands. They pitch each card low across the felt to its
+// seat — a poker dealer does not walk a card round a table this size, they
+// slide it — and turn the board from the same deck, burning one first; at
+// the end they push the pot to the winner, and every card of the hand is
+// swept into the machine, which shuffles while the next hand is waited for. Chips are built from the
 // table's own ladder of values, a column a value.
 
 const CARD_Y = 0.04;
@@ -90,7 +93,7 @@ export function createPokerDriver({ scene, camera, controls, dealer }) {
   };
 
   // ---------- camera ----------
-  const VIEWS = { wide: { back: m(0.85), height: m(2.1), toDealer: 0.18 }, tall: { back: m(1.9), height: m(3.05), toDealer: 0.05 } };
+  const VIEWS = { wide: { back: m(1.05), height: m(2.3), toDealer: 0.18 }, tall: { back: m(2.4), height: m(3.45), toDealer: 0.05 } };
   function viewFor(seatIndex) {
     const v = isTallScreen() ? VIEWS.tall : VIEWS.wide;
     // Watching without a seat: from in front of the table, between the two
@@ -145,6 +148,80 @@ export function createPokerDriver({ scene, camera, controls, dealer }) {
     followSeat(viewSeat, false);
   });
 
+  // ---------- the shuffler's deck ----------
+  // One deck, stood on its bottom face so it can rise out of the elevator
+  // (scaled up from the lid) and thin as it is dealt from.
+  const DECK_H = m(0.028);
+  const deckGeo = new THREE.BoxGeometry(CARD_WIDTH, DECK_H, CARD_HEIGHT);
+  deckGeo.translate(0, DECK_H / 2, 0);
+  const edge = cardEdgeMaterial();
+  const deck = new THREE.Mesh(deckGeo, [edge, edge, cardBackMaterial(), edge, edge, edge]);
+  deck.castShadow = true;
+  root.add(deck);
+  const light = new THREE.Mesh(new THREE.BoxGeometry(SHUFFLER.w * 0.42, 0.003, m(0.008)), new THREE.MeshBasicMaterial({ color: 0x3ecf7a }));
+  light.position.copy(SHUFFLER.light);
+  root.add(light);
+  const READY = 0x3ecf7a, BUSY = 0xe0a040;
+  let deckState = 'ready';    // 'ready' (up on the elevator) | 'held' (by the dealer) | 'shuffling'
+  let deckLeft = 52;
+  let deckGen = 0;            // bumped to cancel what was under way
+  const deckScale = () => 0.3 + 0.7 * (deckLeft / 52);
+  function deckReady() {
+    deckState = 'ready';
+    deckLeft = 52;
+    deck.visible = true;
+    deck.position.copy(SHUFFLER.elevator);
+    deck.rotation.set(0, 0, 0);
+    deck.scale.set(1, 1, 1);
+    light.material.color.setHex(READY);
+  }
+  deckReady();
+  if (import.meta.env.DEV) window.__shuffler = { deck, light, state: () => deckState };
+  // Up the elevator, out of the lid.
+  function raiseDeck(ms = 700) {
+    const gen = ++deckGen;
+    deckReady();
+    deck.scale.y = 0.001;
+    animate({ duration: ms, easing: easeInOutCubic, onUpdate: (t) => { if (gen === deckGen) deck.scale.y = Math.max(0.001, t); } });
+  }
+  // The dealer's left hand to the elevator, and the deck with it to where
+  // they deal from. Returns how long that takes.
+  function takeDeck() {
+    if (deckState === 'held') return 0;
+    if (deckState === 'shuffling') raiseDeck(300);
+    const gen = deckGen;
+    deckState = 'held';
+    const from = SHUFFLER.elevator.clone();
+    const to = SHUFFLER.hold.clone();
+    const lift = from.clone().lerp(to, 0.5).setY(m(0.12));
+    dealerReach(dealer, [
+      { at: 240, pos: from.clone().setY(DECK_H) },
+      { at: 520, pos: lift },
+      { at: 760, pos: to.clone().setY(DECK_H) },
+    ], { hand: 'left', returnMs: 360 });
+    const start = performance.now() + 240;
+    animate({
+      duration: 760,
+      easing: (t) => t,
+      onUpdate: () => {
+        if (gen !== deckGen) return;
+        const t = (performance.now() - start) / 520;
+        if (t <= 0) return;
+        const e = easeInOutCubic(Math.min(1, t));
+        deck.position.lerpVectors(from, to, e);
+        deck.position.y = from.y + (to.y - from.y) * e + Math.sin(e * Math.PI) * m(0.1);
+        deck.rotation.y = -0.12 * e;
+      },
+    });
+    return 820;
+  }
+  // The top of the deck, where a card leaves it.
+  const deckTop = () => deck.position.clone().setY(deck.position.y + DECK_H * deck.scale.y);
+  function drawFromDeck() {
+    deckLeft = Math.max(1, deckLeft - 1);
+    deck.scale.y = deckScale();
+  }
+
   // ---------- cards ----------
   const hole = new Map();     // seat -> [mesh, mesh]
   let board = [];
@@ -165,7 +242,8 @@ export function createPokerDriver({ scene, camera, controls, dealer }) {
     root.add(card);
     setTimeout(() => {
       card.visible = true;
-      const from = DECK_SPOT.clone();
+      const from = deckTop();
+      drawFromDeck();
       card.position.copy(from);
       const spin = (Math.random() - 0.5) * 0.4;
       // The dealer's right hand sends it, out toward where it is going.
@@ -184,9 +262,10 @@ export function createPokerDriver({ scene, camera, controls, dealer }) {
     return card;
   }
 
-  // Turns a card over where it lies — to its face, the rank and suit given.
+  // Turns a card over where it lies — to its face, the rank and suit given,
+  // drawn sharp enough to zoom right in on.
   function turnUp(card, rank, suit, { lift = 0.06, duration = 360 } = {}) {
-    const face = createCard(rank, suit);
+    const face = createCard(rank, suit, { sharp: true });
     face.position.copy(card.position);
     face.rotation.copy(card.rotation);
     root.remove(card);
@@ -206,15 +285,17 @@ export function createPokerDriver({ scene, camera, controls, dealer }) {
 
   /** Deals two cards to each seat in `seats` (dealing order), one round at a time. */
   function dealHoleCards(seats) {
+    // The deck off the machine first.
+    const lead = takeDeck();
     let k = 0;
     for (let round = 0; round < 2; round++) {
       seats.forEach((seat) => {
         const cards = hole.get(seat) || [];
-        cards[round] = pitch(holeSpot(seat, round), SEATS[seat].cardAngle, (k++) * (PITCH_MS * 0.55));
+        cards[round] = pitch(holeSpot(seat, round), SEATS[seat].cardAngle, lead + (k++) * (PITCH_MS * 0.55));
         hole.set(seat, cards);
       });
     }
-    return k * PITCH_MS * 0.55 + PITCH_MS;
+    return lead + k * PITCH_MS * 0.55 + PITCH_MS;
   }
 
   // Your own two cards, peeked: turned face up where they lie, so you can
@@ -273,15 +354,22 @@ export function createPokerDriver({ scene, camera, controls, dealer }) {
   function dealBoard(cards) {
     const start = board.length;
     if (cards.length <= start) return 0;
-    // The burn.
+    // The burn, off the top of the deck.
+    const lead = takeDeck();
     const burn = createCard('A', 'S');
     burn.rotation.set(Math.PI, 0, 0);
-    burn.position.copy(DECK_SPOT);
+    burn.visible = false;
     root.add(burn);
     loose.push(burn);
     const burnTo = MUCK_SPOT.clone().setY(0.03 + loose.length * 0.002);
-    animate({ duration: 260, easing: easeOutCubic, onUpdate: (t) => burn.position.lerpVectors(DECK_SPOT, burnTo, t) });
-    let delay = 260;
+    setTimeout(() => {
+      const from = deckTop();
+      drawFromDeck();
+      burn.position.copy(from);
+      burn.visible = true;
+      animate({ duration: 260, easing: easeOutCubic, onUpdate: (t) => burn.position.lerpVectors(from, burnTo, t) });
+    }, lead);
+    let delay = lead + 260;
     for (let i = start; i < cards.length; i++) {
       const spot = BOARD_SPOTS[i];
       const [rank, suit] = cards[i].split('-');
@@ -488,12 +576,61 @@ export function createPokerDriver({ scene, camera, controls, dealer }) {
   }
 
   /** Everything of the last hand off the felt, ready for the next. */
+  // Every card of the hand swept into the shuffler's intake, and down into
+  // it; the rest of the deck after them. The machine shuffles — its light
+  // amber, a soft whirr — and a fresh deck rises for the next hand.
+  const SHUFFLE_MS = 2400;
   function clearHand() {
     const gone = [...hole.values()].flat().concat(board, loose).filter(Boolean);
-    gone.forEach((card) => {
+    const intake = SHUFFLER.intake.clone();
+    gone.forEach((card, i) => {
       const from = card.position.clone();
-      animate({ duration: 380, easing: easeInOutCubic, onUpdate: (t) => card.position.lerpVectors(from, MUCK_SPOT, t), onComplete: () => root.remove(card) });
+      const x0 = card.rotation.x;
+      const y0 = card.rotation.y;
+      const wait = Math.min(i * 25, 300);
+      const t0 = performance.now() + wait;
+      animate({
+        duration: 520 + wait,
+        easing: (t) => t,
+        onUpdate: () => {
+          const t = Math.max(0, Math.min(1, (performance.now() - t0) / 520));
+          if (!t) return;
+          const e = easeInOutCubic(t);
+          card.position.lerpVectors(from, intake, e);
+          card.position.y += Math.sin(e * Math.PI) * 0.03;
+          // Face down and square to the slot as it goes; then down into it.
+          card.rotation.x = x0 + (Math.PI - x0) * e;
+          card.rotation.y = y0 * (1 - e);
+          if (t > 0.85) card.position.y = intake.y - ((t - 0.85) / 0.15) * 0.03;
+        },
+        onComplete: () => root.remove(card),
+      });
     });
+    if (gone.length || deckState === 'held') {
+      const gen = ++deckGen;
+      const left = deck.position.clone();
+      const wasHeld = deckState === 'held';
+      deckState = 'shuffling';
+      light.material.color.setHex(BUSY);
+      if (wasHeld) {
+        animate({
+          duration: 520,
+          easing: easeInOutCubic,
+          onUpdate: (t) => {
+            if (gen !== deckGen) return;
+            deck.position.lerpVectors(left, intake, t);
+            deck.position.y += Math.sin(t * Math.PI) * 0.04;
+            deck.rotation.y *= 1 - t;
+            if (t > 0.8) deck.scale.y = Math.max(0.001, deckScale() * (1 - (t - 0.8) / 0.2));
+          },
+          onComplete: () => { if (gen === deckGen) deck.visible = false; },
+        });
+      } else {
+        deck.visible = false;
+      }
+      setTimeout(() => { if (gen === deckGen && root.visible) shufflerSound(SHUFFLE_MS - 900); }, 600);
+      setTimeout(() => { if (gen === deckGen) raiseDeck(); }, SHUFFLE_MS);
+    }
     hole.clear();
     board = [];
     loose.length = 0;
@@ -504,7 +641,7 @@ export function createPokerDriver({ scene, camera, controls, dealer }) {
 
   function setVisible(v) {
     root.visible = v;
-    if (!v) followed = false;
+    if (!v) { followed = false; deckGen++; deckReady(); }
   }
 
   return {
