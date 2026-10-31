@@ -1010,3 +1010,36 @@ input:focus { outline: none; border-color: var(--accent); }
 @media (orientation: landscape) and (max-height: 520px) {
   .pcard { right: 214px; }
 }
+
+/* ---------- the winner of each poker hand ---------- */
+.win-pop {
+  position: fixed; z-index: 6; left: 50%; top: calc(88px + env(safe-area-inset-top, 0px)); transform: translateX(-50%);
+  width: min(340px, calc(100vw - 32px)); padding: 14px 16px; border-radius: 16px; pointer-events: none;
+  background: rgba(20, 17, 15, 0.94); backdrop-filter: blur(10px);
+  border: 1px solid rgba(224, 180, 90, 0.45); box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.4);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.win-pop.mine { border-color: var(--accent); box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55), 0 0 28px rgba(224, 180, 90, 0.35); }
+.win-pop.enter { animation: win-in 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.25) 0.5s both; }
+@keyframes win-in { from { opacity: 0; transform: translateX(-50%) translateY(-10px) scale(0.92); } to { opacity: 1; transform: translateX(-50%); } }
+.wp-title { font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent); text-align: center; }
+.win-pop.mine .wp-title { font-family: var(--brand); font-size: 20px; letter-spacing: 0.04em; text-transform: none; }
+.wp-row { display: flex; align-items: center; gap: 10px; }
+.wp-avatar { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: var(--surface-3); border: 2px solid rgba(224, 180, 90, 0.6); }
+.wp-who { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+.wp-name { font-weight: 700; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wp-hand { color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wp-amount { font-weight: 800; font-size: 17px; color: #3ecf7a; font-variant-numeric: tabular-nums; }
+.wp-cards { display: flex; justify-content: center; gap: 4px; }
+.wp-cards .rc { width: 34px; height: 48px; margin: 0 !important; border-radius: 4px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); }
+@media (max-width: 640px) {
+  /* Between the Sound/Mic column and the column of faces. */
+  .win-pop { top: calc(96px + env(safe-area-inset-top, 0px)); width: calc(100vw - 112px); padding: 12px; gap: 8px; }
+  .wp-avatar { width: 30px; height: 30px; }
+  .wp-name { font-size: 14px; }
+  .wp-amount { font-size: 15px; }
+  .wp-cards .rc { width: 28px; height: 40px; }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .win-pop { top: calc(44px + env(safe-area-inset-top, 0px)); }
+}

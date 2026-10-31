@@ -204,7 +204,7 @@ export function pilaster(room, x, z, yaw, height, { color = 0x15141a, trim = 0xc
  * furniture, as corner points (the waiters round them off). Kept on the
  * room for waiters.js.
  */
-export function walkway(room, { x = 6.2, back = -5.4, front = 6.4 } = {}) {
+export function walkway(room, { x = 7.4, back = -6.4, front = 7.4 } = {}) {
   room.userData.walkway = [
     new THREE.Vector3(-x, FLOOR_Y, back),
     new THREE.Vector3(x, FLOOR_Y, back),

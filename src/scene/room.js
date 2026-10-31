@@ -16,12 +16,13 @@ import { ROOM_THEMES } from './rooms.js';
 // walls and floor cover most of the screen, so they are also the cheapest
 // material three.js has.
 
-export const CEILING_Y = 6.4;
-// A 9.4 m salon: room for a lounge on each side, and for waiters to walk
-// round the table between them. (At 10 m with nothing in it the walls were
-// specks in the dark, and at 7 m it was cramped; it is the furniture and
-// the sconces along the walls that make the larger room read.)
-export const ROOM_HALF = 12;  // walls at ±12 in x and z
+export const CEILING_Y = 7.0;
+// An 11.8 m salon: room for a lounge on each side, a wide loop for the
+// waiters round the table, and space between them. (With nothing in it a
+// room this size had walls that were specks in the dark; it is the
+// furniture and the sconces along the walls that make a large room read.
+// At 9.4 m, with the bigger poker table, it felt cramped.)
+export const ROOM_HALF = 15;  // walls at ±15 in x and z
 
 /**
  * Frees a room built by createRoom once it is out of the scene: its own

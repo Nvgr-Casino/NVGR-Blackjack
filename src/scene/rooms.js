@@ -143,8 +143,8 @@ export const ROOM_THEMES = {
   // ceiling with a cove of light.
   5: {
     name: ROOM_NAMES[4],
-    half: 16,
-    ceilingY: 8.6,
+    half: 19,
+    ceilingY: 9.2,
     windows: true,
     wall: { style: 'lacquer', base: 0x17171b, trim: 0xc9a86a, skirting: 0x08080a },
     floor: { style: 'marble', base: 0x1b1a1f, pattern: 0xd9d2c3 },
@@ -168,8 +168,8 @@ export const ROOM_THEMES = {
       });
 
       // A rug under the table and chairs, and a tray ceiling over them.
-      room.add(createRug(17, 14, { base: '#2a1418', border: '#141014', accent: '#c9a86a' }));
-      room.add(createTrayCeiling(10, 8, CEILING_Y, 0xe8c48a));
+      room.add(createRug(20, 16, { base: '#2a1418', border: '#141014', accent: '#c9a86a' }));
+      room.add(createTrayCeiling(12, 9.6, CEILING_Y, 0xe8c48a));
 
       // The bar, along the glass at the back left, with stools and bottles.
       const barX = -half + m(2.4);
@@ -204,7 +204,7 @@ export const ROOM_THEMES = {
         place(room, 'side_table_tall_01', { x: side * m(2.3), z: backOf(half, 0.35), size: 1.1 });
         place(room, side < 0 ? 'marble_bust_01' : 'horse_statue_01', { x: side * m(2.3), y: FLOOR_Y + m(0.8), z: backOf(half, 0.35), size: 1.25 });
       });
-      walkway(room, { x: 7, back: -6.2, front: 7.2 });
+      walkway(room, { x: 8.4, back: -7.4, front: 8.4 });
     },
   },
 };

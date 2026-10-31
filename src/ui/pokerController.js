@@ -90,7 +90,7 @@ export function createPokerDriver({ scene, camera, controls, dealer }) {
   };
 
   // ---------- camera ----------
-  const VIEWS = { wide: { back: m(0.6), height: m(1.95), toDealer: 0.18 }, tall: { back: m(1.5), height: m(2.8), toDealer: 0.05 } };
+  const VIEWS = { wide: { back: m(0.85), height: m(2.1), toDealer: 0.18 }, tall: { back: m(1.9), height: m(3.05), toDealer: 0.05 } };
   function viewFor(seatIndex) {
     const v = isTallScreen() ? VIEWS.tall : VIEWS.wide;
     // Watching without a seat: from in front of the table, between the two

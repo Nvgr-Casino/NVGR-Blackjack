@@ -224,7 +224,8 @@ export function renderPokerScreen() {
 
   // ----- the status line: whose turn, the clock, and the last result.
   const countdown = Poker.countdownText(r, myKey);
-  const lastLine = h && h.phase === 'done' && h.results ? resultLine(r, h) : (r.log || []).slice(-1)[0] || '';
+  // A finished hand's result is in its own pop-up (winnerPopup).
+  const lastLine = h && h.phase === 'done' && h.results ? '' : (r.log || []).slice(-1)[0] || '';
   const statusHtml = `
     <div class="hud-status">
       ${countdown ? `<div class="status-pill ${h && h.toAct === myKey ? 'urgent' : ''}" id="countdownText">${esc(countdown)}</div>` : ''}
@@ -368,6 +369,7 @@ export function renderPokerScreen() {
     </div>
     ${S.connLost ? '<div class="conn-banner">Connection lost — reconnecting…</div>' : ''}
     ${statusHtml}
+    ${winnerPopup(r, h, myKey)}
     ${playersHtml ? `<aside class="hud-players">${playersHtml}</aside>` : ''}
     ${chatSheet}
     ${serviceSheet(r)}
@@ -462,11 +464,53 @@ function holeName(cards) {
   return a[0] === b[0] ? 'Pocket ' + bestHand(cards).name.replace('Pair of ', '') : '';
 }
 
-function resultLine(r, h) {
-  return (h.results || []).map((res) => {
-    const names = res.winners.map((k) => (r.players[k] ? r.players[k].name : 'A player')).join(' and ');
-    return `${names} win${res.winners.length > 1 ? '' : 's'} ${res.amount.toLocaleString()}${res.hand ? ' with ' + res.hand : ''}`;
-  }).join(' · ');
+// The winner of each hand, announced: who, with what, and how much — one
+// line for each player paid, their pots added together, with the five
+// cards that won (a hand won when everyone else folded shows none). It
+// stays while the finished hand is on the table.
+let winnerShownFor = null;
+function winnerPopup(r, h, myKey) {
+  if (!h || h.phase !== 'done' || !h.results || !h.results.length) return '';
+  const fresh = winnerShownFor !== h.id;
+  winnerShownFor = h.id;
+  const won = new Map();
+  h.results.forEach((res) => {
+    // Shared as the rules share it: the odd chip to the first winner.
+    const share = Math.floor(res.amount / res.winners.length);
+    let odd = res.amount - share * res.winners.length;
+    res.winners.forEach((k) => {
+      const w = won.get(k) || { amount: 0, pots: [], hand: res.hand };
+      w.amount += share + (odd > 0 ? 1 : 0);
+      if (odd > 0) odd--;
+      w.pots.push(res.pot);
+      won.set(k, w);
+    });
+  });
+  const split = h.results.some((res) => res.winners.length > 1);
+  const mine = won.has(myKey);
+  const rows = [...won.entries()].map(([k, w]) => {
+    const p = r.players[k];
+    const name = k === myKey ? 'You' : p ? p.name : 'A player';
+    const best = h.hands && h.hands[k] && h.hands[k].best;
+    const how = w.hand ? (h.hands && h.hands[k] && h.hands[k].name) || w.hand : 'Everyone else folded';
+    const pots = h.results.length > 1 ? (w.pots.length === h.results.length ? 'All pots' : w.pots.map((i) => (i === 0 ? 'Main pot' : 'Side pot')).join(' + ')) : '';
+    return `
+      <div class="wp-row ${k === myKey ? 'me' : ''}">
+        <img class="wp-avatar" src="${characterPortraitDataURL((p && p.character) || defaultCharacterFor(k), 64)}" alt="">
+        <div class="wp-who">
+          <span class="wp-name">${esc(name)} ${k === myKey ? 'win' : 'wins'}</span>
+          <span class="wp-hand">${esc(how)}${pots ? ` · ${pots}` : ''}</span>
+        </div>
+        <span class="wp-amount">+${w.amount.toLocaleString()}</span>
+      </div>
+      ${best && best.length === 5 ? `<div class="wp-cards">${best.map(cardImg).join('')}</div>` : ''}`;
+  }).join('');
+  const title = mine ? (won.size > 1 ? 'Split pot — you share it' : 'You win the hand!') : split ? 'Split pot' : 'Hand won';
+  return `
+    <div class="win-pop ${fresh ? 'enter' : ''} ${mine ? 'mine' : ''}" role="status" aria-live="polite">
+      <div class="wp-title">${title}</div>
+      ${rows}
+    </div>`;
 }
 
 function sitDownPanel(r, min, max) {

@@ -3,8 +3,9 @@ import { FLOOR_Y, m } from './scale.js';
 import { BRASS, LEATHER, FELT_THEMES, feltTheme, createBurlTexture, createWoodTexture } from './table.js';
 import { drawCasinoCrest } from './crest.js';
 
-// The Hold'em table: a six-seat racetrack oval, about 2.0 m by 1.05 m of
-// table, as six-max tables are. Felt inside a burl rim, a band of wood —
+// The Hold'em table: a six-seat racetrack oval, 2.5 m by 1.3 m of felt —
+// on the generous side of a six-max table, so the seats have room between
+// them and the board room around it. Felt inside a burl rim, a band of wood —
 // the racetrack — between rim and rail, then the padded armrest, on a
 // walnut apron and pedestal. The dealer stands at the middle of the far
 // long side (-z); the six seats run clockwise from the dealer's left, as
@@ -15,8 +16,8 @@ import { drawCasinoCrest } from './crest.js';
 // space, so the driver (src/ui/pokerController.js) never computes a
 // position of its own.
 
-const LENGTH = m(2.0);
-const WIDTH = m(1.05);
+const LENGTH = m(2.5);
+const WIDTH = m(1.3);
 const END_R = WIDTH / 2;                 // the oval's round ends
 const STRAIGHT = LENGTH / 2 - END_R;     // half the straight run
 const RIM = m(0.05);
