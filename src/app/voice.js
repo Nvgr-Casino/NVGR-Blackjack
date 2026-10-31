@@ -53,6 +53,7 @@ const muted = new Set();  // keys muted from this side
 let mic = null;           // the live mic track, while it's on
 let micState = 'off';     // 'off' | 'asking' | 'on' | 'denied'
 let micLevel = null;      // analyser on my own mic, for my own ring
+let micQuick = false;     // whether it came on at once, without a prompt
 
 // ---------- who ----------
 
@@ -305,12 +306,18 @@ async function startMic() {
   if (mic || micState === 'asking') return;
   micState = 'asking';
   S.refresh();
+  const asked = performance.now();
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
     const track = stream.getAudioTracks()[0];
     if (!code || micState !== 'asking') { track.stop(); if (micState === 'asking') micState = 'off'; S.refresh(); return; }
     mic = track;
     micState = 'on';
+    // Quick means no permission prompt came between: only then can a
+    // press be push-to-talk.
+    micQuick = performance.now() - asked < 1000;
+    // The phone can take the mic back (a call): then it's off, and shows so.
+    track.onended = () => { if (mic === track) { stopMic(); S.refresh(); } };
     peers.forEach((p) => { if (p.sender) p.sender.replaceTrack(mic).catch(() => {}); });
     const c = audio();
     if (c) {
@@ -406,18 +413,27 @@ export function attachVoice() {
   const micBtn = document.getElementById('micToggleBtn');
   if (micBtn) {
     micBtn.onpointerdown = (e) => {
+      if (e.button) return;
       e.preventDefault();
       const wasOn = micState === 'on' || micState === 'asking';
       const t0 = performance.now();
+      const id = e.pointerId;
       if (!wasOn) startMic();
       // The HUD may be redrawn while the button is held: the release is
-      // listened for on the page.
-      window.addEventListener('pointerup', () => {
-        const held = performance.now() - t0 > HOLD_MS;
+      // listened for on the page — that finger's release only. A press cut
+      // short (the browser asking for the mic, a gesture) is a tap: the
+      // mic stays on. It once stayed listening instead, and the next tap
+      // anywhere, a minute later, turned the mic off.
+      const end = (ev) => {
+        if (ev.pointerId !== id) return;
+        window.removeEventListener('pointerup', end);
+        window.removeEventListener('pointercancel', end);
         if (wasOn) stopMic();
-        else if (held) stopMic();
+        else if (ev.type === 'pointerup' && micState === 'on' && micQuick && performance.now() - t0 > HOLD_MS) stopMic();
         S.refresh();
-      }, { once: true });
+      };
+      window.addEventListener('pointerup', end);
+      window.addEventListener('pointercancel', end);
     };
     micBtn.oncontextmenu = (e) => e.preventDefault();
   }
