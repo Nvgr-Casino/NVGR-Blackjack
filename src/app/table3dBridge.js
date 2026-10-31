@@ -643,7 +643,7 @@ export function renderTableScreen() {
         <div class="dock-panel dock-bet">
           <div class="dock-head">
             <span class="dock-balance">${tour ? 'Chips' : 'Balance'}<b>${me.chips.toLocaleString()}</b></span>
-            ${tour ? `<span class="muted">${BT.handsLeft(r) ? `Hand ${r.round} of ${BT.HANDS}` : 'Final hand'}</span>` : '<button class="link" id="sitOutBtn">Sit out this round</button>'}
+            ${tour ? `<span class="muted">${BT.handsLeft(r) ? `Hand ${r.round} of ${BT.handsOf(r)}${BT.nextCut(r) === r.round ? ' · lowest stack goes after it' : ''}` : 'Final hand'}</span>` : '<button class="link" id="sitOutBtn">Sit out this round</button>'}
           </div>
           <div class="chip-row">${chipsHtml}</div>
           <div class="dock-actions">
@@ -854,11 +854,13 @@ const shortNum = (n) => (n >= 1e6 ? (n % 1e6 ? (n / 1e6).toFixed(n % 1e5 ? 2 : 1
 
 function bjTournamentSub(r) {
   const x = r.tournament;
-  const where = r.offline ? 'vs bots' : 'Tournament';
+  const where = (x.format === 'elimination' ? 'Elimination' : 'Quick') + (r.offline ? ' vs bots' : '');
   if (BT.registering(r)) return `${where} · Buy-in ${shortNum(x.buyIn)} · 1st ${shortNum(x.prizes[0])}`;
   const left = (r.playerOrder || []).filter((k) => r.players && r.players[k]).length;
   if (BT.finished(r)) return `${where} · ${x.entrants} played`;
-  return `${where} · Hand ${r.round} of ${BT.HANDS} · Bets ${shortNum(BT.MIN_BET)}–${shortNum(BT.MAX_BET)} · ${left}/${x.entrants || left} left`;
+  const cut = BT.nextCut(r);
+  const next = cut && left > 2 ? ` · cut after hand ${cut}` : '';
+  return `${where} · Hand ${r.round} of ${BT.handsOf(r)}${next} · Bets ${shortNum(BT.MIN_BET)}–${shortNum(BT.MAX_BET)} · ${left}/${x.entrants || left} left`;
 }
 
 function bjRegistrationPanel(r, me) {
@@ -873,7 +875,7 @@ function bjRegistrationPanel(r, me) {
         <span class="muted">${n}/${BT.SEATS} registered · ${esc(when)}</span>
       </div>
       <div class="tp-prizes">${(x.prizes || []).map((p, i) => `<span class="tp-prize"><b>${BT.ordinal(i + 1)}</b>${p.toLocaleString()}</span>`).join('')}</div>
-      <p class="tp-fine">${BT.START_STACK.toLocaleString()} chips each · ${BT.HANDS} hands · bets ${BT.MIN_BET.toLocaleString()} to ${BT.MAX_BET.toLocaleString()} · most chips at the end wins. Prizes for a full table, in proportion if it starts short.</p>
+      <p class="tp-fine">${BT.START_STACK.toLocaleString()} chips each · ${BT.handsOf(r)} hands · bets ${BT.MIN_BET.toLocaleString()} to ${BT.MAX_BET.toLocaleString()} · ${BT.cutsOf(r).length ? `the lowest stack goes out after hands ${BT.cutsOf(r).join(', ')}; ` : ''}most chips at the end wins. Prizes for a full table, in proportion if it starts short.</p>
       <div class="dock-actions">
         ${me
           ? '<span class="tp-in">You are registered</span><button class="btn btn-sm btn-quiet" id="bjUnregisterBtn">Unregister</button>'

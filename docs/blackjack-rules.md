@@ -68,13 +68,21 @@ one split, late surrender.
 
 ## Tournaments
 
-`src/blackjack/tournament.js`, the format casinos run: five seats,
-10,000 tournament chips each, 20 hands, bets from 100 to 5,000. A player who
-can no longer cover the minimum bet is out. After the last hand the biggest
-stack wins; level stacks share a place and split its prizes. The top three
-are paid, with the same buy-ins and prizes as the Hold'em tournaments
-(Starter 10K to 100K, Classic 50K to 500K, High Roller 100K to 1M,
-Millionaire 250K to 2.5M, Diamond 1M to 10M).
+`src/blackjack/tournament.js`: five seats, 10,000 tournament chips each, bets
+from 100 to 5,000, in two formats:
+
+- **Quick:** 5 hands, straight. The biggest stack after the last hand wins.
+- **Elimination:** 9 hands. After hands 3, 5 and 7 the lowest stack at the
+  table goes out (level at the bottom, the one who started the hand lower
+  goes), never the last two, so a full table plays the last two hands
+  heads-up. The bigger stack after hand 9 wins.
+
+In either, a player who can no longer cover the minimum bet is out at once.
+Level stacks at the end share a place and split its prizes. The top three
+are paid, the same buy-ins and prizes in both formats and as the Hold'em
+tournaments (Starter 10K to 100K, Classic 50K to 500K, High Roller 100K to
+1M, Millionaire 250K to 2.5M, Diamond 1M to 10M). Hold'em keeps its own
+format, blinds rising until one player is left: a slower game.
 
 - **Online:** each tournament always has a table taking registrations. It
   starts when five are in, or 90 seconds after the second; a short field

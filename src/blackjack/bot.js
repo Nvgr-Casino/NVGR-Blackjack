@@ -8,10 +8,11 @@
 // It bets as a tournament player does, and that is where the game is: a
 // modest share of its stack early on, more when it is falling behind, and
 // in the last hands everything on the line if it trails the leader — or
-// the minimum, if it is the leader and can sit on it.
+// the minimum, if it is the leader and can sit on it. Before an
+// elimination, the one at the bottom goes for it to climb off the bottom.
 
 import { handTotals, rankOf, cardValue, canSplitCards, stakesFor } from '../app/roomLogic.js';
-import { HANDS } from './tournament.js';
+import { handsOf, cutsOf } from './tournament.js';
 
 const up = (r) => {
   const card = r.dealer && r.dealer.hand && r.dealer.hand[0];
@@ -26,8 +27,14 @@ export function botBet(r, key, rand = Math.random) {
   if (cap < min) return 0;
   const others = (r.playerOrder || []).filter((k) => k !== key && r.players[k]).map((k) => r.players[k].chips);
   const leader = others.length ? Math.max(...others) : 0;
-  const left = HANDS - (r.round || 0); // hands after this one
+  const left = handsOf(r) - (r.round || 0); // hands after this one
   const round = (n) => Math.max(min, Math.min(cap, Math.round(n / min) * min));
+  // An elimination hand, and this bot has the lowest stack: it has to win
+  // chips now, or go.
+  if (cutsOf(r).includes(r.round || 0) && others.length && p.chips <= Math.min(...others)) {
+    const gap = Math.min(...others) - p.chips;
+    return round(Math.max(gap + min, cap * 0.5));
+  }
   if (left <= 1) {
     // The last two hands: chase if behind, protect if ahead.
     if (p.chips <= leader) return cap;

@@ -46,6 +46,7 @@ const arrow = '<svg class="arrow" viewBox="0 0 20 20" aria-hidden="true"><path d
 let sheet = null;        // { kind: 'tour' | 'poker' | 'bj' | 'join', key, confirm }
 let holdemTab = 'cash';  // 'cash' | 'practice'
 let tourGame = 'blackjack'; // which game's tournaments: 'blackjack' | 'holdem'
+let bjFormat = 'quick';     // and which kind of blackjack one: 'quick' | 'elimination'
 let boardBy = (() => { try { return localStorage.getItem('nvgr-board') || 'chips'; } catch { return 'chips'; } })();
 
 function seatsHtml(seats, total) {
@@ -294,8 +295,12 @@ const GAMES = {
     byId: BT.bjTournamentById,
     list: () => S.bjTournaments || [],
     seats: BT.SEATS,
-    blurb: `Five players, ${BT.START_STACK.toLocaleString()} chips each, ${BT.HANDS} hands. Most chips after the last hand wins; second and third are paid too.`,
-    facts: () => [['Players', String(BT.SEATS)], ['Starting chips', BT.START_STACK.toLocaleString()], ['Hands', String(BT.HANDS)], ['Bets', `${BT.MIN_BET.toLocaleString()} – ${BT.MAX_BET.toLocaleString()}`]],
+    get blurb() {
+      return bjFormat === 'elimination'
+      ? `Five players, ${BT.START_STACK.toLocaleString()} chips each, ${BT.FORMATS.elimination.hands} hands. After hands ${BT.FORMATS.elimination.cuts.join(', ')} the lowest stack goes out — two are left for the last hands.`
+      : `Five players, ${BT.START_STACK.toLocaleString()} chips each, ${BT.FORMATS.quick.hands} hands, straight. Most chips after the last hand wins.`;
+    },
+    facts: (def) => [['Format', def.format === 'elimination' ? `Elimination · ${def.hands} hands` : `Quick · ${def.hands} hands`], ['Starting chips', BT.START_STACK.toLocaleString()], ['Players', String(BT.SEATS)], ['Bets', `${BT.MIN_BET.toLocaleString()} – ${BT.MAX_BET.toLocaleString()}`]],
     bots: 'four bots',
     full: 'five',
     wait: BT.START_WAIT_MS,
@@ -314,7 +319,7 @@ const GAMES = {
     win: 'Last one standing',
   },
 };
-const gameOf = (id) => (String(id).startsWith('bj-') ? 'blackjack' : 'holdem');
+const gameOf = (id) => (/^bj\d/.test(String(id)) ? 'blackjack' : 'holdem');
 const tourDef = (id) => GAMES[gameOf(id)].byId(id);
 
 function tourState(def) {
@@ -339,7 +344,7 @@ function tourTile(def) {
         ${def.featured ? '<span class="ribbon">Featured</span>' : ''}
       </span>
       ${def.featured ? `<span class="tt-art">${ART.tournaments}</span>` : ''}
-      <span class="tt-name">${esc(def.name)}</span>
+      <span class="tt-name">${esc(def.name)}${def.format ? `<span class="tt-format">${def.format === 'elimination' ? 'Elimination' : 'Quick'} · ${def.hands} hands</span>` : ''}</span>
       <span class="tt-prize"><span class="tt-label">1st prize</span><span class="gold-num">${def.featured ? def.prizes[0].toLocaleString() : short(def.prizes[0])}</span></span>
       <span class="tt-foot">
         <span>Buy-in <b>${short(def.buyIn)}</b></span>
@@ -351,7 +356,15 @@ function tourTile(def) {
 function tournamentsPage() {
   const g = GAMES[tourGame];
   const loading = S.lobbyLoading && !(tourGame === 'blackjack' ? S.bjTournaments : S.pokerTables && S.pokerTables.tournaments);
-  const defs = g.defs.filter((d) => d.featured).concat(g.defs.filter((d) => !d.featured));
+  const shown = tourGame === 'blackjack' ? g.defs.filter((d) => d.format === bjFormat) : g.defs;
+  const defs = shown.filter((d) => d.featured).concat(shown.filter((d) => !d.featured));
+  const formats = tourGame === 'blackjack' ? `
+    <div class="format-pick" role="tablist">
+      ${[['quick', 'Quick', `${BT.FORMATS.quick.hands} hands · most chips wins`], ['elimination', 'Elimination', `${BT.FORMATS.elimination.hands} hands · lowest stack out after ${BT.FORMATS.elimination.cuts.join(', ')}`]].map(([id, name, line]) => `
+        <button class="format-card ${bjFormat === id ? 'on' : ''}" data-bj-format="${id}" role="tab" aria-selected="${bjFormat === id}">
+          <span class="format-name">${name}</span><span class="format-line">${line}</span>
+        </button>`).join('')}
+    </div>` : '';
   return `
     ${banner('tournaments', {
       kicker: tourGame === 'blackjack' ? 'Blackjack · five players' : "Hold'em · Sit & Go · six players",
@@ -360,6 +373,7 @@ function tournamentsPage() {
       tabs: tabs([['blackjack', 'Blackjack'], ['holdem', "Texas Hold'em"]], tourGame, 'data-tour-game'),
     })}
     <section class="list-section">
+      ${formats}
       ${listHead('Choose a tournament')}
       ${loading ? '<div class="empty-state">Loading tournaments…</div>' : `<div class="tour-grid">${defs.map(tourTile).join('')}</div>`}
     </section>`;
@@ -460,7 +474,7 @@ function tourSheet(def) {
       </div>
       <div class="facts">
         ${fact('Buy-in', def.buyIn.toLocaleString())}
-        ${g.facts().slice(0, 3).map(([l, v]) => fact(l, v)).join('')}
+        ${g.facts(def).slice(0, 3).map(([l, v]) => fact(l, v)).join('')}
       </div>
       <div class="sheet-status">
         <span class="status-title">Online now</span>
@@ -696,6 +710,7 @@ export function attachHome() {
     else Offline.startTournament(id);
   });
   all('[data-tour-game]', (el) => { el.onclick = () => { tourGame = el.dataset.tourGame; S.refresh(); }; });
+  all('[data-bj-format]', (el) => { el.onclick = () => { bjFormat = el.dataset.bjFormat; S.refresh(); }; });
   all('[data-open-tour]', (el) => {
     el.onclick = () => {
       sheet = null;

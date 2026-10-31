@@ -1,7 +1,13 @@
 // Blackjack tournaments: five seats, everyone on the same stack of
-// tournament chips, a fixed number of hands, and whoever has the most chips
-// at the end wins — the format casinos run. A player who can no longer
-// cover the minimum bet is out. The top three are paid.
+// tournament chips, and two formats:
+//
+//   Quick — 5 hands, straight: whoever has the most chips after the last
+//   hand wins.
+//   Elimination — 9 hands: after hands 3, 5 and 7 the lowest stack at the
+//   table is out, so a full table comes down to two for the last two hands.
+//
+// In either, a player who can no longer cover the minimum bet is out on the
+// spot. The top three are paid.
 //
 // Pure functions on a blackjack room (src/app/roomLogic.js plays each
 // hand); this module decides when it starts, how many hands, who is out,
@@ -15,20 +21,28 @@
 
 import { addPlayerToRoom, startRoundLogic, enterTurn, checkAutoDeal, safeKey, MAX_PUBLIC_SEATS } from '../app/roomLogic.js';
 
+export const FORMATS = {
+  quick: { name: 'Quick', hands: 5, cuts: [] },
+  elimination: { name: 'Elimination', hands: 9, cuts: [3, 5, 7] },
+};
+
 // First prize ten buy-ins, second two and a half, third one — for a full
-// table. Online, a table that starts short pays in proportion.
-export const BJ_TOURNAMENTS = [
-  { id: 'bj-starter', name: 'Starter', tier: 1, buyIn: 10000, prizes: [100000, 25000, 10000] },
-  { id: 'bj-classic', name: 'Classic', tier: 3, buyIn: 50000, prizes: [500000, 125000, 50000] },
-  { id: 'bj-highroller', name: 'High Roller', tier: 4, buyIn: 100000, prizes: [1000000, 250000, 100000], featured: true },
-  { id: 'bj-millionaire', name: 'Millionaire', tier: 5, buyIn: 250000, prizes: [2500000, 625000, 250000] },
-  { id: 'bj-diamond', name: 'Diamond', tier: 5, buyIn: 1000000, prizes: [10000000, 2500000, 1000000] },
+// table. Online, a table that starts short pays in proportion. Every buy-in
+// in both formats.
+const LADDER = [
+  { key: 'starter', name: 'Starter', tier: 1, buyIn: 10000, prizes: [100000, 25000, 10000] },
+  { key: 'classic', name: 'Classic', tier: 3, buyIn: 50000, prizes: [500000, 125000, 50000] },
+  { key: 'highroller', name: 'High Roller', tier: 4, buyIn: 100000, prizes: [1000000, 250000, 100000], featured: true },
+  { key: 'millionaire', name: 'Millionaire', tier: 5, buyIn: 250000, prizes: [2500000, 625000, 250000] },
+  { key: 'diamond', name: 'Diamond', tier: 5, buyIn: 1000000, prizes: [10000000, 2500000, 1000000] },
 ];
+export const BJ_TOURNAMENTS = ['quick', 'elimination'].flatMap((format) => LADDER.map(({ key, ...d }) => ({
+  ...d, id: `bj${FORMATS[format].hands}-${key}`, format, hands: FORMATS[format].hands, cuts: FORMATS[format].cuts,
+})));
 export const bjTournamentById = (id) => BJ_TOURNAMENTS.find((d) => d.id === id) || null;
 
 export const SEATS = MAX_PUBLIC_SEATS;
 export const START_STACK = 10000;
-export const HANDS = 20;
 export const MIN_BET = 100;
 export const MAX_BET = 5000;
 // Online: once two have registered, the rest have this long to join.
@@ -53,6 +67,7 @@ const seated = (r) => (r.playerOrder || []).filter((k) => r.players && r.players
 export function setupTournament(room, def) {
   room.tournament = {
     id: def.id, name: def.name, buyIn: def.buyIn, prizes: def.prizes.slice(),
+    format: def.format, hands: def.hands, cuts: def.cuts.slice(),
     status: 'registering', entrants: 0, places: {}, startsAt: null,
   };
   room.tier = def.tier;
@@ -99,12 +114,17 @@ export function start(r, now = Date.now(), { scale = false } = {}) {
   x.prizes = x.prizes.slice(0, Math.max(1, Math.min(x.prizes.length, n - 1))).map((p) => Math.round((p * factor) / 1000) * 1000);
   r.round = 0;
   startRoundLogic(r);
-  log(r, `${x.name} begins: ${n} players, ${START_STACK.toLocaleString()} chips each, ${HANDS} hands.`);
+  log(r, `${x.name} begins: ${n} players, ${START_STACK.toLocaleString()} chips each, ${x.hands} hands.`);
   return true;
 }
 
+/** The hands it lasts, and the hands after which the lowest stack goes. */
+export const handsOf = (r) => (r && r.tournament && r.tournament.hands) || FORMATS.quick.hands;
+export const cutsOf = (r) => (r && r.tournament && r.tournament.cuts) || [];
 /** Hands left after the one in play. */
-export const handsLeft = (r) => Math.max(0, HANDS - (r.round || 0));
+export const handsLeft = (r) => Math.max(0, handsOf(r) - (r.round || 0));
+/** The next hand after which the lowest stack goes, if any is to come. */
+export const nextCut = (r) => cutsOf(r).find((h) => h >= (r.round || 0)) || null;
 
 /**
  * Betting time is up: anyone who hasn't bet is bet the minimum, so the
@@ -173,15 +193,17 @@ function rankInto(r, keys, from) {
 
 /**
  * A hand is over and its pause too: whoever can't cover the minimum is
- * out; after the last hand — or with one player left — the stacks decide
- * the places. Otherwise the next hand. Call instead of startRoundLogic.
+ * out; after an elimination hand, the lowest stack is out too; after the
+ * last hand — or with one player left — the stacks decide the places.
+ * Otherwise the next hand. Call instead of startRoundLogic.
  */
 export function afterRound(r, now = Date.now()) {
   const x = tt(r);
   if (!x || x.status !== 'running' || r.phase !== 'results') return;
+  const hands = handsOf(r);
   const keys = seated(r);
   const broke = keys.filter((k) => r.players[k].chips < MIN_BET);
-  const alive = keys.filter((k) => r.players[k].chips >= MIN_BET);
+  let alive = keys.filter((k) => r.players[k].chips >= MIN_BET);
   if (broke.length) {
     rankInto(r, broke, alive.length + 1);
     broke.forEach((k) => {
@@ -189,14 +211,42 @@ export function afterRound(r, now = Date.now()) {
       unseat(r, k);
     });
   }
-  if ((r.round || 0) >= HANDS || alive.length <= 1) {
+  // An elimination hand: the lowest stack goes — never the last two, who
+  // play it out. Level at the bottom, the one who started the hand lower
+  // goes, then the one in the later seat.
+  if (cutsOf(r).includes(r.round || 0) && alive.length > 2) {
+    const lowest = alive.slice().sort((a, b) => {
+      const pa = r.players[a], pb = r.players[b];
+      return pa.chips - pb.chips || startedWith(pa) - startedWith(pb) || seatOrder(r, b) - seatOrder(r, a);
+    })[0];
+    rankInto(r, [lowest], alive.length);
+    log(r, `Elimination: ${r.players[lowest].name} has the lowest stack and goes out, in ${ordinal(x.places[lowest].place)}.`);
+    unseat(r, lowest);
+    alive = alive.filter((k) => k !== lowest);
+  }
+  if ((r.round || 0) >= hands || alive.length <= 1) {
     finish(r, now);
     return;
   }
   startRoundLogic(r);
-  if (r.round === HANDS) log(r, 'Final hand!');
-  else log(r, `Hand ${r.round} of ${HANDS}.`);
+  const cut = cutsOf(r).includes(r.round) && alive.length > 2;
+  if (r.round === hands) log(r, 'Final hand!');
+  else if (cut) log(r, `Hand ${r.round} of ${hands} — the lowest stack after it goes out.`);
+  else log(r, `Hand ${r.round} of ${hands}.`);
 }
+
+// What a player had at the start of the hand just played: their chips now,
+// less what the hand paid them, plus what it took.
+function startedWith(p) {
+  return p.chips - (p.hands || []).reduce((sum, h) => {
+    if (h.outcome === 'win') return sum + h.bet;
+    if (h.outcome === 'blackjack') return sum + Math.floor(h.bet * 1.5);
+    if (h.outcome === 'lose') return sum - h.bet;
+    if (h.outcome === 'surrender') return sum - Math.ceil(h.bet / 2);
+    return sum;
+  }, 0);
+}
+const seatOrder = (r, k) => (typeof r.players[k].seat === 'number' ? r.players[k].seat : 0);
 
 function finish(r, now) {
   const x = tt(r);

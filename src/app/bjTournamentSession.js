@@ -120,6 +120,12 @@ export async function loadBjTournaments() {
   for (const [code, r] of rooms) {
     if (!T.isBjTournament(r)) continue;
     const x = r.tournament;
+    // A tournament of a kind no longer run (the old 20-hand one): taken off
+    // the list once nobody is waiting at it.
+    if (!T.bjTournamentById(x.id)) {
+      if (x.status !== 'running' && !Object.keys(r.players || {}).length) remove(ref(db, 'publicIndex/tables/' + code)).catch(() => {});
+      continue;
+    }
     if (x.status === 'finished' && Date.now() - (x.finishedAt || 0) > FINISHED_LISTED_MS) {
       remove(ref(db, 'publicIndex/tables/' + code)).catch(() => {});
       continue;

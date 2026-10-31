@@ -1,5 +1,6 @@
-// Blackjack tournaments played to the end by bots through the real rules:
-// twenty hands at most, every place given once, the prizes to the right
+// Blackjack tournaments played to the end by bots through the real rules,
+// in both formats — quick (5 hands) and elimination (9, the lowest stack
+// out after hands 3, 5 and 7): every place given once, the prizes to the right
 // places, ties shared, nobody topped up; registering, the minimum bet for
 // the absent, and leaving in the middle of your own turn.
 import * as L from '../src/app/roomLogic.js';
@@ -37,54 +38,113 @@ function playHand(r, { skip = [], onTurn } = {}) {
   return r.phase === 'results' ? null : 'ended in ' + r.phase;
 }
 
-// ----- full tournaments
-const def = T.bjTournamentById('bj-highroller');
-ok(def && def.buyIn === 100000 && def.prizes[0] === 1000000, 'High Roller: 100K buy-in, 1M to the winner');
-let maxHands = 0;
-let minHands = 99;
-let broken = '';
-let early = 0;
-for (let game = 0; game < 200 && !broken; game++) {
-  const r = newRoom(def);
-  for (let i = 0; i < 5; i++) T.register(r, 'p' + i, { name: 'P' + i, now: 0 });
-  if (game === 0) {
-    ok(!T.register(r, 'p5', { name: 'P5', now: 0 }), 'a sixth cannot register');
-    ok(T.canStart(r, 0), 'a full table starts at once');
+// ----- full tournaments, in both formats
+function playOut(def, games) {
+  let maxHands = 0, minHands = 99, early = 0, broken = '';
+  for (let game = 0; game < games && !broken; game++) {
+    const r = newRoom(def);
+    for (let i = 0; i < 5; i++) T.register(r, 'p' + i, { name: 'P' + i, now: 0 });
+    if (game === 0) {
+      ok(!T.register(r, 'p5', { name: 'P5', now: 0 }), def.id + ': a sixth cannot register');
+      ok(T.canStart(r, 0), def.id + ': a full table starts at once');
+    }
+    T.start(r, 0);
+    let hands = 0;
+    const leftAfter = {};
+    while (T.running(r) && hands < 40) {
+      const err = playHand(r);
+      if (err) { broken = `${def.id} game ${game} hand ${hands}: ${err}`; break; }
+      hands++;
+      T.afterRound(r, 0);
+      leftAfter[hands] = r.playerOrder.length;
+    }
+    if (broken) break;
+    if (!T.finished(r)) { broken = `${def.id} game ${game}: not finished after ${hands}`; break; }
+    if (hands > def.hands) { broken = `${def.id} game ${game}: ${hands} hands`; break; }
+    if (hands < def.hands) early++;
+    maxHands = Math.max(maxHands, hands);
+    minHands = Math.min(minHands, hands);
+    // Each elimination hand leaves at most one fewer than the hand before
+    // it (more, if someone went broke too), never fewer than two.
+    for (const cut of def.cuts) {
+      if (leftAfter[cut] === undefined || cut >= hands) continue;
+      const before = cut > 1 ? leftAfter[cut - 1] : 5;
+      if (!(leftAfter[cut] < before || before <= 2)) { broken = `${def.id} game ${game}: nobody went out after hand ${cut} (${before} → ${leftAfter[cut]})`; break; }
+    }
+    if (broken) break;
+    const places = Object.values(r.tournament.places);
+    if (places.length !== 5) { broken = `${def.id} game ${game}: ${places.length} places`; break; }
+    const paid = Object.values(r.prizes || {}).reduce((a, b) => a + b, 0);
+    const total = def.prizes.reduce((a, b) => a + b, 0);
+    const shared = places.some((x, i) => places.some((y, j) => i !== j && x.place === y.place));
+    if (!shared && paid !== total) { broken = `${def.id} game ${game}: paid ${paid}`; break; }
+    if (shared && Math.abs(paid - total) > 5) { broken = `${def.id} game ${game}: shared, paid ${paid}`; break; }
+    // First had the most chips of those still in at the end.
+    const first = places.filter((x) => x.place === 1);
+    const second = places.filter((x) => x.place === 2);
+    if (hands === def.hands && second.length && !first.every((f) => second.every((x) => f.chips >= x.chips))) { broken = `${def.id} game ${game}: first had fewer chips than second`; break; }
   }
-  T.start(r, 0);
-  let hands = 0;
-  while (T.running(r) && hands < 40) {
-    const err = playHand(r);
-    if (err) { broken = `game ${game} hand ${hands}: ${err}`; break; }
-    hands++;
-    if (Object.values(r.players).some((p) => p.chips > 0 && p.chips < 0)) broken = 'negative';
-    T.afterRound(r, 0);
-  }
-  if (broken) break;
-  if (!T.finished(r)) { broken = `game ${game}: not finished after ${hands}`; break; }
-  if (hands > T.HANDS) { broken = `game ${game}: ${hands} hands`; break; }
-  if (hands < T.HANDS) early++;
-  maxHands = Math.max(maxHands, hands);
-  minHands = Math.min(minHands, hands);
-  const places = Object.values(r.tournament.places);
-  if (places.length !== 5) { broken = `game ${game}: ${places.length} places`; break; }
-  const paid = Object.values(r.prizes || {}).reduce((a, b) => a + b, 0);
-  const shared = places.some((p, i) => places.some((q, j) => i !== j && p.place === q.place));
-  // Every prize paid out in full, unless a tie shared out a remainder.
-  if (!shared && paid !== 1350000) { broken = `game ${game}: paid ${paid}`; break; }
-  if (shared && Math.abs(paid - 1350000) > 5) { broken = `game ${game}: shared, paid ${paid}`; break; }
-  const first = places.filter((p) => p.place === 1);
-  const most = Math.max(...places.map((p) => p.chips));
-  if (!first.every((p) => p.chips === most) && hands === T.HANDS) { broken = `game ${game}: first place was not the biggest stack`; break; }
+  ok(!broken, broken || `${def.id}: ${games} tournaments to the end (${minHands}–${maxHands} hands; ${early} ended early), places and prizes right`);
 }
-ok(!broken, broken || `200 tournaments to the end (${minHands}–${maxHands} hands; ${early} ended early with one player left), places and prizes right`);
+const def = T.bjTournamentById('bj5-highroller');
+ok(def && def.buyIn === 100000 && def.prizes[0] === 1000000 && def.hands === 5 && def.format === 'quick', 'Quick High Roller: 5 hands, 100K buy-in, 1M to the winner');
+const elim = T.bjTournamentById('bj9-highroller');
+ok(elim && elim.hands === 9 && elim.cuts.join() === '3,5,7' && elim.prizes[0] === 1000000, 'Elimination High Roller: 9 hands, cuts after 3, 5 and 7');
+ok(T.BJ_TOURNAMENTS.length === 10, 'five buy-ins in each format');
+playOut(def, 200);
+playOut(elim, 200);
+
+// ----- the cuts
+{
+  const r = newRoom(elim);
+  ['a', 'b', 'c', 'd', 'e'].forEach((k) => T.register(r, k, { name: k, now: 0 }));
+  T.start(r, 0);
+  const stacks = { a: 12000, b: 9000, c: 7000, d: 10500, e: 8000 };
+  r.round = 3;
+  r.phase = 'results';
+  Object.entries(stacks).forEach(([k, v]) => { r.players[k].chips = v; r.players[k].hands = []; });
+  T.afterRound(r, 0);
+  ok(!r.players.c && r.tournament.places.c.place === 5, 'after hand 3 the lowest stack goes, in 5th');
+  ok(r.playerOrder.length === 4 && r.round === 4, 'four play hand 4');
+  r.phase = 'results';
+  T.afterRound(r, 0);
+  ok(r.playerOrder.length === 4, 'no cut after hand 4');
+  r.phase = 'results';
+  r.players.d.chips = 50;
+  T.afterRound(r, 0);
+  ok(!r.players.d && r.tournament.places.d.place === 4 && !r.players.e && r.tournament.places.e.place === 3,
+    'after hand 5: one broke (4th) and then the lowest (3rd)');
+  ok(r.playerOrder.length === 2, 'two left');
+  r.round = 7;
+  r.phase = 'results';
+  T.afterRound(r, 0);
+  ok(r.playerOrder.length === 2 && T.running(r), 'the last two are never cut: they play hands 8 and 9');
+  r.round = 9;
+  r.phase = 'results';
+  r.players.a.chips = 15000; r.players.b.chips = 18000;
+  T.afterRound(r, 0);
+  ok(T.finished(r) && r.tournament.places.b.place === 1 && r.tournament.places.a.place === 2, 'after hand 9 the bigger stack of the two wins');
+}
+{
+  // Level at the bottom: the one who started the hand lower goes.
+  const r = newRoom(elim);
+  ['a', 'b', 'c'].forEach((k) => T.register(r, k, { name: k, now: 0 }));
+  T.start(r, 0);
+  r.round = 3;
+  r.phase = 'results';
+  r.players.a.chips = 9000; r.players.a.hands = [{ bet: 1000, outcome: 'win' }];   // started at 8000
+  r.players.b.chips = 9000; r.players.b.hands = [{ bet: 1000, outcome: 'lose' }];  // started at 10000
+  r.players.c.chips = 12000; r.players.c.hands = [];
+  T.afterRound(r, 0);
+  ok(!r.players.a && r.players.b, 'a tie for the lowest: the one who started the hand lower goes');
+}
 
 // ----- ties share
 {
   const r = newRoom(def);
   ['a', 'b', 'c'].forEach((k) => T.register(r, k, { name: k, now: 0 }));
   T.start(r, 0);
-  r.round = T.HANDS;
+  r.round = r.tournament.hands;
   r.phase = 'results';
   r.players.a.chips = 9000; r.players.b.chips = 9000; r.players.c.chips = 500;
   T.afterRound(r, 0);
@@ -110,7 +170,7 @@ ok(!broken, broken || `200 tournaments to the end (${minHands}–${maxHands} han
 
 // ----- registering
 {
-  const r = newRoom(T.bjTournamentById('bj-starter'));
+  const r = newRoom(T.bjTournamentById('bj5-starter'));
   T.register(r, 'a', { name: 'A', now: 1000 });
   ok(!r.tournament.startsAt, 'one entrant: no start clock');
   T.register(r, 'b', { name: 'B', now: 2000 });
@@ -167,7 +227,7 @@ ok(!broken, broken || `200 tournaments to the end (${minHands}–${maxHands} han
   const r = newRoom(def);
   ['a', 'b'].forEach((k) => T.register(r, k, { name: k, now: 0 }));
   T.start(r, 0);
-  r.round = T.HANDS;
+  r.round = r.tournament.hands;
   r.players.a.chips = 4000; r.players.b.chips = 9000;
   ok(botBet(r, 'a') === 4000, 'behind on the last hand: everything');
   r.players.a.chips = 30000;
