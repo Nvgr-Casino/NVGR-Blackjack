@@ -51,7 +51,7 @@ const peers = new Map();  // key -> connection to that player
 const muted = new Set();  // keys muted from this side
 
 let mic = null;           // the live mic track, while it's on
-let micState = 'off';     // 'off' | 'asking' | 'on' | 'denied'
+let micState = 'off';     // 'off' | 'asking' | 'on' | 'denied' | 'failed'
 let micLevel = null;      // analyser on my own mic, for my own ring
 let micQuick = false;     // whether it came on at once, without a prompt
 
@@ -125,7 +125,7 @@ export function leaveVoice() {
   peers.forEach((p) => closePeer(p));
   peers.clear();
   others = {};
-  stopMic();
+  releaseMic();
   const mine = voiceRef(c, 'peers/' + me());
   const inbox = voiceRef(c, 'sig/' + me());
   onDisconnect(mine).cancel().catch(() => {});
@@ -302,34 +302,65 @@ function pan(p) {
 
 // ---------- talking ----------
 
+// The mic is asked for once at a table and kept until leaving it: off and
+// on again only stop and start sending it. Asking again each time made an
+// iPhone ask again each time — and while the page's sound was playing it
+// often refused, which left the mic stuck off until a reload.
+let capture = null;       // the mic's track from the browser, kept while at the table
+
+async function getCapture() {
+  if (capture && capture.readyState === 'live' && !capture.muted) return capture;
+  if (capture) { capture.stop(); capture = null; }
+  const ask = () => navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+  let stream;
+  try { stream = await ask(); } catch (e) {
+    // A refusal is final; anything else (the phone's audio busy a moment)
+    // is worth one more try.
+    if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) throw e;
+    await new Promise((r) => setTimeout(r, 600));
+    stream = await ask();
+  }
+  const track = stream.getAudioTracks()[0];
+  // The phone can take the mic back (a call): then it's off, and shows so.
+  track.onended = () => {
+    if (capture !== track) return;
+    capture = null;
+    if (mic) { stopMic(); S.refresh(); }
+  };
+  capture = track;
+  const c = audio();
+  if (c) {
+    if (micLevel) { try { micLevel.src.disconnect(); } catch { /* already */ } }
+    const src = c.createMediaStreamSource(new MediaStream([track]));
+    const an = c.createAnalyser();
+    an.fftSize = 512;
+    src.connect(an);
+    micLevel = { src, an };
+    // Taking the mic can pause the page's sound on an iPhone.
+    if (c.state !== 'running') c.resume().catch(() => {});
+  }
+  return track;
+}
+
 async function startMic() {
   if (mic || micState === 'asking') return;
+  const had = !!(capture && capture.readyState === 'live' && !capture.muted);
   micState = 'asking';
   S.refresh();
   const asked = performance.now();
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-    const track = stream.getAudioTracks()[0];
-    if (!code || micState !== 'asking') { track.stop(); if (micState === 'asking') micState = 'off'; S.refresh(); return; }
+    const track = await getCapture();
+    if (!code || micState !== 'asking') { if (micState === 'asking') micState = 'off'; S.refresh(); return; }
+    track.enabled = true;
     mic = track;
     micState = 'on';
     // Quick means no permission prompt came between: only then can a
     // press be push-to-talk.
-    micQuick = performance.now() - asked < 1000;
-    // The phone can take the mic back (a call): then it's off, and shows so.
-    track.onended = () => { if (mic === track) { stopMic(); S.refresh(); } };
+    micQuick = had || performance.now() - asked < 1000;
     peers.forEach((p) => { if (p.sender) p.sender.replaceTrack(mic).catch(() => {}); });
-    const c = audio();
-    if (c) {
-      const src = c.createMediaStreamSource(new MediaStream([mic]));
-      const an = c.createAnalyser();
-      an.fftSize = 512;
-      src.connect(an);
-      micLevel = { src, an };
-    }
     watchLevels();
-  } catch {
-    micState = 'denied';
+  } catch (e) {
+    micState = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError') ? 'denied' : 'failed';
   }
   if (code) update(voiceRef(code, 'peers/' + me()), { mic: micState === 'on' }).catch(() => {});
   S.refresh();
@@ -337,12 +368,18 @@ async function startMic() {
 
 function stopMic() {
   const wasOn = !!mic;
-  if (micState === 'asking') micState = 'off';
-  if (mic) { mic.stop(); mic = null; }
-  if (micLevel) { try { micLevel.src.disconnect(); } catch { /* already */ } micLevel = null; }
+  if (mic) { mic.enabled = false; mic = null; }
   peers.forEach((p) => { if (p.sender) p.sender.replaceTrack(null).catch(() => {}); });
-  if (micState !== 'denied') micState = 'off';
+  if (micState !== 'denied' && micState !== 'failed') micState = 'off';
   if (code && wasOn) update(voiceRef(code, 'peers/' + me()), { mic: false }).catch(() => {});
+}
+
+// Let the mic go altogether (leaving the table).
+function releaseMic() {
+  stopMic();
+  if (capture) { capture.onended = null; capture.stop(); capture = null; }
+  if (micLevel) { try { micLevel.src.disconnect(); } catch { /* already */ } micLevel = null; }
+  micState = 'off';
 }
 
 /** If in voice with player `k`: whether they're muted from this side. */
@@ -375,7 +412,7 @@ function watchLevels() {
     if (!code) { clearInterval(levelTimer); levelTimer = null; return; }
     const talking = {};
     peers.forEach((p, k) => { if (p.analyser) talking[k] = !muted.has(k) && loudness(p.analyser) > 0.02; });
-    if (micLevel) talking[me()] = loudness(micLevel.an) > 0.02;
+    if (micLevel && mic) talking[me()] = loudness(micLevel.an) > 0.02;
     document.querySelectorAll('[data-voice]').forEach((el) => el.classList.toggle('speaking', !!talking[el.dataset.voice]));
   }, 120);
 }
@@ -392,9 +429,10 @@ export function voiceButtons(r) {
   const sound = `<button class="hud-btn hud-icon ${isSoundOn() ? '' : 'off'}" id="soundToggleBtn" title="${isSoundOn() ? 'Sound on — tap to turn off' : 'Sound off — tap to turn on'}" aria-label="Sound ${isSoundOn() ? 'on' : 'off'}">${isSoundOn() ? ICON_SOUND : ICON_SOUND_OFF}</button>`;
   if (!voiceAvailable(r)) return `<span class="hud-voice">${sound}</span>`;
   const on = micState === 'on';
-  const title = micState === 'denied' ? 'The browser has blocked the mic — allow it in the site settings'
+  const title = micState === 'denied' ? 'The mic is blocked for this site — allow it in the browser settings, then tap to try again'
+    : micState === 'failed' ? "Couldn't start the mic — tap to try again"
     : on ? 'Mic on — tap to turn off' : 'Mic off — tap to talk, or hold to talk while held';
-  return `<span class="hud-voice">${sound}<button class="hud-btn hud-icon mic ${on ? 'live' : ''} ${micState === 'denied' ? 'denied' : ''} ${micState === 'asking' ? 'asking' : ''}" id="micToggleBtn" title="${title}" aria-label="${on ? 'Mic on' : 'Mic off'}" aria-pressed="${on}" data-voice="${me()}">${on ? ICON_MIC : ICON_MIC_OFF}</button></span>`;
+  return `<span class="hud-voice">${sound}<button class="hud-btn hud-icon mic ${on ? 'live' : ''} ${micState === 'denied' || micState === 'failed' ? 'denied' : ''} ${micState === 'asking' ? 'asking' : ''}" id="micToggleBtn" title="${title}" aria-label="${on ? 'Mic on' : 'Mic off'}" aria-pressed="${on}" data-voice="${me()}">${on ? ICON_MIC : ICON_MIC_OFF}</button></span>`;
 }
 
 /** Beside a player in the players list: their mic, and a mute for them, once in voice with them. */

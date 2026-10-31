@@ -41,7 +41,8 @@ export function audio() {
 export function masterOut() { audio(); return master; }
 
 // The first gesture anywhere starts the sound.
-const unlock = () => { const c = audio(); if (c && c.state === 'suspended') c.resume(); };
+// An iPhone can also leave it 'interrupted' (taking the mic, a call).
+const unlock = () => { const c = audio(); if (c && c.state !== 'running' && c.state !== 'closed') c.resume().catch(() => {}); };
 ['pointerdown', 'keydown', 'touchend'].forEach((e) => window.addEventListener(e, unlock, { passive: true }));
 
 export const isSoundOn = () => soundOn;
