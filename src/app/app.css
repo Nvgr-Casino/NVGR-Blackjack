@@ -639,6 +639,13 @@ input:focus { outline: none; border-color: var(--accent); }
 .seat-dot.current { background: var(--accent); color: var(--accent-ink); }
 .seat-dot.taken { background: var(--surface-3); color: var(--faint); }
 .seat-dot:disabled { cursor: default; }
+.seat-toggle { padding: 0 12px; gap: 6px; }
+.seat-toggle svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--text); }
+.seat-toggle b { font-weight: 700; color: var(--accent); }
+.seat-dot.seat-close { display: inline-flex; align-items: center; justify-content: center; color: var(--accent); }
+.seat-dot.seat-close svg { width: 16px; height: 16px; }
+.seat-dots.opening { animation: seats-open 0.24s ease-out; overflow: hidden; }
+@keyframes seats-open { from { max-width: 38px; opacity: 0.5; } to { max-width: 240px; opacity: 1; } }
 
 .hud-status {
   position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); z-index: 5;
@@ -836,6 +843,8 @@ input:focus { outline: none; border-color: var(--accent); }
   .hud-btn { height: 34px; padding: 0 11px; font-size: 13px; }
   .hud-sub { display: none; }
   .seat-dot { width: 24px; height: 24px; font-size: 11px; }
+  .seat-toggle { padding: 0 10px; }
+  .seat-toggle .seat-word { display: none; }
   .hud-status { top: calc(54px + env(safe-area-inset-top, 0px)); }
   .status-log { display: none; }
   .status-pill { font-size: 13px; padding: 6px 12px; }
@@ -924,3 +933,44 @@ input:focus { outline: none; border-color: var(--accent); }
 .format-card.on .format-name { color: var(--accent); }
 .format-line { font-size: 12px; color: var(--muted); }
 .tt-format { display: block; font-family: var(--font); font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(246, 236, 214, 0.7); margin-top: 2px; }
+
+/* ---------- sound and voice ---------- */
+.hud-voice { display: flex; gap: 8px; }
+.hud-btn.hud-icon { width: 36px; padding: 0; justify-content: center; }
+.hud-icon svg, .hud-labelled svg { width: 18px; height: 18px; flex-shrink: 0; }
+.hud-labelled { padding-left: 12px; }
+.player { position: relative; }
+.hud-icon.off { color: var(--muted); }
+.hud-icon.mic { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.hud-icon.mic.live { border-color: #3ecf7a; color: #3ecf7a; }
+.hud-icon.mic.live.speaking { box-shadow: 0 0 0 3px rgba(62, 207, 122, 0.35); }
+.hud-icon.mic.asking { opacity: 0.6; }
+.hud-icon.mic.denied { color: #e06c6c; border-color: rgba(224, 108, 108, 0.6); }
+.player-avatar { transition: box-shadow 0.12s ease; }
+.player.speaking .player-avatar { box-shadow: 0 0 0 2px #3ecf7a, 0 0 10px rgba(62, 207, 122, 0.6); }
+.voice-mute {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 24px; height: 24px; padding: 0; border-radius: 50%; cursor: pointer;
+  border: 1px solid var(--line-strong); background: transparent; color: var(--muted);
+}
+.voice-mute svg { width: 13px; height: 13px; }
+.voice-mute.live { color: #3ecf7a; border-color: rgba(62, 207, 122, 0.5); }
+.voice-mute.muted { color: #e06c6c; border-color: rgba(224, 108, 108, 0.5); }
+@media (max-width: 640px) {
+  /* The top bar holds only what fits on a phone: Drinks and Chat as icons,
+     and the Sound and Mic buttons in a column of their own down the left
+     edge, across from the column of faces on the right. */
+  /* The table's name gives way, not the buttons. */
+  .hud-left { flex: 1 1 auto; }
+  .hud-right, .hud-right > * { flex-shrink: 0; }
+  .hud-table { min-width: 0; overflow: hidden; }
+  .hud-code { overflow: hidden; text-overflow: ellipsis; }
+  .hud-labelled { width: 34px; padding: 0; justify-content: center; position: relative; }
+  .hud-labelled .hud-label { display: none; }
+  .hud-labelled .count { position: absolute; top: -4px; right: -4px; }
+  .hud-btn.hud-icon { width: 34px; }
+  .hud-voice { position: fixed; left: 8px; top: calc(96px + env(safe-area-inset-top, 0px)); flex-direction: column; gap: 6px; }
+  /* A player's mute sits on the corner of their face. */
+  .voice-mute { position: absolute; right: -5px; bottom: -5px; width: 18px; height: 18px; background: var(--hud); }
+  .voice-mute svg { width: 10px; height: 10px; }
+}

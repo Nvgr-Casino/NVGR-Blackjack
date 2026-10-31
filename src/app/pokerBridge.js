@@ -11,11 +11,12 @@ import { cardFaceUrl } from '../scene/card.js';
 import { characterPortraitDataURL, defaultCharacterFor } from '../scene/character.js';
 import { dealerKeyFor } from '../scene/dealer.js';
 import { safeKey, roomName, stakesTier } from './roomLogic.js';
-import { esc } from './uiHelpers.js';
+import { esc, HUD_ICONS } from './uiHelpers.js';
 import * as S from './session.js';
 import * as Poker from './pokerSession.js';
 import * as Offline from './offlinePoker.js';
 import { syncService, serviceButton, serviceSheet, attachService } from './service.js';
+import { syncVoice, voiceButtons, voiceBadge, attachVoice } from './voice.js';
 import * as Social from './social.js';
 
 let driver = null;
@@ -74,6 +75,8 @@ export function syncPokerToScene(room, myKey) {
   scene.setPokerFelt(room.felt);
   // Drinks in the cup holders, and any waiter or tip on its way.
   syncService(room);
+  // Voice with the others at the table, where there is any.
+  syncVoice(room);
   driver.setVisible(true);
   driver.setLadder(ladderFor(room));
 
@@ -324,18 +327,19 @@ export function renderPokerScreen() {
     const roles = [p.bot ? 'BOT' : '', h && h.button === k ? 'D' : '', h && h.sb === k && h.players.length > 2 ? 'SB' : '', h && h.bb === k ? 'BB' : ''].filter(Boolean).join(' ');
     const addable = !isMe && !Social.isFriend(k);
     return `
-      <div class="player ${onTurn ? 'on-turn' : ''} ${addable ? 'addable' : ''}" ${addable ? `data-add-friend="${esc(k)}" data-add-name="${esc(p.name)}"` : ''}>
+      <div class="player ${onTurn ? 'on-turn' : ''} ${addable ? 'addable' : ''}" data-voice="${esc(k)}" ${addable ? `data-add-friend="${esc(k)}" data-add-name="${esc(p.name)}"` : ''}>
         <img class="player-avatar" src="${characterPortraitDataURL(p.character || defaultCharacterFor(k), 64)}" alt="">
         <div class="player-info">
           <span class="player-name">${esc(p.name)}${isMe ? ' <span class="you">(you)</span>' : ''}${roles ? ` <span class="role">${roles}</span>` : ''}</span>
           <span class="player-status">${esc(status)}</span>
         </div>
         <span class="player-chips">${p.stack.toLocaleString()}</span>
+        ${voiceBadge(k)}
       </div>`;
   }).join('');
 
   const chatMsgs = r.chat || [];
-  const chatBtn = `<button class="hud-btn ${S.chatOpen ? 'active' : ''}" id="chatToggleBtn">Chat${chatMsgs.length ? ` <span class="count">${chatMsgs.length}</span>` : ''}</button>`;
+  const chatBtn = `<button class="hud-btn hud-labelled ${S.chatOpen ? 'active' : ''}" id="chatToggleBtn" aria-label="Chat">${HUD_ICONS.chat}<span class="hud-label">Chat</span>${chatMsgs.length ? ` <span class="count">${chatMsgs.length}</span>` : ''}</button>`;
   const chatSheet = S.chatOpen ? `
     <div class="sheet chat">
       <div class="sheet-title">Table chat</div>
@@ -358,7 +362,7 @@ export function renderPokerScreen() {
           <span class="hud-sub">${sub}</span>
         </div>
       </div>
-      <div class="hud-right">${me ? serviceButton() : ''}${chatBtn}</div>
+      <div class="hud-right">${me ? serviceButton() : ''}${chatBtn}${voiceButtons(r)}</div>
     </div>
     ${S.connLost ? '<div class="conn-banner">Connection lost — reconnecting…</div>' : ''}
     ${statusHtml}
@@ -519,6 +523,7 @@ export function attachPokerScreen() {
   on('registerBtn', () => Poker.registerTournament(r.code));
   on('playAgainBtn', () => Offline.playAgain());
   attachService();
+  attachVoice();
   on('chatToggleBtn', () => S.setChatOpen(!S.chatOpen));
   on('foldBtn', () => Poker.act('fold'));
   on('checkBtn', () => Poker.act('check'));

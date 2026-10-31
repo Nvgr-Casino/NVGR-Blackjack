@@ -15,7 +15,7 @@
 import { safeKey, seatOf as bjSeatOf, stakesFor, MAX_PUBLIC_SEATS } from './roomLogic.js';
 import { DRINKS } from '../scene/drinks.js';
 import { characterPortraitDataURL, defaultCharacterFor } from '../scene/character.js';
-import { esc } from './uiHelpers.js';
+import { esc, HUD_ICONS } from './uiHelpers.js';
 import * as S from './session.js';
 
 export const MENU = [
@@ -174,7 +174,7 @@ let open = false;
 let forKey = null;
 
 export function serviceButton() {
-  return `<button class="hud-btn ${open ? 'active' : ''}" id="serviceToggleBtn">Drinks</button>`;
+  return `<button class="hud-btn hud-labelled ${open ? 'active' : ''}" id="serviceToggleBtn" aria-label="Drinks">${HUD_ICONS.drinks}<span class="hud-label">Drinks</span></button>`;
 }
 
 export function serviceSheet(r) {

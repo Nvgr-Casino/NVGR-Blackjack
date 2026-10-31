@@ -5,6 +5,7 @@ import { createCardStack, STACKED_CARD } from './props.js';
 import { dealCard, DEAL_MS } from './deal.js';
 import { dealerReach } from './dealer.js';
 import { TABLE_BACK_Z } from './table.js';
+import { riffleSound } from './sfx.js';
 
 // The shuffle, as a dealer does it between hands once the cut card has
 // come out:
@@ -52,6 +53,8 @@ const at = (ms, fn) => setTimeout(fn, ms);
  * Returns how long it takes.
  */
 export function playShoeShuffle({ scene, dealer, shoe, discard, shoeLeft, total, cutAt }) {
+  // Each riffle heard as the cards fall in.
+  for (let k = 0; k < RIFFLES; k++) riffleSound(RIFFLE_MS * 0.55, RIFFLE_START + k * RIFFLE_MS + RIFFLE_MS * 0.3);
   const work = new THREE.Vector3(0, 0.012, TABLE_BACK_Z + 0.95);
   const apart = CARD_HEIGHT / 2 + 0.04;
   // The dealer's left half (+x) and right half.

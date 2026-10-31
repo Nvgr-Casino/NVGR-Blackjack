@@ -14,13 +14,14 @@ import { prefetchCardFaces, cardFaceUrl } from '../scene/card.js';
 import { DEAL_MS } from '../scene/deal.js';
 import { SHUFFLE_MS } from '../scene/shuffle.js';
 import { characterPortraitDataURL, defaultCharacterFor } from '../scene/character.js';
-import { esc } from './uiHelpers.js';
+import { esc, HUD_ICONS } from './uiHelpers.js';
 import * as S from './session.js';
 import * as Social from './social.js';
 import * as BT from '../blackjack/tournament.js';
 import * as BJT from './bjTournamentSession.js';
 import * as OfflineBJ from './offlineBlackjack.js';
 import { syncService, serviceButton, serviceSheet, attachService } from './service.js';
+import { syncVoice, voiceButtons, voiceBadge, attachVoice } from './voice.js';
 
 // One card every DEAL_STEP_MS: long enough for the dealer's hand to take
 // each card from the shoe and set it down before reaching for the next.
@@ -165,6 +166,10 @@ function spawnBetStack(seatIndex, amount, ladder) {
   });
 }
 
+// The seat picker: shut to a chair button, or open out into the seats.
+let seatsOpen = false;
+let seatsJustOpened = false;
+
 // ---------- the real sync ----------
 export function syncRoomToScene(room, myKey) {
   if (!driver || !room) return;
@@ -178,6 +183,8 @@ export function syncRoomToScene(room, myKey) {
   setDealerModel(dealerKeyFor(tier, room.dealerType));
   // Drinks in the cup holders, and any waiter or tip on its way.
   syncService(room);
+  // Voice with the others at the table, where there is any.
+  syncVoice(room);
 
   if (room.round !== lastRound) {
     lastRound = room.round;
@@ -699,10 +706,14 @@ export function renderTableScreen() {
   const holdingCards = !!(me && me.hands && me.hands.length);
   const seatOwner = new Map();
   (r.playerOrder || []).forEach((k) => seatOwner.set(seatOf(r, k), k));
-  // Laid out as the chairs are seen from the players' side: seat 1, first
+  // A chair and your seat's number; pressed, it opens out into the seats,
+  // laid out as the chairs are seen from the players' side: seat 1, first
   // base, is on the right.
-  const seatPicker = `
-    <div class="seat-dots" id="seatSwitchRow" role="group" aria-label="Seat">
+  const seatLabel = mySeatNow >= 0 ? String(mySeatNow + 1) : '–';
+  const seatPicker = !seatsOpen ? `
+    <button class="hud-btn seat-toggle" id="seatToggleBtn" title="Change seat" aria-label="Seat ${seatLabel} — change seat" aria-expanded="false">${HUD_ICONS.seat}<span class="seat-word">Seat</span><b>${seatLabel}</b></button>` : `
+    <div class="seat-dots open ${seatsJustOpened ? 'opening' : ''}" id="seatSwitchRow" role="group" aria-label="Seat">
+      <button class="seat-dot seat-close" id="seatToggleBtn" title="Close" aria-label="Close seats" aria-expanded="true">${HUD_ICONS.seat}</button>
       ${Array.from({ length: MAX_PUBLIC_SEATS }, (_, n) => MAX_PUBLIC_SEATS - 1 - n).map((i) => {
         const owner = seatOwner.get(i);
         const mine = owner === myKey && myKey;
@@ -753,13 +764,14 @@ export function renderTableScreen() {
     // Tapping another player offers a friend request.
     const addable = !isMe && !Social.isFriend(key);
     return `
-      <div class="player ${onTurn ? 'on-turn' : ''} ${addable ? 'addable' : ''}" ${addable ? `data-add-friend="${esc(key)}" data-add-name="${esc(p.name)}" title="Add ${esc(p.name)} as a friend"` : ''}>
+      <div class="player ${onTurn ? 'on-turn' : ''} ${addable ? 'addable' : ''}" data-voice="${esc(key)}" ${addable ? `data-add-friend="${esc(key)}" data-add-name="${esc(p.name)}" title="Add ${esc(p.name)} as a friend"` : ''}>
         <img class="player-avatar" src="${characterPortraitDataURL(p.character || defaultCharacterFor(key), 64)}" alt="">
         <div class="player-info">
           <span class="player-name">${tour && !BT.registering(r) ? `<span class="rank-tag">#${rank + 1}</span> ` : ''}${esc(p.name)}${isMe ? ' <span class="you">(you)</span>' : ''}${p.bot ? ' <span class="role">BOT</span>' : ''}</span>
           <span class="player-status">${esc(statusText)}</span>
         </div>
         <span class="player-chips">${p.chips.toLocaleString()}</span>
+        ${voiceBadge(key)}
         ${addable ? '<span class="player-add" aria-hidden="true">+</span>' : ''}
       </div>`;
   }).join('');
@@ -800,7 +812,7 @@ export function renderTableScreen() {
 
   // ----- chat sheet.
   const chatMsgs = r.chat || [];
-  const chatBtn = `<button class="hud-btn ${S.chatOpen ? 'active' : ''}" id="chatToggleBtn">Chat${chatMsgs.length ? ` <span class="count">${chatMsgs.length}</span>` : ''}</button>`;
+  const chatBtn = `<button class="hud-btn hud-labelled ${S.chatOpen ? 'active' : ''}" id="chatToggleBtn" aria-label="Chat">${HUD_ICONS.chat}<span class="hud-label">Chat</span>${chatMsgs.length ? ` <span class="count">${chatMsgs.length}</span>` : ''}</button>`;
   const chatSheet = S.chatOpen ? `
     <div class="sheet chat">
       <div class="sheet-title">Table chat</div>
@@ -835,6 +847,7 @@ export function renderTableScreen() {
         ${hostBtn}
         ${me ? serviceButton() : ''}
         ${chatBtn}
+        ${voiceButtons(r)}
       </div>
     </div>
     ${S.connLost ? '<div class="conn-banner">Connection lost — reconnecting…</div>' : ''}
@@ -978,6 +991,7 @@ export function attachTableScreen() {
   on('bjRegisterBtn', () => BJT.registerBj(r.code));
   on('bjPlayAgainBtn', () => OfflineBJ.playAgain());
   attachService();
+  attachVoice();
   const copyBtn = document.getElementById('copyInviteBtn');
   if (copyBtn) copyBtn.onclick = () => {
     const input = document.getElementById('inviteUrlInput');
@@ -1010,8 +1024,12 @@ export function attachTableScreen() {
   });
 
   document.querySelectorAll('[data-take-seat]').forEach((btn) => {
-    btn.onclick = () => S.changeSeat(Number(btn.getAttribute('data-take-seat')));
+    btn.onclick = () => { seatsOpen = false; S.changeSeat(Number(btn.getAttribute('data-take-seat'))); S.refresh(); };
   });
+  // It opens out once, not again each time the HUD is drawn.
+  seatsJustOpened = false;
+  const seatToggle = document.getElementById('seatToggleBtn');
+  if (seatToggle) seatToggle.onclick = () => { seatsOpen = !seatsOpen; seatsJustOpened = seatsOpen; S.refresh(); };
 }
 
 /** Clears the blackjack table of everything a room put on it — for a poker table to take over the scene. */

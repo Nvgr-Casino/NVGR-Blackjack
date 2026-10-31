@@ -7,6 +7,7 @@ import { safeKey } from './app/roomLogic.js';
 import { session, initAuth, setOnChange, joinRoom, lobbyGame } from './app/session.js';
 import { dealerKeyFor } from './scene/dealer.js';
 import { mountService, clearService } from './app/service.js';
+import { leaveVoice } from './app/voice.js';
 import { mountTable3D, syncRoomToScene, renderTableScreen, attachTableScreen, resetTableDiffState, hideBlackjackTable } from './app/table3dBridge.js';
 import { mountPoker3D, syncPokerToScene, renderPokerScreen, attachPokerScreen, leavePokerView } from './app/pokerBridge.js';
 import { renderAuth, attachAuth } from './app/screens/auth.js';
@@ -42,6 +43,7 @@ function render() {
     else hideBlackjackTable();
     resetTableDiffState();
     clearService();
+    leaveVoice();
     shownGame = null;
   }
   lastScreen = session.screen;

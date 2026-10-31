@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { cardSound, chipSound } from '../scene/sfx.js';
 import { createCard, CARD_WIDTH, CARD_HEIGHT } from '../scene/card.js';
 import { createValueStack, CHIP_HEIGHT, CHIP_RADIUS } from '../scene/chip.js';
 import { createCharacter } from '../scene/character.js';
@@ -169,6 +170,7 @@ export function createPokerDriver({ scene, camera, controls, dealer }) {
       const spin = (Math.random() - 0.5) * 0.4;
       // The dealer's right hand sends it, out toward where it is going.
       dealerReach(dealer, [{ at: 120, pos: from.clone().lerp(to, 0.25) }], { returnMs: 260 });
+      cardSound(PITCH_MS * 0.8);
       animate({
         duration: PITCH_MS,
         easing: easeOutCubic,
@@ -340,7 +342,7 @@ export function createPokerDriver({ scene, camera, controls, dealer }) {
       duration,
       easing: easeInOutCubic,
       onUpdate: (t) => { group.position.lerpVectors(from, to, t); group.position.y = from.y + (to.y - from.y) * t + Math.sin(t * Math.PI) * 0.05; },
-      onComplete: () => { if (onDone) onDone(); },
+      onComplete: () => { chipSound(3); if (onDone) onDone(); },
     });
   }
   const dispose = (group) => { if (group) root.remove(group); };

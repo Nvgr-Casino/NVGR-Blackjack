@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { dealCard, revealCard } from '../scene/deal.js';
 import { playShoeShuffle } from '../scene/shuffle.js';
+import { chipSound } from '../scene/sfx.js';
 import { STACKED_CARD } from '../scene/props.js';
 import { CARD_WIDTH, CARD_HEIGHT } from '../scene/card.js';
 import { createChip, createChipForValue, createChipStack, CHIP_HEIGHT, DENOMINATIONS } from '../scene/chip.js';
@@ -531,6 +532,8 @@ export function createTableDriver({ scene, camera, controls, dealer, shoe, disca
           mesh.position.lerpVectors(from, to, t);
           mesh.position.y += Math.sin(t * Math.PI) * lift;
         },
+        // A light clack as it goes down (sfx.js keeps a pile to one).
+        onComplete: () => chipSound(1),
       });
     }, delay);
   }

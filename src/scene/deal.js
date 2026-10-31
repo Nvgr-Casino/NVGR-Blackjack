@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { cardSound } from './sfx.js';
 import { createCard } from './card.js';
 import { animate, easeOutCubic } from './animator.js';
 import { playDealGesture } from './dealer.js';
@@ -38,6 +39,8 @@ export function dealCard({ scene, dealer, rank, suit, to, duration = DEAL_MS, fa
   scene.add(card);
 
   if (dealer) playDealGesture(dealer, to, duration);
+  // The soft sound of it landing, as it is set down.
+  cardSound(duration * DEAL_SET);
 
   animate({
     duration,
