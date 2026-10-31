@@ -257,6 +257,11 @@ export function createReach(root, bones, { side = 'right', pole, body = 1 } = {}
     release({ blendMs = 450 } = {}) {
       if (holding && !holding.out) Object.assign(holding, { out: true, start: performance.now(), blendMs });
     },
+    /** The shoulder, in world space, and the arm's two lengths. */
+    shoulderPosition() { return shoulder(); },
+    lengths() { return { upper: upperLen, lower: lowerLen }; },
+    /** Where the elbow is now, in world space. */
+    elbowPosition() { return lower.getWorldPosition(new THREE.Vector3()); },
     /** Where the hand is now, in world space. */
     handPosition() { return wrist.getWorldPosition(new THREE.Vector3()); },
   };

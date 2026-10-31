@@ -169,9 +169,9 @@ export function createCupHolder(R = m(0.04)) {
 export function createTray() {
   const g = new THREE.Group();
   const silver = new THREE.MeshStandardMaterial({ color: 0xd8d8dc, roughness: 0.22, metalness: 0.9 });
-  const disc = new THREE.Mesh(new THREE.CylinderGeometry(m(0.19), m(0.18), m(0.008), 36), silver);
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(m(0.16), m(0.152), m(0.008), 36), silver);
   g.add(disc);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(m(0.19), m(0.005), 8, 36), silver);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(m(0.16), m(0.005), 8, 36), silver);
   rim.rotation.x = Math.PI / 2;
   rim.position.y = m(0.006);
   g.add(rim);

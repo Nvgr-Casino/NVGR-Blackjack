@@ -26,7 +26,11 @@ const HIP_HEIGHT = m(0.95);
 // its right is -x): elbow at the side, forearm level and forward. And where
 // the tray sits from that hand: over the fingers, just above them.
 const HAND_AT_REST = new THREE.Vector3(-m(0.2), FLOOR_Y + m(1.06), m(0.3));
-const TRAY_ON_HAND = new THREE.Vector3(m(0.01), m(0.052), m(0.075));
+const TRAY_ON_HAND = new THREE.Vector3(m(0.01), 0, m(0.06));
+// How far the underside of the tray sits above the hand or elbow, whichever
+// is higher: half the thickness of a forearm and its sleeve (the bones run
+// down the middle).
+const TRAY_CLEAR = m(0.035);
 // The turn about the fingers that lays the carrying hand flat under the
 // tray (found by eye on the Rocketbox rig: at 0 the hand hangs palm-in).
 const PALM_ROLL = -Math.PI / 2;
@@ -103,7 +107,7 @@ export function createWaiters(scene, { count = 2 } = {}) {
     for (let k = 0; k < 3; k++) {
       const g = createDrink(DECOR[(i * 3 + k) % DECOR.length]);
       const a = (k / 3) * Math.PI * 2 + i;
-      g.position.set(Math.cos(a) * m(0.1), m(0.005), Math.sin(a) * m(0.1));
+      g.position.set(Math.cos(a) * m(0.085), m(0.005), Math.sin(a) * m(0.085));
       tray.add(g);
       w.glasses.push(g);
     }
@@ -122,8 +126,23 @@ export function createWaiters(scene, { count = 2 } = {}) {
       idle.play();
       idle.setEffectiveWeight(0);
       const reach = createReach(model, bones, { body: 0 });
-      // The forearm level and forward, the hand flat: how a tray is carried.
-      if (reach) reach.hold(() => group.localToWorld(HAND_AT_REST.clone()), { blendMs: 1, flat: true, roll: () => (import.meta.env.DEV && window.__palmRoll !== undefined ? window.__palmRoll : PALM_ROLL) });
+      // How a tray is carried: the upper arm hanging at the side, the
+      // forearm straight out in front and level, the hand flat — worked out
+      // from this figure's own arm, so the elbow and wrist are at one height
+      // and the tray can rest along the whole forearm.
+      if (reach) {
+        const { upper, lower } = reach.lengths();
+        const q = new THREE.Quaternion();
+        reach.hold(() => {
+          group.getWorldQuaternion(q);
+          const ahead = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
+          const out = new THREE.Vector3(-1, 0, 0).applyQuaternion(q);
+          return reach.shoulderPosition()
+            .add(new THREE.Vector3(0, -upper * 0.97, 0))
+            .addScaledVector(ahead, lower * 0.98)
+            .addScaledVector(out, m(0.03));
+        }, { blendMs: 1, flat: true, roll: PALM_ROLL });
+      }
       Object.assign(w, { model, mixer, idle, walk, reach, ready: true, moving: true });
       if (path) group.position.copy(path.getPointAt(w.u));
       // Shown after its first animated frame (update), not in its bind pose.
@@ -227,10 +246,13 @@ export function createWaiters(scene, { count = 2 } = {}) {
       w.mixer.update(dt);
       if (w.reach) {
         w.reach.after(now);
-        // The tray rests on the hand: its middle over the palm and fingers.
+        // The tray rests on the hand and forearm: its middle over the palm,
+        // and above whichever is higher, the hand or the elbow, so no part
+        // of the arm comes through it.
         const hand = w.reach.handPosition();
+        const top = Math.max(hand.y, w.reach.elbowPosition().y) + TRAY_CLEAR;
         w.group.updateMatrixWorld(true);
-        w.tray.position.copy(w.group.worldToLocal(hand)).add(TRAY_ON_HAND);
+        w.tray.position.copy(w.group.worldToLocal(hand.setY(top))).add(TRAY_ON_HAND);
       }
       w.group.visible = true;
       const p = w.group.position;
