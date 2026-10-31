@@ -24,7 +24,7 @@ import { brandMark, esc } from '../uiHelpers.js';
 import * as S from '../session.js';
 import * as Social from '../social.js';
 
-const SKYLINE = import.meta.env.BASE_URL + 'assets/skyline/night_skyline.webp';
+const SKYLINE = import.meta.env.BASE_URL + 'assets/skyline/night_skyline_ny_4k.webp';
 
 const PHASE_LABEL = {
   betting: 'Betting open',

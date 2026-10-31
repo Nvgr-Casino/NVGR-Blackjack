@@ -269,146 +269,36 @@ function createCarpetTexture(theme) {
   return texture;
 }
 
-// The city seen from the top of a tower: streets on a grid running away to
-// the horizon, every one lined with lamps, blocks of lit windows between
-// them, traffic on the avenues, all under a haze that thickens toward the
-// horizon. Drawn in true perspective for the cylinder it is painted on: a
-// point on the ground `d` away and at bearing `a` lands where the line from
-// the eye through it meets the cylinder wall — straight below the horizon
-// by radius x (height / d), which is linear in 1/d, so the streets converge
-// as they should.
-function paintCityBelow(ctx, { W, H, horizon, arc, radius, below }) {
-  const EYE = 240;           // metres above the street
-  const span = H - horizon;  // texture rows from horizon to the bottom
-  const nearest = (EYE * radius) / below;
-  const project = (x, z) => {
-    const d = Math.hypot(x, z);
-    if (d < nearest) return null;
-    const a = Math.atan2(x, z);
-    if (Math.abs(a) > arc / 2) return null;
-    return { u: (a / arc + 0.5) * W, v: horizon + ((radius * EYE) / d / below) * span, d };
-  };
-
-  const ground = ctx.createLinearGradient(0, horizon, 0, H);
-  ground.addColorStop(0, '#2a2546');
-  ground.addColorStop(0.03, '#15132a');
-  ground.addColorStop(0.25, '#0a0a14');
-  ground.addColorStop(1, '#06070d');
-  ctx.fillStyle = ground;
-  ctx.fillRect(0, horizon, W, span);
-
-  const rand = (() => { let seed = 7; return () => ((seed = (seed * 16807) % 2147483647) / 2147483647); })();
-  const turn = 0.35;                 // the grid's angle to the view
-  const cos = Math.cos(turn), sin = Math.sin(turn);
-  const BLOCK = 110;
-  const FAR = 9000;
-  const dot = (x, z, size, color, alpha) => {
-    const wx = x * cos - z * sin, wz = x * sin + z * cos;
-    const p = project(wx, wz);
-    if (!p) return;
-    const k = 1 / Math.max(p.d / 600, 0.35);
-    const sz = Math.max(0.7, size * k);
-    ctx.fillStyle = `rgba(${color},${alpha * Math.min(1, 0.45 + k)})`;
-    ctx.fillRect(p.u - sz / 2, p.v - sz * 0.35, sz, sz * 0.7);
-  };
-
-  // Lit windows in the blocks, warm and cool, thinning with distance.
-  const warm = ['255,200,130', '255,180,100', '255,226,175'];
-  const cool = ['205,225,255', '180,205,255', '240,244,255'];
-  for (let i = 0; i < 80000; i++) {
-    const x = (rand() - 0.5) * FAR * 2.4;
-    // The arc runs past the sides, so the city does too.
-    const z = (rand() * 1.5 - 0.5) * FAR;
-    // Not in the streets.
-    const bx = ((x % BLOCK) + BLOCK) % BLOCK, bz = ((z % BLOCK) + BLOCK) % BLOCK;
-    if (bx < 22 || bz < 22) continue;
-    const c = (rand() < 0.62 ? warm : cool)[(rand() * 3) | 0];
-    dot(x, z, 2.2 + rand() * 2, c, 0.35 + rand() * 0.55);
-  }
-  // Streets: a lamp every 30 m on both kerbs, brighter on the avenues
-  // (every fourth street), with traffic — headlights one way, tail lights
-  // the other.
-  for (let k = -80; k <= 80; k++) {
-    const avenue = k % 4 === 0;
-    const c = avenue ? '255,190,110' : '255,205,140';
-    for (let t = -FAR * 0.5; t < FAR; t += avenue ? 18 : 30) {
-      [-8, 8].forEach((side) => {
-        dot(k * BLOCK + side, t, avenue ? 3.4 : 2.4, c, 0.9);
-        dot(t - FAR * 1.2, k * BLOCK + side, avenue ? 3.4 : 2.4, c, 0.9);
-      });
-      if (avenue && rand() < 0.5) {
-        dot(k * BLOCK - 3, t + rand() * 10, 2.6, '255,250,235', 0.95);
-        dot(k * BLOCK + 3, t + rand() * 10, 2.4, '255,60,50', 0.9);
-      }
-    }
-  }
-
-  // The glow the lights throw up into the haze, and the haze itself
-  // thickening toward the horizon.
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.filter = 'blur(3px)';
-  ctx.globalAlpha = 0.28;
-  ctx.drawImage(ctx.canvas, 0, horizon, W, span, 0, horizon, W, span);
-  ctx.restore();
-  const haze = ctx.createLinearGradient(0, horizon, 0, horizon + span * 0.1);
-  haze.addColorStop(0, 'rgba(60,52,96,0.55)');
-  haze.addColorStop(1, 'rgba(40,35,70,0)');
-  ctx.fillStyle = haze;
-  ctx.fillRect(0, horizon, W, span * 0.1);
-}
-
-// The view from the penthouse: a night skyline (Poly Haven's "Shanghai
-// Bund", CC0) on a great curved screen outside the glass, with the horizon
-// at the seated players' eye level and the lights of the city painted
-// spreading away beneath it, so the room reads as high above the street —
-// the photograph was taken at street level, and only its sky and skyline
-// band is kept. Unlit and unfogged: it is the light of the city at night.
-const SKYLINE_URL = import.meta.env.BASE_URL + 'assets/skyline/night_skyline.webp';
-// The horizon sits a little under a seated player's eye, so the towers
-// rise into the windows above the table rather than only the lights below.
-const HORIZON_Y = 0.6;
+// The view from the penthouse: New York at night from the 63rd floor of
+// 70 Pine Street — the East River, the Brooklyn Bridge and the towers of
+// downtown below (Andre Carrotflower, Wikimedia Commons, CC BY-SA 4.0; see
+// art/CREDITS.md) — on a great curved screen outside the glass, round the
+// back and both sides. One photograph taken from that height, so the city
+// lies below the windows as it would. Its horizon is set just under a
+// seated player's eye. Unlit and unfogged: it is the light of the city.
+const smallScreen = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820;
+const SKYLINE_URL = import.meta.env.BASE_URL + 'assets/skyline/' + (smallScreen ? 'night_skyline_ny_4k.webp' : 'night_skyline_ny.webp');
+const SKYLINE_ASPECT = 8192 / 2237;
+// Where the horizon is in the photograph, from its top.
+const PHOTO_HORIZON = 0.452;
+const HORIZON_Y = 1.6;
 function createSkyline(half) {
-  const SKY_RADIUS = half * 2.6;
-  const W = 4096, H = 2048;
-  const canvas = document.createElement('canvas');
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext('2d');
-  const bandH = Math.round(W * (1340 / 4096));
-  const horizon = bandH;
-
-  // The cylinder's shape, needed to draw the city in true perspective.
+  const radius = half * 2.6;
   const arc = THREE.MathUtils.degToRad(240);
-  const height = (SKY_RADIUS * arc) * (H / W);
-  const below = height * (1 - horizon / H);
-  paintCityBelow(ctx, { W, H, horizon, arc, radius: SKY_RADIUS, below });
-
-  const texture = new THREE.CanvasTexture(canvas);
+  // As tall as the photograph's proportions make it over that arc.
+  const height = (radius * arc) / SKYLINE_ASPECT;
+  const texture = new THREE.TextureLoader().load(SKYLINE_URL);
   texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
   // Seen from inside, the cylinder would show its texture mirrored.
   texture.wrapS = THREE.RepeatWrapping;
   texture.repeat.x = -1;
-  new THREE.ImageLoader().load(SKYLINE_URL, (img) => {
-    ctx.drawImage(img, 0, 0, W, bandH);
-    // The photograph's bottom edge — the far river bank — softened into
-    // the haze over the city, so there is no seam at the horizon.
-    const seam = ctx.createLinearGradient(0, bandH - 50, 0, bandH + 30);
-    seam.addColorStop(0, 'rgba(42,37,70,0)');
-    seam.addColorStop(0.6, 'rgba(42,37,70,0.7)');
-    seam.addColorStop(1, 'rgba(42,37,70,0)');
-    ctx.fillStyle = seam;
-    ctx.fillRect(0, bandH - 50, W, 80);
-    texture.needsUpdate = true;
-  });
-
-  // Sized so the photograph keeps its proportions: its band spans the arc
-  // across the back and both sides, and its height in the texture follows.
-  const geometry = new THREE.CylinderGeometry(SKY_RADIUS, SKY_RADIUS, height, 96, 1, true, Math.PI - arc / 2, arc);
-  // Drawn as photographed: tone mapping washed the city out to a haze.
+  const geometry = new THREE.CylinderGeometry(radius, radius, height, 128, 1, true, Math.PI - arc / 2, arc);
+  // Drawn as photographed: tone mapping would wash the city out.
   const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide, fog: false, toneMapped: false });
   const sky = new THREE.Mesh(geometry, material);
-  sky.position.y = HORIZON_Y - below + height / 2;
+  // The photograph's horizon at HORIZON_Y.
+  sky.position.y = HORIZON_Y - height / 2 + PHOTO_HORIZON * height;
   return sky;
 }
 
