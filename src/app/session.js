@@ -26,7 +26,7 @@ import * as OfflineBJ from './offlineBlackjack.js';
 import * as BJT from './bjTournamentSession.js';
 import { isBjTournament, registering as bjRegistering, registrationLabel } from '../blackjack/tournament.js';
 import {
-  STARTING_CHIPS, BETTING_SECONDS, TURN_SECONDS, MAX_PUBLIC_SEATS, MIN_PUBLIC_TABLES,
+  STARTING_CHIPS, RESTAKE_BELOW, BETTING_SECONDS, TURN_SECONDS, MAX_PUBLIC_SEATS, MIN_PUBLIC_TABLES,
   safeKey, genCode, shuffleShoe, addPlayerToRoom, startRoundLogic, dealRoundCards,
   checkAutoDeal, processBettingTimeoutLogic, processTurnTimeoutLogic, resolveDealerAndPayouts,
   chipLadderForTable, stakesFor, TABLE_STAKES,
@@ -90,10 +90,12 @@ async function loadAccount(uid) {
 // zero has already been written to your account, and every later load reads
 // it straight back. That is how a balance reached nought and stayed there.
 // So the re-stake lives on the account too, which is the one place a player
-// always passes through.
+// always passes through. And not only at nothing: a balance of 50 is no more
+// use than none — under RESTAKE_BELOW, it is topped back up.
 function stakedBalance(chips) {
-  return typeof chips === 'number' && chips > 0 ? chips : STARTING_CHIPS;
+  return typeof chips === 'number' && chips >= RESTAKE_BELOW ? chips : STARTING_CHIPS;
 }
+const RESTAKED = `You were down to under ${RESTAKE_BELOW} chips, so the house has topped you back up to ${STARTING_CHIPS.toLocaleString()}.`;
 
 export async function ensureAccount(uid, name) {
   const existing = await loadAccount(uid);
@@ -290,7 +292,7 @@ function handleRemovedFromTable() {
   setCurrentRoom(session.uid, null).catch(() => {});
   session.code = null; session.room = null; session.screen = 'home';
   formNotice = restakeIfBroke()
-    ? 'You were removed from the table after missing too many bets in a row — and you were out of chips, so the house has staked you again.'
+    ? 'You were removed from the table after missing too many bets in a row. ' + RESTAKED
     : 'You were removed from the table after missing too many bets in a row.';
   updateHash(); render();
   loadLobby();
@@ -569,7 +571,7 @@ export async function leaveTable() {
   session.code = null; session.room = null; session.screen = 'home';
   // Walking away from a table broke is the other way to end up stranded at
   // zero, since the room's own top-up only reaches players still sitting.
-  if (restakeIfBroke()) formNotice = 'You were out of chips, so the house has staked you again.';
+  if (restakeIfBroke()) formNotice = RESTAKED;
   updateHash(); render();
   loadLobby();
 }
@@ -626,6 +628,9 @@ async function ensureOpenTables(tables) {
 }
 
 export async function loadLobby() {
+  // Back in the lobby from anywhere — a poker table, a tournament, the bar —
+  // with too little to play: topped up first.
+  if (session.uid && restakeIfBroke()) formNotice = RESTAKED;
   lobbyLoading = true; render();
   Leaderboard.loadLeaderboard().then(render, () => {});
   if (lobbyGame === 'home' || lobbyGame === 'leaderboard') {

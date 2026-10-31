@@ -9,6 +9,10 @@ export const MAX_PUBLIC_SEATS = 5;
 // many open public tables (see session.js's loadLobby).
 export const MIN_PUBLIC_TABLES = 5;
 export const STARTING_CHIPS = 100000;
+// Play money: a balance under this can't buy anything — not the smallest
+// bet, not a seat — so the house tops it back up to STARTING_CHIPS rather
+// than waiting for it to reach nothing.
+export const RESTAKE_BELOW = 100;
 export const BETTING_SECONDS = 20;
 // A player's hit/stand/double/split turn also needs a deadline — without
 // one, a player who goes silent mid-hand (closes the tab, loses
@@ -205,7 +209,10 @@ export function startRoundLogic(r) {
     p.hands = []; p.bet = 0; delete p.outcome;
     p.insurance = 0; p.insuranceDecided = false;
     // A tournament's stacks are never topped up (src/blackjack/tournament.js).
-    if (r.isPublic && !r.tournament && p.chips <= 0) p.chips = STARTING_CHIPS;
+    if (r.isPublic && !r.tournament && p.chips < RESTAKE_BELOW) {
+      p.chips = STARTING_CHIPS;
+      r.log = (r.log || []).concat(`The house tops ${p.name} back up to ${STARTING_CHIPS.toLocaleString()}.`).slice(-8);
+    }
     p.status = p.chips > 0 ? 'betting' : 'sitout';
   }
   r.turnOrder = []; r.currentTurnIndex = 0; r.dealtIn = [];

@@ -143,4 +143,15 @@ function room(seats, cards) {
   ok(r.players.p0.chips === 9900 + 250, '3:2 paid: ' + r.players.p0.chips);
 }
 
+// ----- the house tops up a balance too small to bet
+{
+  const r = { code: 'T', isPublic: true, players: {}, playerOrder: [], dealer: { hand: [] }, deck: [], log: [] };
+  L.shuffleShoe(r);
+  L.addPlayerToRoom(r, 'low', 'Low', 50);
+  L.addPlayerToRoom(r, 'edge', 'Edge', L.RESTAKE_BELOW);
+  L.startRoundLogic(r);
+  ok(r.players.low.chips === L.STARTING_CHIPS, 'a public table tops 50 chips back up to ' + L.STARTING_CHIPS);
+  ok(r.players.edge.chips === L.RESTAKE_BELOW, 'but leaves ' + L.RESTAKE_BELOW + ' alone: it can still bet');
+}
+
 console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
