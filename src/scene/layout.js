@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { place } from './furniture.js';
-import { createRug } from './luxury.js';
+import { createRug, createBar, createBackBar, createBrandSign } from './luxury.js';
 import { FLOOR_Y, m } from './scale.js';
 
 // How the rooms are furnished: in arrangements, not one piece at a time.
@@ -204,11 +204,69 @@ export function pilaster(room, x, z, yaw, height, { color = 0x15141a, trim = 0xc
  * furniture, as corner points (the waiters round them off). Kept on the
  * room for waiters.js.
  */
-export function walkway(room, { x = 7.4, back = -6.4, front = 7.4 } = {}) {
+export function walkway(room, { x = 8.4, back = -7.0, front = 8.4 } = {}) {
   room.userData.walkway = [
     new THREE.Vector3(-x, FLOOR_Y, back),
     new THREE.Vector3(x, FLOOR_Y, back),
     new THREE.Vector3(x, FLOOR_Y, front),
     new THREE.Vector3(-x, FLOOR_Y, front),
   ];
+}
+
+// ---------- the bar ----------
+
+/**
+ * The room's bar, in its back-left corner, where the seated players see it
+ * past the dealer's shoulder: the counter facing the room with stools
+ * drawn up to it, the lit back bar against the wall behind, pendant lamps
+ * over it. Records on the room where the bartender stands and where a
+ * waiter waits at its end to collect (room.userData.bar, for waiters.js).
+ */
+export function barCorner(room, half, ceilingY, { length = m(3.2), body, top, wood, rgb = '216,180,110', lamp = 'modern_ceiling_lamp_01', lampSize = 1 } = {}) {
+  const x = -half + m(0.7) + length / 2;
+  const z = -half + m(1.55);
+  const counter = createBar(length, rgb, { body, top });
+  counter.position.set(x, 0, z);
+  room.add(counter);
+  const back = createBackBar(length, { wood, rgb });
+  back.position.set(x, 0, -half + m(0.42));
+  room.add(back);
+  const stools = Math.max(2, Math.floor(length / m(0.8)));
+  for (let i = 0; i < stools; i++) {
+    const sx = x - length / 2 + (i + 0.5) * (length / stools);
+    place(room, 'bar_chair_round_01', { x: sx, z: z + m(0.55), yaw: Math.PI });
+  }
+  [-0.3, 0.3].forEach((k) => place(room, lamp, { x: x + k * length, y: ceilingY - 0.05, z: z - m(0.25), size: lampSize }));
+  room.userData.bar = {
+    bartender: { pos: new THREE.Vector3(x - length * 0.12, 0, -half + m(0.7)), yaw: 0 },
+    pickup: { pos: new THREE.Vector3(x + length / 2 + m(0.5), 0, z - m(0.2)), look: new THREE.Vector3(x, 0, z - m(0.3)) },
+  };
+}
+
+// ---------- the house sign ----------
+
+/**
+ * The house sign on a wall: on the back wall (z = -half) facing in, over
+ * the dealer's head where every seat looks; or on the front wall, smaller.
+ */
+export function brandSign(room, half, { width = m(2.2), y = FLOOR_Y + m(2.75), wall = 'back', rgb, plate } = {}) {
+  const sign = createBrandSign(width, { rgb, plate });
+  if (wall === 'back') {
+    sign.position.set(0, y, -half + 0.04);
+  } else {
+    sign.position.set(0, y, half - 0.04);
+    sign.rotation.y = Math.PI;
+  }
+  room.add(sign);
+  return sign;
+}
+
+// ---------- the waiters' posts ----------
+
+/**
+ * Where a waiter stands when not walking: at the corners of the room just
+ * off their loop, looking over the table. Kept on the room for waiters.js.
+ */
+export function staffPosts(room, points) {
+  room.userData.posts = points.map(([x, z]) => ({ pos: new THREE.Vector3(x, 0, z), look: new THREE.Vector3(0, 0, 0) }));
 }

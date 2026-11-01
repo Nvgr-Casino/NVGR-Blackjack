@@ -6,16 +6,24 @@ import { createReach } from './reach.js';
 import { createDrink, createTray, disposeDrink } from './drinks.js';
 import { DEALER_HEIGHT, FLOOR_Y, m } from './scale.js';
 
-// Waiters: two of the house staff walking the room with trays of drinks,
-// round a loop clear of the table and the furniture (the room's walkway,
-// layout.js). Now and then one stops and looks over the table. When a
-// drink is ordered the nearest free one leaves the loop, walks up beside
-// that seat, sets the glass in its cup holder (the caller does that, on
-// the cue), and walks back to the loop.
+// The house staff: a bartender behind the room's bar, and two waiters with
+// trays of drinks, who keep a routine rather than walking forever — to
+// the bar to collect from the bartender and wait for the round, to a post
+// at a corner of the room to stand and look over the table, a turn round
+// the loop, a pause to watch a hand. Each goes about it on their own, and
+// never both to the same place. Wherever they go, they go by the loop
+// clear of the table and the furniture (the room's walkway, layout.js),
+// stepping off it only at the end, so no one cuts across the table.
+//
+// When a drink is ordered the nearest free waiter drops what they were
+// doing, takes the loop round to that seat, sets the glass in its cup
+// holder (the caller does that, on the cue), and goes back to their
+// routine.
 //
 // They are Rocketbox figures in the house waistcoat, on the library's
 // walk and standing idle — the walk recorded moving forward, stripped of
-// that motion here and the figure moved along the path instead.
+// that motion here and the figure moved along the path instead. The
+// bartender, in shirtsleeves, stands idle behind the bar.
 
 const WALK_SPEED = m(1.05);      // scene units a second
 const TURN_RATE = 5;             // how quickly they turn toward where they go
@@ -50,6 +58,8 @@ const STAFF = {
   ],
 };
 const staffFor = (tier) => (tier === 3 ? 'black' : 'grey');
+// The bartender, in shirtsleeves: never the shirt of the room's own dealer.
+const bartenderFor = (tier) => (tier === 1 ? 'rb_dealer_m2.glb' : 'rb_dealer_m.glb');
 const DECOR = ['champagne', 'whiskey', 'wine', 'martini', 'mojito', 'beer'];
 
 function standOnFloor(model, bones) {
@@ -95,7 +105,7 @@ export function createWaiters(scene, { count = 2 } = {}) {
     // that it would stand at the room's middle, in the table.
     group.visible = false;
     root.add(group);
-    const w = { group, ready: false, u: i / count, state: 'loop', nextPause: performance.now() + 8000 + Math.random() * 15000, yaw: 0, job: null };
+    const w = { group, ready: false, u: i / count, state: 'choose', onLoop: true, spot: null, until: 0, yaw: 0, job: null, route: null };
     // The tray on the right hand, a few glasses on it. It is set on the hand
     // every frame (update), wherever the hand is. The figure faces its own
     // +z; its right is -x.
@@ -150,11 +160,62 @@ export function createWaiters(scene, { count = 2 } = {}) {
     return w;
   }
 
+  // A fresh round on the tray, collected at the bar.
+  function restock(w) {
+    w.glasses.forEach((g) => { w.tray.remove(g); disposeDrink(g); });
+    w.glasses = [];
+    const n = 2 + Math.floor(Math.random() * 2);
+    for (let k = 0; k < n; k++) {
+      const g = createDrink(DECOR[Math.floor(Math.random() * DECOR.length)]);
+      const a = (k / n) * Math.PI * 2 + Math.random();
+      g.position.set(Math.cos(a) * m(0.085), m(0.005), Math.sin(a) * m(0.085));
+      w.tray.add(g);
+      w.glasses.push(g);
+    }
+  }
+
+  // ---------- the bartender ----------
+  const bartender = { group: new THREE.Group(), file: null, mixer: null };
+  bartender.group.visible = false;
+  root.add(bartender.group);
+  function placeBartender(spot, tier) {
+    if (!spot) { bartender.group.visible = false; return; }
+    bartender.group.position.copy(spot.pos);
+    bartender.group.rotation.y = spot.yaw;
+    const file = bartenderFor(tier);
+    if (file === bartender.file) { bartender.group.visible = !!bartender.mixer; return; }
+    bartender.file = file;
+    bartender.group.clear();
+    bartender.mixer = null;
+    bartender.group.visible = false;
+    const idleFile = 'rb_idle_m.glb';
+    Promise.all([loadGltf(modelUrl(file)), loadGltf(modelUrl(idleFile))]).then(([gltf, idleG]) => {
+      if (bartender.file !== file) return;
+      const model = cloneSkinned(gltf.scene);
+      const bones = resolveRig(model);
+      if (!bones.hips) return;
+      standOnFloor(model, bones);
+      model.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = true; } });
+      prepareFigureMaterials(model);
+      bartender.group.add(model);
+      bartender.mixer = new THREE.AnimationMixer(model);
+      const idle = bartender.mixer.clipAction(withoutRootMotion(fitClipToRig(idleG.animations[0], idleG.scene, model), bones.hips));
+      idle.time = Math.random() * idle.getClip().duration;
+      idle.play();
+      bartender.group.visible = true;
+    }).catch(() => {});
+  }
+
   let dressed = null;
+  let bar = null;
+  let posts = [];
   function setRoom(room, tier) {
     const corners = room && room.userData.walkway;
     path = corners ? loopThrough(corners) : null;
     pathLength = path ? path.getLength() : 1;
+    bar = (room && room.userData.bar) || null;
+    posts = (room && room.userData.posts) || [];
+    placeBartender(bar && bar.bartender, tier);
     const wardrobe = staffFor(tier);
     if (wardrobe !== dressed) {
       // A new uniform: new figures. (Their glasses and trays go with them.)
@@ -165,7 +226,10 @@ export function createWaiters(scene, { count = 2 } = {}) {
     }
     staff.forEach((w) => {
       w.job = null;
-      w.state = 'loop';
+      w.spot = null;
+      w.route = null;
+      w.onLoop = true;
+      w.state = 'choose';
       // On to the new room's loop at once, not walked across from the last.
       if (path) w.group.position.copy(path.getPointAt(w.u));
     });
@@ -206,11 +270,58 @@ export function createWaiters(scene, { count = 2 } = {}) {
 
   function nearestU(pos) {
     let best = 0, bestD = Infinity;
-    for (let k = 0; k < 64; k++) {
-      const d = path.getPointAt(k / 64).distanceToSquared(pos);
-      if (d < bestD) { bestD = d; best = k / 64; }
+    for (let k = 0; k < 96; k++) {
+      const d = path.getPointAt(k / 96).distanceToSquared(pos);
+      if (d < bestD) { bestD = d; best = k / 96; }
     }
     return best;
+  }
+  // The shorter way round from u to v, as a signed fraction of the loop.
+  const toward = (u, v) => { let d = v - u; d -= Math.round(d); return d; };
+
+  // ---------- getting about ----------
+  // To anywhere: on to the loop (straight to its nearest point), round it
+  // to the point nearest the destination, and off it to there; then
+  // `arrive`. `dir` forces the way round (+1 onward), for a lap.
+  function goTo(w, dest, arrive, dir = 0) {
+    w.route = { dest: dest.clone().setY(0), targetU: nearestU(dest), arrive, dir };
+    if (w.onLoop) w.state = 'travel';
+    else { w.route.joinU = nearestU(w.group.position); w.state = 'join'; }
+  }
+  function stay(w, look, ms, done = null) {
+    w.state = 'stay';
+    w.look = look;
+    w.until = performance.now() + ms;
+    w.whenDone = done;
+    moving(w, false);
+  }
+
+  // ---------- the routine ----------
+  // What to do next: the bar, a free post, or a turn round the loop —
+  // weighted, never where the other waiter is, and not the same thing
+  // twice running.
+  function choose(w) {
+    const taken = new Set(staff.filter((o) => o !== w && o.spot).map((o) => o.spot));
+    const options = [];
+    if (bar && !taken.has('bar') && w.last !== 'bar') options.push(['bar', 3]);
+    posts.forEach((_, i) => { if (!taken.has('post' + i) && w.last !== 'post' + i) options.push(['post' + i, 1.3]); });
+    if (w.last !== 'lap') options.push(['lap', 2]);
+    let r = Math.random() * options.reduce((a, o) => a + o[1], 0);
+    const pick = (options.find((o) => (r -= o[1]) < 0) || ['lap'])[0];
+    w.last = pick;
+    if (pick === 'bar') {
+      w.spot = 'bar';
+      goTo(w, bar.pickup.pos, () => stay(w, bar.pickup.look, 6000 + Math.random() * 6000, () => restock(w)));
+    } else if (pick.startsWith('post')) {
+      const post = posts[Number(pick.slice(4))];
+      w.spot = pick;
+      goTo(w, post.pos, () => stay(w, post.look, 9000 + Math.random() * 10000));
+    } else {
+      w.spot = null;
+      // Some way round, then a moment watching the table from there.
+      const u = (nearestU(w.group.position) + 0.3 + Math.random() * 0.4) % 1;
+      goTo(w, path.getPointAt(u), () => stay(w, new THREE.Vector3(0, 0, 0), 2500 + Math.random() * 2500), 1);
+    }
   }
 
   /**
@@ -232,12 +343,14 @@ export function createWaiters(scene, { count = 2 } = {}) {
     glass.position.set(0, m(0.005), 0);
     w.tray.add(glass);
     w.job = { stop: stop.clone(), toward: toward.clone(), glass, handOver, arrivedAt: 0, handed: false };
-    w.state = 'toJob';
+    w.spot = null;
+    goTo(w, stop, () => { w.state = 'serve'; w.job.arrivedAt = performance.now(); moving(w, false); });
     return true;
   }
   const queue = [];
 
   function update(dt) {
+    if (bartender.mixer && bartender.group.visible) bartender.mixer.update(dt);
     if (!path || !root.visible) return;
     const now = performance.now();
     staff.forEach((w) => {
@@ -256,20 +369,46 @@ export function createWaiters(scene, { count = 2 } = {}) {
       }
       w.group.visible = true;
       const p = w.group.position;
-      if (w.state === 'loop') {
-        if (now > w.nextPause) { w.state = 'pause'; w.pauseUntil = now + 2500 + Math.random() * 3000; moving(w, false); return; }
+      if (w.state === 'choose') {
+        choose(w);
+      } else if (w.state === 'join') {
         moving(w, true);
-        w.u = (w.u + (WALK_SPEED * dt) / pathLength) % 1;
-        const at = path.getPointAt(w.u);
-        const ahead = path.getPointAt((w.u + 0.01) % 1);
-        p.copy(at);
-        face(w, ahead.x, ahead.z, dt);
-      } else if (w.state === 'pause') {
-        face(w, 0, 0, dt);
-        if (now > w.pauseUntil) { w.state = 'loop'; w.nextPause = now + 15000 + Math.random() * 20000; }
-      } else if (w.state === 'toJob') {
+        if (walkTo(w, path.getPointAt(w.route.joinU), dt)) { w.u = w.route.joinU; w.onLoop = true; w.state = 'travel'; }
+      } else if (w.state === 'travel') {
         moving(w, true);
-        if (walkTo(w, w.job.stop, dt)) { w.state = 'serve'; w.job.arrivedAt = now; moving(w, false); }
+        const r = w.route;
+        const d = toward(w.u, r.targetU);
+        const dir = r.dir || Math.sign(d) || 1;
+        const left = r.dir ? (((r.targetU - w.u) * dir) % 1 + 1) % 1 : Math.abs(d);
+        const step = (WALK_SPEED * dt) / pathLength;
+        if (left <= step) {
+          w.u = r.targetU;
+          p.copy(path.getPointAt(w.u));
+          w.onLoop = false;
+          w.state = 'approach';
+        } else {
+          w.u = ((w.u + dir * step) % 1 + 1) % 1;
+          p.copy(path.getPointAt(w.u));
+          const ahead = path.getPointAt(((w.u + dir * 0.01) % 1 + 1) % 1);
+          face(w, ahead.x, ahead.z, dt);
+        }
+      } else if (w.state === 'approach') {
+        moving(w, true);
+        if (walkTo(w, w.route.dest, dt)) {
+          // Back on the loop if that is where it ended.
+          w.onLoop = p.distanceTo(path.getPointAt(w.route.targetU)) < m(0.1);
+          const arrive = w.route.arrive;
+          w.route = null;
+          arrive();
+        }
+      } else if (w.state === 'stay') {
+        face(w, w.look.x, w.look.z, dt);
+        if (now > w.until) {
+          if (w.whenDone) w.whenDone();
+          w.whenDone = null;
+          w.spot = null;
+          w.state = 'choose';
+        }
       } else if (w.state === 'serve') {
         face(w, w.job.toward.x, w.job.toward.z, dt);
         if (!w.job.handed && now - w.job.arrivedAt > HAND_AT) {
@@ -279,13 +418,9 @@ export function createWaiters(scene, { count = 2 } = {}) {
           disposeDrink(w.job.glass);
           w.job.handOver(at);
         }
-        if (now - w.job.arrivedAt > SERVE_MS) { w.state = 'back'; w.backU = nearestU(p); }
-      } else if (w.state === 'back') {
-        moving(w, true);
-        if (walkTo(w, path.getPointAt(w.backU), dt)) {
-          w.u = w.backU;
-          w.state = 'loop';
+        if (now - w.job.arrivedAt > SERVE_MS) {
           w.job = null;
+          w.state = 'choose';
           const next = queue.shift();
           if (next) deliver(...next);
         }

@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import { crestPlateCanvas } from './crest.js';
+import { crestPlateCanvas, drawCasinoCrest } from './crest.js';
 import { FLOOR_Y, m } from './scale.js';
 
-// Fittings for the penthouse that no furniture library has: drapes at the
-// glass, a rug under the table, a bar with the house crest on its front,
-// and a tray ceiling. Built from plain geometry and painted canvases, so
-// they cost nothing to download.
+// Fittings no furniture library has: drapes at the glass, rugs, a bar
+// with the house crest on its front and a lit back bar behind it, a tray
+// ceiling, and the house sign. Built from plain geometry and painted
+// canvases, so they cost nothing to download.
 
 const BRASS = new THREE.MeshStandardMaterial({ color: 0xb8955a, roughness: 0.35, metalness: 0.8 });
 
@@ -91,10 +91,10 @@ function crestPanel(w, h, accentRgb) {
  * with brass trim and the house crest on the front, a marble top, and a
  * brass foot rail. Its origin is on the floor at the middle of the front.
  */
-export function createBar(length, accentRgb = '216,180,110') {
+export function createBar(length, accentRgb = '216,180,110', { body: bodyColor = 0x141316, top: topColor = 0xe9e3d7 } = {}) {
   const group = new THREE.Group();
   const h = m(1.08), depth = m(0.62);
-  const lacquer = new THREE.MeshStandardMaterial({ color: 0x141316, roughness: 0.3, metalness: 0 });
+  const lacquer = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.3, metalness: 0 });
   const body = new THREE.Mesh(new THREE.BoxGeometry(length, h - m(0.05), depth), lacquer);
   body.position.set(0, FLOOR_Y + (h - m(0.05)) / 2, -depth / 2);
   body.castShadow = true;
@@ -102,7 +102,7 @@ export function createBar(length, accentRgb = '216,180,110') {
   group.add(body);
   const top = new THREE.Mesh(
     new THREE.BoxGeometry(length + m(0.08), m(0.05), depth + m(0.12)),
-    new THREE.MeshStandardMaterial({ color: 0xe9e3d7, roughness: 0.22, metalness: 0 })
+    new THREE.MeshStandardMaterial({ color: topColor, roughness: 0.22, metalness: 0 })
   );
   top.position.set(0, FLOOR_Y + h - m(0.025), -depth / 2 + m(0.04));
   top.castShadow = true;
@@ -127,9 +127,9 @@ export function createBar(length, accentRgb = '216,180,110') {
  * A tray ceiling: the middle of the ceiling raised in a frame, with a
  * hidden cove of light round its edge. `w` by `d`, hung at `y`.
  */
-export function createTrayCeiling(w, d, y, coveColor) {
+export function createTrayCeiling(w, d, y, coveColor, frameColor = 0x0d0c10) {
   const group = new THREE.Group();
-  const frameMat = new THREE.MeshLambertMaterial({ color: 0x0d0c10 });
+  const frameMat = new THREE.MeshLambertMaterial({ color: frameColor });
   const glow = new THREE.MeshBasicMaterial({ color: coveColor });
   const t = m(0.18);
   [
@@ -150,5 +150,152 @@ export function createTrayCeiling(w, d, y, coveColor) {
     line.position.set(s * (w / 2 - 0.02), y - m(0.26), 0);
     group.add(line);
   });
+  return group;
+}
+
+// ---------- the house sign ----------
+
+/**
+ * The house sign: the NVGR crest in gilt, lit from within, on a plate in a
+ * brass frame, with the glow of its light thrown on what is behind it. It
+ * hangs where every player looks — on the wall behind the dealer — and is
+ * drawn unlit (it is a light), so it reads in any room. `width` across;
+ * its origin is its centre, and it faces +z.
+ *
+ * `plate` is the panel's colour (null for none: the crest alone, as if
+ * cut out and floating, for a sign hung in front of glass).
+ */
+export function createBrandSign(width, { rgb = '232,196,120', plate = '#121114', frame = true, halo = true } = {}) {
+  const height = width * 0.62;
+  const group = new THREE.Group();
+  const px = 1024;
+  const canvas = document.createElement('canvas');
+  canvas.width = px;
+  canvas.height = Math.round(px * 0.62);
+  const draw = () => {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (plate) {
+      ctx.fillStyle = plate;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = `rgba(${rgb},0.55)`;
+      ctx.lineWidth = 4;
+      ctx.strokeRect(26, 26, canvas.width - 52, canvas.height - 52);
+    }
+    // The light of the letters, then the letters.
+    ctx.save();
+    ctx.shadowColor = `rgba(${rgb},0.9)`;
+    ctx.shadowBlur = 28;
+    drawCasinoCrest(ctx, { x: canvas.width / 2, y: canvas.height / 2 + canvas.height * 0.02, width: canvas.width * 0.62, alpha: 1, rgb });
+    ctx.restore();
+    drawCasinoCrest(ctx, { x: canvas.width / 2, y: canvas.height / 2 + canvas.height * 0.02, width: canvas.width * 0.62, alpha: 1, rgb: '255,240,200' });
+  };
+  draw();
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  // The crest's lettering is a webfont: drawn again once it has loaded.
+  if (document.fonts && document.fonts.load) {
+    document.fonts.load("700 88px 'Cinzel'").then(() => { draw(); tex.needsUpdate = true; }).catch(() => {});
+  }
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(width, height),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: !plate, toneMapped: false, fog: false }));
+  face.position.z = 0.02;
+  group.add(face);
+  if (frame && plate) {
+    const t = width * 0.022;
+    const brass = new THREE.MeshStandardMaterial({ color: 0xc9a25e, roughness: 0.3, metalness: 0.85 });
+    [[width + t * 2, t, 0, height / 2 + t / 2], [width + t * 2, t, 0, -height / 2 - t / 2], [t, height, width / 2 + t / 2, 0], [t, height, -width / 2 - t / 2, 0]]
+      .forEach(([w, h, x, y]) => {
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(w, h, t * 1.6), brass);
+        bar.position.set(x, y, t * 0.5);
+        group.add(bar);
+      });
+  }
+  if (halo) {
+    // Its light on the wall round it.
+    const g = document.createElement('canvas');
+    g.width = g.height = 256;
+    const gx = g.getContext('2d');
+    const grad = gx.createRadialGradient(128, 128, 20, 128, 128, 128);
+    grad.addColorStop(0, `rgba(${rgb},0.55)`);
+    grad.addColorStop(0.5, `rgba(${rgb},0.18)`);
+    grad.addColorStop(1, `rgba(${rgb},0)`);
+    gx.fillStyle = grad;
+    gx.fillRect(0, 0, 256, 256);
+    const glowTex = new THREE.CanvasTexture(g);
+    glowTex.colorSpace = THREE.SRGBColorSpace;
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(width * 1.9, height * 2.1),
+      new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, fog: false }));
+    glow.position.z = 0.005;
+    group.add(glow);
+  }
+  return group;
+}
+
+// ---------- the back bar ----------
+
+/**
+ * The wall behind a bar: a tall cabinet `length` long with a mirrored
+ * back, three glass shelves lit from beneath and rows of bottles on them,
+ * and a small lit crest at the top. Its origin is on the floor at the
+ * middle of its front; it faces +z.
+ */
+export function createBackBar(length, { wood = 0x2a1c14, rgb = '232,196,120' } = {}) {
+  const group = new THREE.Group();
+  const h = m(2.75), depth = m(0.38);
+  const woodMat = new THREE.MeshStandardMaterial({ color: wood, roughness: 0.5, metalness: 0 });
+  const carcass = new THREE.Mesh(new THREE.BoxGeometry(length, h, m(0.06)), woodMat);
+  carcass.position.set(0, FLOOR_Y + h / 2, -depth + m(0.03));
+  group.add(carcass);
+  // A low cupboard along the bottom.
+  const base = new THREE.Mesh(new THREE.BoxGeometry(length, m(0.9), depth), woodMat);
+  base.position.set(0, FLOOR_Y + m(0.45), -depth / 2);
+  group.add(base);
+  // The mirror, warm with the light of the shelves.
+  const mirror = new THREE.Mesh(new THREE.PlaneGeometry(length - m(0.12), h - m(1.25)),
+    new THREE.MeshStandardMaterial({ color: 0x8a7a66, roughness: 0.12, metalness: 0.9 }));
+  mirror.position.set(0, FLOOR_Y + m(0.9) + (h - m(1.25)) / 2 + m(0.05), -depth + m(0.065));
+  group.add(mirror);
+  [-1, 1].forEach((s) => {
+    const side = new THREE.Mesh(new THREE.BoxGeometry(m(0.06), h, depth), woodMat);
+    side.position.set(s * (length / 2 - m(0.03)), FLOOR_Y + h / 2, -depth / 2);
+    group.add(side);
+  });
+  const crown = new THREE.Mesh(new THREE.BoxGeometry(length + m(0.08), m(0.12), depth + m(0.06)), woodMat);
+  crown.position.set(0, FLOOR_Y + h + m(0.06), -depth / 2);
+  group.add(crown);
+  // Glass shelves, each with a strip of light under it.
+  const glass = new THREE.MeshStandardMaterial({ color: 0xcfe6e0, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.35 });
+  const light = new THREE.MeshBasicMaterial({ color: 0xffd9a0, toneMapped: false });
+  const BOTTLE_COLORS = [0x2f5a2a, 0x6b3a12, 0xd9c79a, 0x3a1a12, 0x9fc4c8, 0x7a1e2a, 0xc9a24f, 0x1d2e4a];
+  const bottleMats = BOTTLE_COLORS.map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.15, metalness: 0.1, emissive: c, emissiveIntensity: 0.25 }));
+  const bottleGeo = new THREE.CylinderGeometry(m(0.035), m(0.04), m(0.26), 10);
+  const neckGeo = new THREE.CylinderGeometry(m(0.012), m(0.02), m(0.09), 8);
+  [1.1, 1.5, 1.9].forEach((y, row) => {
+    const shelf = new THREE.Mesh(new THREE.BoxGeometry(length - m(0.14), m(0.02), depth - m(0.1)), glass);
+    shelf.position.set(0, FLOOR_Y + m(y), -depth / 2 - m(0.02));
+    group.add(shelf);
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(length - m(0.16), m(0.012), m(0.02)), light);
+    strip.position.set(0, FLOOR_Y + m(y) - m(0.02), -m(0.06));
+    group.add(strip);
+    const n = Math.floor((length - m(0.3)) / m(0.13));
+    for (let i = 0; i < n; i++) {
+      const mat = bottleMats[(i * 3 + row * 5) % bottleMats.length];
+      const x = -length / 2 + m(0.2) + i * m(0.13);
+      const tall = 0.85 + ((i * 7 + row) % 4) * 0.08;
+      const b = new THREE.Mesh(bottleGeo, mat);
+      b.scale.y = tall;
+      b.position.set(x, FLOOR_Y + m(y) + m(0.01) + m(0.13) * tall, -depth / 2 - m(0.02));
+      group.add(b);
+      const neck = new THREE.Mesh(neckGeo, mat);
+      neck.position.set(x, FLOOR_Y + m(y) + m(0.01) + m(0.26) * tall + m(0.045), -depth / 2 - m(0.02));
+      group.add(neck);
+    }
+  });
+  // The house crest, lit, over the middle.
+  const sign = createBrandSign(Math.min(length * 0.3, m(0.62)), { rgb, plate: null, frame: false, halo: false });
+  sign.position.set(0, FLOOR_Y + m(2.5), -depth + m(0.08));
+  group.add(sign);
   return group;
 }

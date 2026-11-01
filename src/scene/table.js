@@ -6,11 +6,11 @@ import { FLOOR_Y, m } from './scale.js';
 // dealer. TABLE_RADIUS is the semicircle's radius (and so the felt's full
 // width, held constant all the way back); SIDE_LENGTH is how far the
 // straight sides run before the flat back edge closes the shape off.
-// Sized as a five-spot table, which is what this one is: about 2.1 m
-// across overall. It was built to a seven-seat 2.4 m spec, so five players
-// sat far apart around a wide, empty felt.
-export const TABLE_RADIUS = m(0.885);
-const SIDE_LENGTH = 1.0;
+// About 2.5 m across overall: a five-spot table built generously, so the
+// five players have room between them and the felt doesn't feel crowded.
+// (At 2.1 m it read as cramped once the rooms around it grew.)
+export const TABLE_RADIUS = m(1.02);
+const SIDE_LENGTH = 1.15;
 export const TABLE_BACK_Z = -SIDE_LENGTH;
 
 // The border, from the felt outward, as a real table is built: a burl-wood

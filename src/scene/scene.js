@@ -161,6 +161,10 @@ export function initScene(canvas) {
     wash.intensity = l.washPower;
     scene.background.setHex(l.fog);
     scene.fog.color.setHex(l.fog);
+    // How far the room's air softens what is far off: the bright rooms
+    // barely at all, so their far walls don't sink into gloom.
+    scene.fog.near = l.fogNear ?? 18;
+    scene.fog.far = l.fogFar ?? 44;
   }
   // The Penthouse first: it is what the lobby shows behind it (setBackdrop).
   setRoomTheme(5);

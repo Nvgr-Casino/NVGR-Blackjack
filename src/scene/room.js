@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { drawCasinoCrest } from './crest.js';
-import { FLOOR_Y } from './scale.js';
+import { FLOOR_Y, m } from './scale.js';
 import { ROOM_THEMES } from './rooms.js';
 
 // The room the table stands in — one for each stakes tier, from a bright
@@ -16,13 +16,12 @@ import { ROOM_THEMES } from './rooms.js';
 // walls and floor cover most of the screen, so they are also the cheapest
 // material three.js has.
 
-export const CEILING_Y = 7.0;
-// An 11.8 m salon: room for a lounge on each side, a wide loop for the
-// waiters round the table, and space between them. (With nothing in it a
-// room this size had walls that were specks in the dark; it is the
-// furniture and the sconces along the walls that make a large room read.
-// At 9.4 m, with the bigger poker table, it felt cramped.)
-export const ROOM_HALF = 15;  // walls at ±15 in x and z
+export const CEILING_Y = 7.6;
+// A 14 m salon: a bar in one corner, a lounge on each side, a wide loop
+// for the waiters round the table, and open floor between them all. (With
+// nothing in it a room this size had walls that were specks in the dark;
+// it is the furniture, the light and the bar that make a large room read.)
+export const ROOM_HALF = 18;  // walls at ±18 in x and z
 
 /**
  * Frees a room built by createRoom once it is out of the scene: its own
@@ -137,6 +136,41 @@ function createWallTexture(theme, d, { back = false, glazed = false } = {}) {
     }
     ctx.fillStyle = css(rgb(w.rail));
     ctx.fillRect(0, dadoTop - 10, WALL_TEX_W, 14);
+  } else if (w.style === 'panels') {
+    // Painted plaster over a wainscot: tall raised panels in fine moulding
+    // above — each frame a highlight and a shadow line, so it reads as
+    // relief — and below, to waist height, the wainscot in its own colour
+    // with lower panels, capped by a rail.
+    const unit = PX_PER_UNIT * m(1);
+    const wainTop = WALL_TEX_H - unit * 1.0;
+    const hi = css(rgb(w.panel || w.base).map((c) => c + 14), 0.9);
+    const lo = css(rgb(w.shade || w.base).map((c) => c - 26), 0.75);
+    const frame = (x, y, fw, fh, lw) => {
+      ctx.lineWidth = lw;
+      ctx.strokeStyle = lo;
+      ctx.strokeRect(x + lw, y + lw, fw, fh);
+      ctx.strokeStyle = hi;
+      ctx.strokeRect(x, y, fw, fh);
+    };
+    const pw = unit * 1.25, gap = unit * 0.3;
+    const top = unit * 0.55, upperH = wainTop - unit * 0.3 - top;
+    for (let x = gap / 2; x < WALL_TEX_W; x += pw + gap) {
+      frame(x, top, pw, upperH, 5);
+      frame(x + unit * 0.09, top + unit * 0.09, pw - unit * 0.18, upperH - unit * 0.18, 3);
+    }
+    ctx.fillStyle = css(rgb(w.wainscot));
+    ctx.fillRect(0, wainTop, WALL_TEX_W, WALL_TEX_H - wainTop);
+    const whi = css(rgb(w.wainscot).map((c) => c + 22), 0.8);
+    const wlo = css(rgb(w.wainscot).map((c) => c - 30), 0.8);
+    for (let x = gap / 2; x < WALL_TEX_W; x += pw + gap) {
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = wlo;
+      ctx.strokeRect(x + 4, wainTop + unit * 0.2 + 4, pw, unit * 0.55);
+      ctx.strokeStyle = whi;
+      ctx.strokeRect(x, wainTop + unit * 0.2, pw, unit * 0.55);
+    }
+    ctx.fillStyle = css(rgb(w.rail));
+    ctx.fillRect(0, wainTop - 8, WALL_TEX_W, 16);
   } else if (w.style === 'lacquer') {
     const panel = PX_PER_UNIT * 1.8;
     ctx.strokeStyle = css(rgb(w.trim), 0.75);
@@ -180,7 +214,10 @@ function createWallTexture(theme, d, { back = false, glazed = false } = {}) {
     const bottom = WALL_TEX_H - skirtH;
     const bay = PX_PER_UNIT * 1.8;
     const mullion = PX_PER_UNIT * 0.09;
-    const solid = back ? PX_PER_UNIT * 2.8 : 0;
+    // Glass all the way across, the back wall too: the house sign hangs in
+    // front of it (rooms.js) rather than on a panel of wall in the middle,
+    // which read as half a wall.
+    const solid = 0;
     ctx.strokeStyle = css(rgb(theme.wall.trim || theme.accent), 0.9);
     ctx.lineWidth = 3;
     for (let x = mullion; x + bay <= WALL_TEX_W; x += bay) {
@@ -194,13 +231,19 @@ function createWallTexture(theme, d, { back = false, glazed = false } = {}) {
     }
   }
 
-  drawCasinoCrest(ctx, {
-    x: WALL_TEX_W / 2,
-    y: markTexY(back ? MARK_Y : MARK_Y + 0.4),
-    width: (back ? 2.2 : 1.3) * PX_PER_UNIT,
-    alpha: back ? 0.78 : 0.55,
-    rgb: rgb(theme.accent).join(','),
-  });
+  // The crest on the side walls and the one behind the players — large
+  // enough to be seen from the table. The back wall has the lit house
+  // sign instead (rooms.js), and glass walls have none: it would hang in
+  // the air over the city.
+  if (!back && !glazed) {
+    drawCasinoCrest(ctx, {
+      x: WALL_TEX_W / 2,
+      y: markTexY(MARK_Y + 0.9),
+      width: 4.4 * PX_PER_UNIT,
+      alpha: 0.92,
+      rgb: rgb(theme.crest || theme.accent).join(','),
+    });
+  }
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -229,6 +272,59 @@ function createCarpetTexture(theme) {
     }
   }
   if (f.style === 'ornate') ornament(ctx, S / 2, S / 2, S * 0.5, css(rgb(f.pattern), 0.3));
+  if (f.style === 'parquet') {
+    // Basket-weave parquet: squares of four boards, each square turned a
+    // quarter from its neighbours, every board its own shade of the wood.
+    const cell = S / 4, board = cell / 4;
+    for (let cy = 0; cy < 4; cy++) {
+      for (let cx = 0; cx < 4; cx++) {
+        const across = (cx + cy) % 2 === 0;
+        for (let k = 0; k < 4; k++) {
+          const shade = ((cx * 7 + cy * 13 + k * 5) % 11) - 5;
+          ctx.fillStyle = css(rgb(f.base).map((c) => c + shade * 2.2));
+          const x = cx * cell + (across ? 0 : k * board);
+          const y = cy * cell + (across ? k * board : 0);
+          const bw = across ? cell : board, bh = across ? board : cell;
+          ctx.fillRect(x, y, bw, bh);
+          // Grain along the board.
+          ctx.strokeStyle = 'rgba(0,0,0,0.07)';
+          ctx.lineWidth = 1;
+          for (let g = 0; g < 3; g++) {
+            ctx.beginPath();
+            if (across) { const gy = y + (g + 1) * bh / 4; ctx.moveTo(x, gy); ctx.lineTo(x + bw, gy + (Math.random() - 0.5) * 3); }
+            else { const gx = x + (g + 1) * bw / 4; ctx.moveTo(gx, y); ctx.lineTo(gx + (Math.random() - 0.5) * 3, y + bh); }
+            ctx.stroke();
+          }
+          ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+          ctx.strokeRect(x + 0.5, y + 0.5, bw - 1, bh - 1);
+        }
+      }
+    }
+  }
+  if (f.style === 'checker') {
+    // Polished marble laid in a checkerboard: two squares of each stone to
+    // the tile, a few soft veins across every square.
+    const cell = S / 2;
+    for (let cy = 0; cy < 2; cy++) {
+      for (let cx = 0; cx < 2; cx++) {
+        const dark = (cx + cy) % 2 === 1;
+        ctx.fillStyle = css(rgb(dark ? f.pattern : f.base));
+        ctx.fillRect(cx * cell, cy * cell, cell, cell);
+        ctx.strokeStyle = dark ? 'rgba(255,255,255,0.08)' : 'rgba(80,70,60,0.12)';
+        for (let v = 0; v < 4; v++) {
+          ctx.lineWidth = 1 + (v % 2);
+          ctx.beginPath();
+          let x = cx * cell + Math.random() * cell, y = cy * cell;
+          ctx.moveTo(x, y);
+          while (y < (cy + 1) * cell) { x += (Math.random() - 0.5) * 40; y += 20 + Math.random() * 30; ctx.lineTo(x, Math.min(y, (cy + 1) * cell)); }
+          ctx.stroke();
+        }
+        ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(cx * cell + 0.75, cy * cell + 0.75, cell - 1.5, cell - 1.5);
+      }
+    }
+  }
   if (f.style === 'marble') {
     // Polished stone: large tiles, each with a few soft veins across it.
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
@@ -253,7 +349,7 @@ function createCarpetTexture(theme) {
   }
   ctx.putImageData(img, 0, 0);
 
-  if (f.style !== 'boards' && f.style !== 'marble') {
+  if (f.style === 'ornate') {
     ctx.strokeStyle = 'rgba(0,0,0,0.22)';
     ctx.lineWidth = 6;
     ctx.strokeRect(S * 0.08, S * 0.08, S * 0.84, S * 0.84);
@@ -326,24 +422,27 @@ export function createRoom(tier = 3) {
   floor.receiveShadow = true;
   room.add(floor);
 
+  // A ceiling faces down, into nothing but the dim light thrown up from
+  // the floor, so a pale one came out brown: it gives a little light of its
+  // own, as a ceiling lit by the room's lamps does.
   const ceiling = new THREE.Mesh(
     new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE),
-    new THREE.MeshLambertMaterial({ color: theme.ceiling })
+    new THREE.MeshLambertMaterial({ color: theme.ceiling, emissive: theme.ceiling, emissiveIntensity: theme.ceilingGlow ?? 0.55 })
   );
   ceiling.rotation.x = Math.PI / 2;
   ceiling.position.y = CEILING_Y;
   room.add(ceiling);
 
-  // One texture for the side walls and the one behind the players, one
-  // with the large crest for the back wall they face. In the penthouse the
-  // back and side walls are glass.
+  // The side walls carry the crest; the back and front walls carry the lit
+  // house sign instead (rooms.js), so none is painted on them. In the
+  // penthouse the back and side walls are glass.
   const glazed = !!theme.windows;
-  const plainWall = createWallTexture(theme, d);
-  const sideWall = glazed ? createWallTexture(theme, d, { glazed }) : plainWall;
+  const sideWall = createWallTexture(theme, d, { glazed });
   const backWall = createWallTexture(theme, d, { back: true, glazed });
+  const frontWall = glazed ? createWallTexture(theme, d, { back: true }) : backWall;
   const walls = [
     { rotY: 0, pos: [0, -ROOM_HALF], map: backWall },
-    { rotY: Math.PI, pos: [0, ROOM_HALF], map: plainWall },
+    { rotY: Math.PI, pos: [0, ROOM_HALF], map: frontWall },
     { rotY: Math.PI / 2, pos: [-ROOM_HALF, 0], map: sideWall },
     { rotY: -Math.PI / 2, pos: [ROOM_HALF, 0], map: sideWall },
   ];
