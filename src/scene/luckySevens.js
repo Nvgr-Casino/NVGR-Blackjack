@@ -1,383 +1,659 @@
 import * as THREE from 'three';
 import { FLOOR_Y, m } from './scale.js';
 import { walkway, brandSign, staffPosts } from './layout.js';
-import { lightPanel, roundRug, lightRing } from './decor.js';
+import { lightPanel, roundRug } from './decor.js';
 
-// Lucky Sevens: a neon lounge off the Las Vegas Strip, the room every new
-// player starts in, and the loudest. Everything in it is its own:
+// Lucky Sevens: a slot lounge on the Las Vegas Strip, the room every new
+// player starts in. Built to look like the real thing, its furniture all
+// its own:
 //
-//   - over the table, a slot machine the size of a car: three reels in a
-//     gold frame ringed with marquee bulbs, spinning;
-//   - neon on every wall — LUCKY SEVENS over the sign, cherries, 777,
-//     dice, a horseshoe, JACKPOT — flickering now and then;
-//   - banks of slot machines down the sides, reels turning, each with its
-//     chrome stool;
-//   - red vinyl booths round chrome-rimmed tables, in the manner of the old
-//     Strip;
-//   - a chrome bar edged in neon, its bottles lit on glass shelves under a
-//     neon BAR;
-//   - a carpet as loud as a casino's, a neon grid overhead.
+//   - banks of modern video slots: gloss-black cabinets edged in light, a
+//     big screen with the game on it (five reels of shaded symbols, the
+//     title over them, the credit and bet meters under), a top box with
+//     the game's logo and its jackpot, a deck of lit buttons, a padded
+//     swivel chair; now and then one spins and settles, reel by reel;
+//   - over the table, a ring of LED showing the progressive jackpot,
+//     climbing as it does on any casino floor;
+//   - neon lettering on the walls, as the Strip has it: LUCKY SEVENS over
+//     the sign, HIGH LIMIT, 777, JACKPOT, SLOTS;
+//   - booths of oxblood leather, tufted, round black tables rimmed in brass;
+//   - a bar fronted in backlit amber glass, bottles lit on its shelves;
+//   - a casino carpet (dense, ornate, burgundy, navy and gold), walnut
+//     panelling over black marble, a coffered ceiling with coves of light.
 
 const half = 36;
-const VIOLET = 0x150a26;
+const CEIL = FLOOR_Y + m(4.9);
 
 // ---------- materials ----------
-const chrome = new THREE.MeshStandardMaterial({ color: 0xe6e9ee, roughness: 0.12, metalness: 1.0 });
-const redVinyl = new THREE.MeshStandardMaterial({ color: 0xb3122e, roughness: 0.35, metalness: 0.05 });
-const blackGloss = new THREE.MeshStandardMaterial({ color: 0x0b0a10, roughness: 0.1, metalness: 0.2 });
-const neon = (color) => new THREE.MeshBasicMaterial({ color, toneMapped: false });
+const gloss = new THREE.MeshStandardMaterial({ color: 0x0c0c10, roughness: 0.18, metalness: 0.35 });
+const gunmetal = new THREE.MeshStandardMaterial({ color: 0x2a2c32, roughness: 0.35, metalness: 0.8 });
+const chrome = new THREE.MeshStandardMaterial({ color: 0xd8dce2, roughness: 0.12, metalness: 1.0 });
+const brass = new THREE.MeshStandardMaterial({ color: 0xb8965a, roughness: 0.28, metalness: 0.95 });
+const blackStone = new THREE.MeshStandardMaterial({ color: 0x0c0b0e, roughness: 0.08, metalness: 0.1 });
+const light = (color) => new THREE.MeshBasicMaterial({ color, toneMapped: false });
+const canvasTex = (w, h, draw) => {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+};
+// Oxblood leather, tufted in diamonds, a button in each.
+const leather = (() => {
+  const t = canvasTex(512, 512, (ctx) => {
+    ctx.fillStyle = '#4a0c14';
+    ctx.fillRect(0, 0, 512, 512);
+    const img = ctx.getImageData(0, 0, 512, 512);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const n = (Math.random() - 0.5) * 18;
+      img.data[i] += n;
+      img.data[i + 1] += n * 0.4;
+      img.data[i + 2] += n * 0.4;
+    }
+    ctx.putImageData(img, 0, 0);
+    for (let y = 0; y < 4; y++) for (let x = 0; x < 5; x++) {
+      const cx = x * 128 + (y % 2) * 64, cy = y * 128 + 64;
+      const g = ctx.createRadialGradient(cx, cy, 3, cx, cy, 70);
+      g.addColorStop(0, 'rgba(0,0,0,0.55)');
+      g.addColorStop(0.15, 'rgba(0,0,0,0.2)');
+      g.addColorStop(0.7, 'rgba(255,220,220,0.06)');
+      g.addColorStop(1, 'rgba(0,0,0,0.15)');
+      ctx.fillStyle = g;
+      ctx.fillRect(cx - 70, cy - 70, 140, 140);
+      ctx.fillStyle = '#2a060a';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return new THREE.MeshStandardMaterial({ map: t, roughness: 0.45, metalness: 0.05 });
+})();
 
 // ---------- the carpet ----------
-// A casino carpet: deep violet, scattered with stars, rings and diamonds
-// in magenta, teal and gold — busy enough that nobody looks at the floor.
-function paintVegasCarpet(ctx, S) {
-  ctx.fillStyle = '#1a0b2e';
+// A casino carpet: a dense ornament of scrolls and rosettes in gold, teal
+// and rose over burgundy and navy, every part of it busy.
+function paintCasinoCarpet(ctx, S) {
+  ctx.fillStyle = '#3a0c18';
   ctx.fillRect(0, 0, S, S);
-  const wrap = (fn) => [-S, 0, S].forEach((dx) => [-S, 0, S].forEach((dy) => fn(dx, dy)));
-  const star = (x, y, r, col) => {
-    ctx.fillStyle = col;
-    ctx.beginPath();
-    for (let i = 0; i < 10; i++) {
-      const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
-      const rr = i % 2 ? r * 0.45 : r;
-      ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+  const wrap = (fn) => [-S, 0, S].forEach((dx) => [-S, 0, S].forEach((dy) => { ctx.save(); ctx.translate(dx, dy); fn(); ctx.restore(); }));
+  const cells = (shift, fn) => {
+    for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) {
+      const x = i * (S / 4) + (((j + shift) % 2) * S) / 8, y = j * (S / 4) + S / 8;
+      wrap(() => fn(x, y));
     }
+  };
+  // A navy lattice of lozenges.
+  ctx.fillStyle = '#141838';
+  cells(0, (x, y) => {
+    ctx.beginPath();
+    ctx.moveTo(x, y - S / 10);
+    ctx.lineTo(x + S / 12, y);
+    ctx.lineTo(x, y + S / 10);
+    ctx.lineTo(x - S / 12, y);
     ctx.closePath();
     ctx.fill();
-  };
-  const shapes = [];
-  for (let i = 0; i < 26; i++) shapes.push({ kind: i % 3, x: Math.random() * S, y: Math.random() * S, r: 10 + Math.random() * 22, col: ['#e0328a', '#21c4c0', '#e8b84a', '#7a3ad8'][i % 4] });
-  shapes.forEach((sh) => wrap((dx, dy) => {
-    const x = sh.x + dx, y = sh.y + dy;
-    if (sh.kind === 0) star(x, y, sh.r, sh.col);
-    else if (sh.kind === 1) { ctx.strokeStyle = sh.col; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(x, y, sh.r, 0, Math.PI * 2); ctx.stroke(); }
-    else { ctx.fillStyle = sh.col; ctx.beginPath(); ctx.moveTo(x, y - sh.r); ctx.lineTo(x + sh.r * 0.6, y); ctx.lineTo(x, y + sh.r); ctx.lineTo(x - sh.r * 0.6, y); ctx.closePath(); ctx.fill(); }
-  }));
+  });
+  // Gold acanthus curling round each lozenge.
+  ctx.strokeStyle = '#c9a24f';
+  ctx.lineWidth = S / 200;
+  cells(0, (x, y) => {
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
+      const p = (r, da = 0) => [x + Math.cos(a + da) * S * r, y + Math.sin(a + da) * S * r];
+      ctx.beginPath();
+      ctx.moveTo(...p(0.05));
+      ctx.bezierCurveTo(...p(0.12), ...p(0.12, 0.8), ...p(0.08, 0.5));
+      ctx.stroke();
+    }
+  });
+  // Rosettes at the crossings: teal petals round a rose heart.
+  cells(1, (x, y) => {
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      ctx.fillStyle = k % 2 ? '#1f6a6a' : '#2a8a84';
+      ctx.beginPath();
+      ctx.ellipse(x + Math.cos(a) * S * 0.022, y + Math.sin(a) * S * 0.022, S * 0.02, S * 0.008, a, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#b8485a';
+    ctx.beginPath();
+    ctx.arc(x, y, S * 0.012, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#e8c86a';
+    ctx.beginPath();
+    ctx.arc(x, y, S * 0.005, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  for (let k = 0; k < 400; k++) {
+    ctx.fillStyle = `rgba(232,200,106,${0.3 + Math.random() * 0.4})`;
+    ctx.fillRect(Math.random() * S, Math.random() * S, 3, 3);
+  }
+  // The weave.
   const img = ctx.getImageData(0, 0, S, S);
-  for (let i = 0; i < img.data.length; i += 4) { const n = (Math.random() - 0.5) * 12; img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n; }
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (Math.random() - 0.5) * 16;
+    img.data[i] += n;
+    img.data[i + 1] += n;
+    img.data[i + 2] += n;
+  }
   ctx.putImageData(img, 0, 0);
 }
 
 // ---------- the walls ----------
-// Deep violet lacquer, ribbed with chrome, a mirror band at waist height.
-function paintNeonWall(ctx, d) {
+// Dark walnut panelling in tall frames over a black marble base, a brass
+// rail between.
+function paintLoungeWall(ctx, d) {
   const { texW: W, texH: H, px } = d;
   const u = px * m(1);
   const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#1e0f36');
-  g.addColorStop(1, '#0f0720');
+  g.addColorStop(0, '#2a1810');
+  g.addColorStop(1, '#1a0e08');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
-  for (let x = 0; x < W; x += u * 0.9) {
-    ctx.fillStyle = 'rgba(210,215,230,0.18)';
-    ctx.fillRect(x, 0, 3, H);
+  for (let k = 0; k < 160; k++) {
+    ctx.strokeStyle = `rgba(80,50,30,${0.15 + Math.random() * 0.2})`;
+    ctx.lineWidth = 1 + Math.random() * 2;
+    const x = Math.random() * W;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.bezierCurveTo(x + 20, H * 0.3, x - 20, H * 0.6, x + 10, H);
+    ctx.stroke();
   }
-  const band = H - u * 1.2;
-  const mg = ctx.createLinearGradient(0, band, 0, band + u * 0.5);
-  mg.addColorStop(0, 'rgba(180,170,220,0.35)');
-  mg.addColorStop(1, 'rgba(60,40,90,0.35)');
-  ctx.fillStyle = mg;
-  ctx.fillRect(0, band, W, u * 0.5);
-  ctx.fillStyle = 'rgba(230,235,245,0.6)';
-  ctx.fillRect(0, band - 3, W, 6);
-  ctx.fillRect(0, band + u * 0.5, W, 6);
+  const base = H - u * 1.0;
+  for (let x = u * 0.2; x < W; x += u * 1.6) {
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(x + 3, u * 0.45 + 3, u * 1.3, base - u * 0.75);
+    ctx.strokeStyle = 'rgba(180,140,90,0.25)';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(x, u * 0.45, u * 1.3, base - u * 0.75);
+  }
+  ctx.fillStyle = '#0c0b0e';
+  ctx.fillRect(0, base, W, H - base);
+  for (let k = 0; k < 30; k++) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1 + Math.random() * 2;
+    ctx.beginPath();
+    let x = Math.random() * W, y = base;
+    ctx.moveTo(x, y);
+    while (y < H) { x += (Math.random() - 0.5) * 40; y += 10 + Math.random() * 15; ctx.lineTo(x, y); }
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#b8965a';
+  ctx.fillRect(0, base - 5, W, 10);
 }
 
-// ---------- neon ----------
-// A tube of light drawn on the canvas: a wide soft glow, a bright core.
-function glowStroke(ctx, color, width, draw) {
+// ---------- the slot game ----------
+// Symbols drawn as a video slot draws them: shaded, outlined, glinting.
+function drawSymbol(ctx, kind, cx, cy, s) {
   ctx.save();
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  ctx.strokeStyle = color;
-  [[width * 3, 0.18], [width * 1.8, 0.35], [width, 1]].forEach(([w, a]) => {
-    ctx.globalAlpha = a;
-    ctx.lineWidth = w;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = width * 2;
-    draw();
-    ctx.stroke();
-  });
-  ctx.globalAlpha = 1;
-  ctx.lineWidth = width * 0.35;
-  ctx.strokeStyle = '#ffffff';
-  ctx.shadowBlur = 0;
-  draw();
-  ctx.stroke();
-  ctx.restore();
-}
-function neonText(ctx, text, x, y, size, color, font = "700 italic {S}px 'Cinzel', Georgia, serif") {
-  ctx.save();
-  ctx.font = font.replace('{S}', size);
+  ctx.translate(cx, cy);
+  const metal = (c0, c1) => {
+    const g = ctx.createLinearGradient(0, -s / 2, 0, s / 2);
+    g.addColorStop(0, c0);
+    g.addColorStop(0.45, '#ffffff');
+    g.addColorStop(0.55, c0);
+    g.addColorStop(1, c1);
+    return g;
+  };
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';
-  [[size * 0.16, 0.25], [size * 0.08, 0.5]].forEach(([w, a]) => {
-    ctx.globalAlpha = a; ctx.lineWidth = w; ctx.strokeStyle = color; ctx.shadowColor = color; ctx.shadowBlur = size * 0.3;
-    ctx.strokeText(text, x, y);
-  });
-  ctx.globalAlpha = 1;
-  ctx.shadowBlur = size * 0.15;
-  ctx.lineWidth = size * 0.035;
-  ctx.strokeStyle = '#ffffff';
-  ctx.strokeText(text, x, y);
+  if (kind === '7' || kind === 'blue7') {
+    ctx.font = `900 ${s * 0.95}px Georgia, serif`;
+    ctx.lineWidth = s * 0.1;
+    ctx.strokeStyle = '#2a1404';
+    ctx.strokeText('7', 0, s * 0.04);
+    ctx.fillStyle = kind === '7' ? metal('#ff3a2a', '#7a0806') : metal('#3a8aff', '#06207a');
+    ctx.fillText('7', 0, s * 0.04);
+    ctx.lineWidth = s * 0.03;
+    ctx.strokeStyle = '#f2d27a';
+    ctx.strokeText('7', 0, s * 0.04);
+  } else if (kind === 'bar') {
+    ctx.fillStyle = metal('#3a3a3e', '#0a0a0c');
+    ctx.beginPath();
+    ctx.roundRect(-s * 0.45, -s * 0.2, s * 0.9, s * 0.4, s * 0.08);
+    ctx.fill();
+    ctx.lineWidth = s * 0.03;
+    ctx.strokeStyle = '#f2d27a';
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `900 ${s * 0.26}px Georgia, serif`;
+    ctx.fillText('BAR', 0, s * 0.02);
+  } else if (kind === 'gem') {
+    const pts = [[0, -0.45], [0.38, -0.12], [0.24, 0.42], [-0.24, 0.42], [-0.38, -0.12]];
+    ctx.beginPath();
+    pts.forEach(([x, y], i) => (i ? ctx.lineTo(x * s, y * s) : ctx.moveTo(x * s, y * s)));
+    ctx.closePath();
+    const g = ctx.createLinearGradient(-s / 2, -s / 2, s / 2, s / 2);
+    g.addColorStop(0, '#9affc8');
+    g.addColorStop(0.5, '#0a8a4a');
+    g.addColorStop(1, '#043a20');
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.lineWidth = s * 0.03;
+    ctx.strokeStyle = '#d8ffe8';
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = s * 0.015;
+    ctx.beginPath();
+    ctx.moveTo(0, -0.45 * s);
+    ctx.lineTo(0, 0.42 * s);
+    ctx.moveTo(-0.38 * s, -0.12 * s);
+    ctx.lineTo(0.38 * s, -0.12 * s);
+    ctx.stroke();
+  } else if (kind === 'bell') {
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.36, s * 0.3);
+    ctx.quadraticCurveTo(-s * 0.3, -s * 0.42, 0, -s * 0.42);
+    ctx.quadraticCurveTo(s * 0.3, -s * 0.42, s * 0.36, s * 0.3);
+    ctx.closePath();
+    ctx.fillStyle = metal('#ffd24a', '#8a5a06');
+    ctx.fill();
+    ctx.lineWidth = s * 0.03;
+    ctx.strokeStyle = '#4a2a04';
+    ctx.stroke();
+    ctx.fillStyle = '#8a5a06';
+    ctx.beginPath();
+    ctx.arc(0, s * 0.36, s * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (kind === 'cherry') {
+    ctx.strokeStyle = '#2a5a1a';
+    ctx.lineWidth = s * 0.05;
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.18, s * 0.1);
+    ctx.quadraticCurveTo(-s * 0.05, -s * 0.35, s * 0.15, -s * 0.4);
+    ctx.moveTo(s * 0.18, s * 0.1);
+    ctx.quadraticCurveTo(s * 0.12, -s * 0.2, s * 0.15, -s * 0.4);
+    ctx.stroke();
+    [[-0.2, 0.22], [0.2, 0.22]].forEach(([x, y]) => {
+      const g = ctx.createRadialGradient(x * s - s * 0.06, y * s - s * 0.06, s * 0.02, x * s, y * s, s * 0.2);
+      g.addColorStop(0, '#ff9a9a');
+      g.addColorStop(0.4, '#d4142a');
+      g.addColorStop(1, '#5a0410');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x * s, y * s, s * 0.18, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  } else if (kind === 'wild') {
+    ctx.fillStyle = metal('#ffe08a', '#8a5a06');
+    ctx.beginPath();
+    ctx.roundRect(-s * 0.46, -s * 0.3, s * 0.92, s * 0.6, s * 0.1);
+    ctx.fill();
+    ctx.fillStyle = '#5a0c14';
+    ctx.font = `900 italic ${s * 0.3}px Georgia, serif`;
+    ctx.fillText('WILD', 0, s * 0.02);
+  } else {
+    ctx.font = `900 ${s * 0.7}px Georgia, serif`;
+    ctx.lineWidth = s * 0.08;
+    ctx.strokeStyle = '#1a1030';
+    ctx.strokeText(kind, 0, 0);
+    ctx.fillStyle = metal(kind === 'A' ? '#ff5a9a' : kind === 'K' ? '#5ac8ff' : '#b88aff', '#2a0a3a');
+    ctx.fillText(kind, 0, 0);
+  }
   ctx.restore();
 }
-// The neon pieces, each drawn into a w x h canvas.
-const NEON_ART = {
-  sevens: (ctx, w, h) => { neonText(ctx, '777', w / 2, h / 2, h * 0.55, '#ff2a4a'); },
-  cherries: (ctx, w, h) => {
-    glowStroke(ctx, '#3cff7a', h * 0.025, () => { ctx.beginPath(); ctx.moveTo(w * 0.35, h * 0.62); ctx.quadraticCurveTo(w * 0.45, h * 0.2, w * 0.62, h * 0.18); ctx.moveTo(w * 0.62, h * 0.62); ctx.quadraticCurveTo(w * 0.6, h * 0.35, w * 0.62, h * 0.18); });
-    [[0.33, 0.7], [0.63, 0.7]].forEach(([cx, cy]) => glowStroke(ctx, '#ff2a6a', h * 0.03, () => { ctx.beginPath(); ctx.arc(w * cx, h * cy, h * 0.14, 0, Math.PI * 2); }));
-  },
-  dice: (ctx, w, h) => {
-    [[0.3, 0.55, -0.2], [0.68, 0.5, 0.25]].forEach(([cx, cy, rot]) => {
-      ctx.save(); ctx.translate(w * cx, h * cy); ctx.rotate(rot);
-      glowStroke(ctx, '#29e0ff', h * 0.025, () => { ctx.beginPath(); ctx.roundRect(-h * 0.2, -h * 0.2, h * 0.4, h * 0.4, h * 0.06); });
-      [[-1, -1], [0, 0], [1, 1]].forEach(([u, v]) => glowStroke(ctx, '#ffffff', h * 0.02, () => { ctx.beginPath(); ctx.arc(u * h * 0.1, v * h * 0.1, h * 0.02, 0, Math.PI * 2); }));
-      ctx.restore();
+const SYMBOLS = ['7', 'bar', 'gem', 'bell', 'cherry', 'wild', 'A', 'K', 'Q', 'blue7'];
+// A reel shows three symbols; each cell is as tall for its width as the
+// reel window makes it.
+const CELL_W = 160, CELL_H = 220;
+
+// A column of symbols for a reel, drawn tall so it can scroll.
+let reelColTex = null;
+function reelColumn() {
+  if (reelColTex) return reelColTex;
+  reelColTex = canvasTex(CELL_W, CELL_H * SYMBOLS.length, (ctx, w) => {
+    SYMBOLS.forEach((k, i) => {
+      const y0 = i * CELL_H;
+      const g = ctx.createLinearGradient(0, y0, 0, y0 + CELL_H);
+      g.addColorStop(0, '#d8d4e0');
+      g.addColorStop(0.5, '#ffffff');
+      g.addColorStop(1, '#d8d4e0');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, y0, w, CELL_H);
+      drawSymbol(ctx, k, w / 2, y0 + CELL_H / 2, w * 0.82);
     });
-  },
-  horseshoe: (ctx, w, h) => {
-    glowStroke(ctx, '#ffc23a', h * 0.05, () => { ctx.beginPath(); ctx.arc(w / 2, h * 0.45, h * 0.28, Math.PI * 0.85, Math.PI * 2.15, false); });
-    neonText(ctx, 'LUCK', w / 2, h * 0.85, h * 0.16, '#ff4fd8');
-  },
-  jackpot: (ctx, w, h) => { neonText(ctx, 'JACKPOT', w / 2, h / 2, h * 0.42, '#ffd23a'); },
-  suits: (ctx, w, h) => { neonText(ctx, '♠ ♥ ♦ ♣', w / 2, h / 2, h * 0.5, '#ff4fd8', "700 {S}px Georgia, 'Segoe UI Symbol', serif"); },
-  title: (ctx, w, h) => {
-    neonText(ctx, 'LUCKY', w * 0.24, h * 0.5, h * 0.44, '#ff3ad0');
-    neonText(ctx, 'SEVENS', w * 0.765, h * 0.5, h * 0.44, '#29e0ff');
-    neonText(ctx, '★', w * 0.5, h * 0.5, h * 0.38, '#ffd23a', "700 {S}px Georgia, 'Segoe UI Symbol', serif");
-  },
-};
-function neonPiece(room, kind, w, h, x, y, z, yaw, flickers) {
-  const p = lightPanel(NEON_ART[kind], w, h, 1024);
-  p.position.set(x, y, z);
-  p.rotation.y = yaw;
-  room.add(p);
-  flickers.push({ mat: p.material, next: performance.now() + 4000 + Math.random() * 12000, until: 0 });
-}
-
-// ---------- marquee bulbs ----------
-// Bulbs along `points`, a light chasing round them.
-function marquee(room, points, chasers) {
-  const geo = new THREE.SphereGeometry(m(0.035), 8, 6);
-  const mesh = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), points.length);
-  const mtx = new THREE.Matrix4();
-  points.forEach((p, i) => { mtx.makeTranslation(p.x, p.y, p.z); mesh.setMatrixAt(i, mtx); mesh.setColorAt(i, new THREE.Color(0xffd890)); });
-  room.add(mesh);
-  chasers.push({ mesh, n: points.length });
-}
-function rectPoints(cx, cy, z, w, h, step, axis = 'z') {
-  const pts = [];
-  const per = (len) => Math.max(2, Math.round(len / step));
-  const push = (x, y) => pts.push(axis === 'z' ? new THREE.Vector3(cx + x, cy + y, z) : new THREE.Vector3(z, cy + y, cx + x));
-  for (let i = 0; i < per(w); i++) push(-w / 2 + (i / per(w)) * w, h / 2);
-  for (let i = 0; i < per(h); i++) push(w / 2, h / 2 - (i / per(h)) * h);
-  for (let i = 0; i < per(w); i++) push(w / 2 - (i / per(w)) * w, -h / 2);
-  for (let i = 0; i < per(h); i++) push(-w / 2, -h / 2 + (i / per(h)) * h);
-  return pts;
-}
-
-// ---------- the reels ----------
-// A strip of slot symbols for a reel to wear.
-function reelStrip() {
-  const W = 256, H = 2048, N = 8;
-  const c = document.createElement('canvas');
-  c.width = W; c.height = H;
-  const ctx = c.getContext('2d');
-  ctx.fillStyle = '#f5efe2';
-  ctx.fillRect(0, 0, W, H);
-  const cell = H / N;
-  const SYMS = [['7', '#d41a2c'], ['BAR', '#141414'], ['★', '#e0a810'], ['7', '#1a4fd4'], ['♦', '#d41a6a'], ['BAR', '#141414'], ['♣', '#1a8a3a'], ['7', '#d41a2c']];
-  SYMS.forEach(([sym, col], i) => {
-    const y = i * cell + cell / 2;
-    ctx.fillStyle = col;
-    ctx.strokeStyle = '#c99a2a';
-    ctx.lineWidth = 6;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    if (sym === 'BAR') {
-      ctx.fillRect(W * 0.14, y - cell * 0.16, W * 0.72, cell * 0.32);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = `900 ${cell * 0.22}px Georgia, serif`;
-      ctx.fillText('BAR', W / 2, y + 2);
-    } else {
-      ctx.font = `900 ${cell * 0.62}px Georgia, 'Segoe UI Symbol', serif`;
-      ctx.strokeText(sym, W / 2, y);
-      ctx.fillText(sym, W / 2, y);
-    }
-    ctx.fillStyle = 'rgba(0,0,0,0.12)';
-    ctx.fillRect(0, i * cell, W, 3);
   });
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  return t;
+  reelColTex.wrapS = reelColTex.wrapT = THREE.RepeatWrapping;
+  return reelColTex;
 }
-
-// The same symbols for a great reel turning on its side: laid round the
-// cylinder (along u), each turned so it stands upright as it comes over
-// the top toward the players.
-function reelBand() {
-  const N = 8, CELL = 256;
-  const c = document.createElement('canvas');
-  c.width = N * CELL; c.height = CELL;
-  const ctx = c.getContext('2d');
-  ctx.fillStyle = '#f5efe2';
-  ctx.fillRect(0, 0, c.width, c.height);
-  const SYMS = [['7', '#d41a2c'], ['BAR', '#141414'], ['★', '#e0a810'], ['7', '#1a4fd4'], ['♦', '#d41a6a'], ['BAR', '#141414'], ['♣', '#1a8a3a'], ['7', '#d41a2c']];
-  SYMS.forEach(([sym, col], i) => {
+// The game around the reels: its title, the window, the meters.
+const GAMES = [
+  { title: 'DIAMOND SEVENS', a: '#1a0628', b: '#6a1450', gold: '#f2c84a', edge: 0xc84aff },
+  { title: 'GOLDEN EMPIRE', a: '#1a0c02', b: '#6a4208', gold: '#ffe08a', edge: 0xffb02a },
+  { title: 'LUCKY FORTUNE', a: '#021828', b: '#0a5070', gold: '#ffd24a', edge: 0x2ac8ff },
+  { title: 'RUBY NIGHTS', a: '#28020a', b: '#7a0820', gold: '#f2c84a', edge: 0xff2a4a },
+];
+const screenMats = GAMES.map((g) => new THREE.MeshBasicMaterial({
+  toneMapped: false,
+  map: canvasTex(512, 640, (ctx, w, h) => {
+    const bg = ctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, g.b);
+    bg.addColorStop(0.5, g.a);
+    bg.addColorStop(1, g.b);
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, h);
+    // Rays behind the title.
     ctx.save();
-    ctx.translate(i * CELL + CELL / 2, CELL / 2);
-    ctx.rotate(Math.PI / 2);
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = col;
-    if (sym === 'BAR') {
-      ctx.fillRect(-CELL * 0.36, -CELL * 0.16, CELL * 0.72, CELL * 0.32);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = `900 ${CELL * 0.22}px Georgia, serif`;
-      ctx.fillText('BAR', 0, 2);
-    } else {
-      ctx.strokeStyle = '#c99a2a';
-      ctx.lineWidth = 6;
-      ctx.font = `900 ${CELL * 0.62}px Georgia, 'Segoe UI Symbol', serif`;
-      ctx.strokeText(sym, 0, 0);
-      ctx.fillText(sym, 0, 0);
+    ctx.translate(w / 2, h * 0.1);
+    for (let i = 0; i < 24; i++) {
+      ctx.rotate(Math.PI / 12);
+      ctx.fillStyle = i % 2 ? 'rgba(255,230,160,0.1)' : 'rgba(255,230,160,0.02)';
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(w, -30);
+      ctx.lineTo(w, 30);
+      ctx.fill();
     }
     ctx.restore();
-    ctx.fillStyle = 'rgba(0,0,0,0.12)';
-    ctx.fillRect(i * CELL, 0, 3, CELL);
-  });
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '900 italic 44px Georgia, serif';
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = '#1a0a04';
+    ctx.strokeText(g.title, w / 2, h * 0.1);
+    const tg = ctx.createLinearGradient(0, h * 0.06, 0, h * 0.14);
+    tg.addColorStop(0, '#fff6d0');
+    tg.addColorStop(1, g.gold);
+    ctx.fillStyle = tg;
+    ctx.fillText(g.title, w / 2, h * 0.1);
+    // The reel window (the reels are drawn over it) and its frame.
+    ctx.fillStyle = '#0a0612';
+    ctx.fillRect(w * 0.04, h * 0.2, w * 0.92, h * 0.58);
+    ctx.strokeStyle = g.gold;
+    ctx.lineWidth = 8;
+    ctx.strokeRect(w * 0.04 - 4, h * 0.2 - 4, w * 0.92 + 8, h * 0.58 + 8);
+    // Payline markers either side of the window.
+    ctx.font = '700 15px Arial, sans-serif';
+    for (let i = 0; i < 5; i++) {
+      const y = h * (0.24 + i * 0.125);
+      [w * 0.02, w * 0.98].forEach((x) => {
+        ctx.fillStyle = ['#ff3a3a', '#3aff6a', '#3a8aff', '#ffd23a', '#ff3aff'][i];
+        ctx.beginPath();
+        ctx.arc(x, y, 9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.fillText(String(i + 1), x, y + 1);
+      });
+    }
+    ctx.font = '700 17px Arial, sans-serif';
+    ctx.fillStyle = g.gold;
+    ctx.fillText('25 LINES  ·  3 OF A KIND PAYS  ·  WILD SUBSTITUTES', w / 2, h * 0.805);
+    // The meters.
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(0, h * 0.83, w, h * 0.17);
+    ctx.font = '700 18px Arial, sans-serif';
+    ctx.fillStyle = '#ffd24a';
+    ctx.fillText('CREDIT', w * 0.2, h * 0.865);
+    ctx.fillText('BET', w * 0.5, h * 0.865);
+    ctx.fillText('WIN', w * 0.8, h * 0.865);
+    ctx.font = '700 30px Arial, sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('$' + (800 + Math.floor(Math.random() * 9000)).toLocaleString() + '.00', w * 0.2, h * 0.93);
+    ctx.fillText('$5.00', w * 0.5, h * 0.93);
+    ctx.fillText('$0.00', w * 0.8, h * 0.93);
+  }),
+}));
+const topperMats = GAMES.map((g) => new THREE.MeshBasicMaterial({
+  toneMapped: false,
+  map: canvasTex(512, 256, (ctx, w, h) => {
+    const bg = ctx.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w / 2);
+    bg.addColorStop(0, g.b);
+    bg.addColorStop(1, '#05030a');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, h);
+    const [first, second] = g.title.split(' ');
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '900 italic 62px Georgia, serif';
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = '#1a0a04';
+    ctx.strokeText(first, w / 2, h * 0.32);
+    ctx.fillStyle = g.gold;
+    ctx.fillText(first, w / 2, h * 0.32);
+    ctx.font = '700 30px Georgia, serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(second, w / 2, h * 0.58);
+    // Its jackpot, in a dark LED window.
+    ctx.fillStyle = '#080404';
+    ctx.fillRect(w * 0.18, h * 0.72, w * 0.64, h * 0.22);
+    ctx.fillStyle = '#ff3a2a';
+    ctx.shadowColor = '#ff3a2a';
+    ctx.shadowBlur = 10;
+    ctx.font = '700 30px "Courier New", monospace';
+    ctx.fillText('$' + (12000 + Math.floor(Math.random() * 80000)).toLocaleString() + '.' + String(Math.floor(Math.random() * 100)).padStart(2, '0'), w / 2, h * 0.835);
+  }),
+}));
+const deckTex = canvasTex(512, 160, (ctx, w, h) => {
+  ctx.fillStyle = '#101014';
+  ctx.fillRect(0, 0, w, h);
+  const btn = (x, y, bw, bh, col, label) => {
+    const g = ctx.createLinearGradient(0, y, 0, y + bh);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.3, col);
+    g.addColorStop(1, col);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.roundRect(x, y, bw, bh, 6);
+    ctx.fill();
+    ctx.fillStyle = '#1a1a1a';
+    ctx.font = '700 13px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, x + bw / 2, y + bh / 2);
+  };
+  ['BET 1', 'BET 5', 'BET 10', 'MAX BET'].forEach((l, i) => btn(20 + i * 80, 30, 70, 44, '#f2c84a', l));
+  btn(360, 22, 130, 60, '#3adc6a', 'SPIN');
+  btn(20, 100, 90, 34, '#5ac8ff', 'CASH OUT');
+  btn(120, 100, 90, 34, '#ff6a6a', 'SERVICE');
+  // The bill slot.
+  ctx.fillStyle = '#2a2c32';
+  ctx.fillRect(360, 104, 130, 26);
+  ctx.fillStyle = '#3adc6a';
+  ctx.fillRect(370, 115, 110, 4);
+});
+const deckMat = new THREE.MeshStandardMaterial({ map: deckTex, roughness: 0.3, emissive: 0xffffff, emissiveMap: deckTex, emissiveIntensity: 0.55 });
+const edgeMats = GAMES.map((g) => light(g.edge));
+const candleMat = light(0xc8281c);
 
-// The great slot machine over the table: three reels turning in a gold
-// frame, marquee bulbs round it.
-function giantSlot(room, CEILING_Y, chasers) {
-  const band = reelBand();
-  const R = m(0.62), W = m(0.72), GAP = m(0.12);
-  const cy = FLOOR_Y + m(3.45);
-  const cz = -0.4;
-  const reels = [];
-  const reelMat = new THREE.MeshBasicMaterial({ map: band, toneMapped: false });
-  for (let i = -1; i <= 1; i++) {
-    // Each turns about its own axis, along x.
-    const spin = new THREE.Group();
-    spin.position.set(i * (W + GAP), cy, cz);
-    room.add(spin);
-    const reel = new THREE.Mesh(new THREE.CylinderGeometry(R, R, W, 48, 1, true), reelMat);
-    reel.rotation.z = Math.PI / 2;
-    spin.add(reel);
-    spin.rotation.x = Math.random() * Math.PI * 2;
-    reels.push({ spin, speed: 1.1 + Math.abs(i) * 0.45 + (i > 0 ? 0.35 : 0) });
-  }
-  // The frame, front and back, in gold.
-  const gold = new THREE.MeshStandardMaterial({ color: 0xd8b25e, roughness: 0.2, metalness: 1.0, emissive: 0x3a2808, emissiveIntensity: 0.4 });
-  const FW = 3 * W + 2 * GAP + m(0.5), FH = 2 * R + m(0.4);
-  [[FW, m(0.12), 0, FH / 2], [FW, m(0.12), 0, -FH / 2], [m(0.12), FH, FW / 2, 0], [m(0.12), FH, -FW / 2, 0]].forEach(([w, h, x, y]) => {
-    const bar = new THREE.Mesh(new THREE.BoxGeometry(w, h, 2 * R + m(0.2)), gold);
-    bar.position.set(x, cy + y, cz);
-    room.add(bar);
-  });
-  // A crown of red light on top, LUCKY 7 lettered on it.
-  const crown = lightPanel((ctx, w, h) => {
-    const g = ctx.createLinearGradient(0, 0, 0, h);
-    g.addColorStop(0, 'rgba(255,60,80,0.95)'); g.addColorStop(1, 'rgba(150,0,30,0.95)');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(4, 4, w - 8, h - 8, h * 0.4); ctx.fill();
-    ctx.fillStyle = '#fff4c8'; ctx.font = `900 ${h * 0.6}px Georgia, serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('LUCKY ★ 7', w / 2, h / 2 + 2);
-  }, FW * 0.7, m(0.55), 1024);
-  crown.material.blending = THREE.NormalBlending;
-  [1, -1].forEach((s) => {
-    const c = crown.clone();
-    c.position.set(0, cy + FH / 2 + m(0.36), cz + s * (R + m(0.11)));
-    c.rotation.y = s > 0 ? 0 : Math.PI;
-    room.add(c);
-  });
-  // Bulbs round the frame, on the face the players see.
-  marquee(room, rectPoints(0, cy, cz + R + m(0.11), FW + m(0.1), FH + m(0.1), m(0.16)), chasers);
-  // The chains it hangs from.
-  [-1, 1].forEach((s) => {
-    const len = CEILING_Y - (cy + FH / 2);
-    const chain = new THREE.Mesh(new THREE.CylinderGeometry(m(0.02), m(0.02), len, 6), chrome);
-    chain.position.set(s * FW * 0.4, cy + FH / 2 + len / 2, cz);
-    room.add(chain);
-  });
-  return (dt) => reels.forEach((r) => { r.spin.rotation.x -= dt * r.speed; });
-}
-
-// ---------- slot machines ----------
-// A cabinet of chrome and red with a lit top, a window of three reels
-// turning, a lever, and its stool.
-function slotMachine(room, x, z, yaw, strip, spinners) {
+// A video slot: cabinet, screen, top box, button deck, light along its
+// edges, and a padded swivel chair before it.
+function slotMachine(room, x, z, yaw, game, machines) {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.BoxGeometry(m(0.68), m(1.35), m(0.6)), new THREE.MeshStandardMaterial({ color: 0x7a0c1e, roughness: 0.3, metalness: 0.3 }));
-  body.position.y = FLOOR_Y + m(0.675);
-  g.add(body);
-  const trim = new THREE.Mesh(new THREE.BoxGeometry(m(0.72), m(0.06), m(0.64)), chrome);
-  [m(0.62), m(1.35)].forEach((y) => { const t = trim.clone(); t.position.y = FLOOR_Y + y; g.add(t); });
-  const top = new THREE.Mesh(new THREE.BoxGeometry(m(0.66), m(0.32), m(0.4)), neon([0xffd23a, 0x29e0ff, 0xff3ad0][Math.floor(Math.random() * 3)]));
-  top.position.set(0, FLOOR_Y + m(1.55), -m(0.05));
-  g.add(top);
-  // The reel window, three reels behind glass.
-  for (let i = -1; i <= 1; i++) {
-    const tex = strip.clone();
+  const W = m(0.66), D = m(0.62);
+  const base = new THREE.Mesh(new THREE.BoxGeometry(W, m(0.82), D), gloss);
+  base.position.y = FLOOR_Y + m(0.41);
+  g.add(base);
+  const kick = new THREE.Mesh(new THREE.BoxGeometry(W + m(0.02), m(0.08), D + m(0.02)), gunmetal);
+  kick.position.y = FLOOR_Y + m(0.04);
+  g.add(kick);
+  // The button deck, sloped toward the player.
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(W, m(0.06), m(0.34)), [gunmetal, gunmetal, deckMat, gunmetal, gunmetal, gunmetal]);
+  deck.position.set(0, FLOOR_Y + m(0.86), D / 2 + m(0.05));
+  deck.rotation.x = 0.2;
+  g.add(deck);
+  // The screen housing, leaning back a little.
+  const head = new THREE.Group();
+  head.position.set(0, FLOOR_Y + m(0.9), 0);
+  head.rotation.x = -0.1;
+  g.add(head);
+  const housing = new THREE.Mesh(new THREE.BoxGeometry(W, m(0.86), m(0.36)), gloss);
+  housing.position.set(0, m(0.43), m(0.05));
+  head.add(housing);
+  const SW = W * 0.88, SH = m(0.76);
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(SW, SH), screenMats[game]);
+  screen.position.set(0, m(0.44), m(0.232));
+  head.add(screen);
+  // A chrome bezel round the screen.
+  [[SW + m(0.03), m(0.015), 0, SH / 2], [SW + m(0.03), m(0.015), 0, -SH / 2], [m(0.015), SH, SW / 2, 0], [m(0.015), SH, -SW / 2, 0]].forEach(([bw, bh, bx, by]) => {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, m(0.012)), chrome);
+    b.position.set(bx, m(0.44) + by, m(0.234));
+    head.add(b);
+  });
+  // Five reels over the screen's window, each its own scrolling column.
+  const reels = [];
+  const winW = SW * 0.92, winH = SH * 0.58;
+  const winY = m(0.44) + SH * (0.5 - 0.2 - 0.29);
+  for (let i = 0; i < 5; i++) {
+    const tex = reelColumn().clone();
     tex.needsUpdate = true;
-    tex.repeat.set(1, 0.38);
-    tex.offset.y = Math.random();
-    const reel = new THREE.Mesh(new THREE.PlaneGeometry(m(0.16), m(0.26)), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
-    reel.position.set(i * m(0.18), FLOOR_Y + m(1.05), m(0.301));
-    g.add(reel);
-    spinners.push({ tex, speed: 0.6 + Math.random() * 0.8, pause: 0 });
+    tex.repeat.set(1, 3 / SYMBOLS.length);
+    tex.offset.y = Math.floor(Math.random() * SYMBOLS.length) / SYMBOLS.length;
+    const reel = new THREE.Mesh(new THREE.PlaneGeometry(winW / 5 - m(0.005), winH - m(0.008)), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
+    reel.position.set(-winW / 2 + (i + 0.5) * (winW / 5), winY, m(0.2335));
+    head.add(reel);
+    reels.push(tex);
   }
-  const bezel = new THREE.Mesh(new THREE.BoxGeometry(m(0.6), m(0.36), m(0.02)), chrome);
-  bezel.position.set(0, FLOOR_Y + m(1.05), m(0.295));
-  g.add(bezel);
-  const lever = new THREE.Mesh(new THREE.CylinderGeometry(m(0.015), m(0.015), m(0.4), 8), chrome);
-  lever.position.set(m(0.38), FLOOR_Y + m(1.15), 0);
-  g.add(lever);
-  const knob = new THREE.Mesh(new THREE.SphereGeometry(m(0.045), 12, 8), new THREE.MeshStandardMaterial({ color: 0xe0102a, roughness: 0.2 }));
-  knob.position.set(m(0.38), FLOOR_Y + m(1.36), 0);
-  g.add(knob);
-  // Its stool.
-  const stoolPost = new THREE.Mesh(new THREE.CylinderGeometry(m(0.03), m(0.12), m(0.62), 12), chrome);
-  stoolPost.position.set(0, FLOOR_Y + m(0.31), m(0.75));
-  g.add(stoolPost);
-  const seat = new THREE.Mesh(new THREE.CylinderGeometry(m(0.2), m(0.2), m(0.09), 20), redVinyl);
-  seat.position.set(0, FLOOR_Y + m(0.66), m(0.75));
-  g.add(seat);
+  // The top box, its logo lit, its jackpot in it.
+  const top = new THREE.Mesh(new THREE.BoxGeometry(W, m(0.36), m(0.3)), gloss);
+  top.position.set(0, m(1.06), m(0.02));
+  head.add(top);
+  const logo = new THREE.Mesh(new THREE.PlaneGeometry(W * 0.9, m(0.3)), topperMats[game]);
+  logo.position.set(0, m(1.06), m(0.172));
+  head.add(logo);
+  // Light along the cabinet's edges, in the game's colour.
+  [-1, 1].forEach((s) => {
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(m(0.012), m(1.95), m(0.012)), edgeMats[game]);
+    strip.position.set(s * (W / 2 + m(0.006)), FLOOR_Y + m(1.0), D / 2 - m(0.04));
+    g.add(strip);
+  });
+  // The candle on top that calls an attendant.
+  const candle = new THREE.Mesh(new THREE.CylinderGeometry(m(0.025), m(0.025), m(0.1), 12), candleMat);
+  candle.position.set(0, FLOOR_Y + m(2.18), -m(0.08));
+  g.add(candle);
+  // Its chair: a padded seat with a back, on a chrome column.
+  const chair = new THREE.Group();
+  chair.position.set(0, 0, D / 2 + m(0.62));
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(m(0.035), m(0.035), m(0.5), 12), chrome);
+  col.position.y = FLOOR_Y + m(0.25);
+  chair.add(col);
+  const foot = new THREE.Mesh(new THREE.CylinderGeometry(m(0.24), m(0.26), m(0.03), 24), chrome);
+  foot.position.y = FLOOR_Y + m(0.015);
+  chair.add(foot);
+  const seat = new THREE.Mesh(new THREE.CylinderGeometry(m(0.24), m(0.22), m(0.12), 24), leather);
+  seat.position.y = FLOOR_Y + m(0.56);
+  chair.add(seat);
+  const back = new THREE.Mesh(new THREE.BoxGeometry(m(0.42), m(0.42), m(0.08)), leather);
+  back.position.set(0, FLOOR_Y + m(0.86), m(0.2));
+  back.rotation.x = -0.12;
+  chair.add(back);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(m(0.16), m(0.012), 6, 24), chrome);
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = FLOOR_Y + m(0.25);
+  chair.add(ring);
+  g.add(chair);
   g.position.set(x, 0, z);
   g.rotation.y = yaw;
   room.add(g);
+  machines.push({ reels, spinUntil: 0, next: performance.now() + 2000 + Math.random() * 20000, stops: reels.map(() => 0) });
+}
+
+// ---------- the jackpot ----------
+// A ring of LED over the table, the progressive jackpot running round it,
+// climbing.
+function jackpotRing(room) {
+  const c = document.createElement('canvas');
+  c.width = 4096;
+  c.height = 96;
+  const ctx = c.getContext('2d');
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  let amount = 1284377.42;
+  const draw = () => {
+    ctx.fillStyle = '#050303';
+    ctx.fillRect(0, 0, c.width, c.height);
+    // The dots of the panel.
+    ctx.fillStyle = 'rgba(255,60,40,0.07)';
+    for (let y = 3; y < c.height; y += 6) for (let x = 3; x < c.width; x += 6) ctx.fillRect(x, y, 4, 4);
+    const text = `GRAND JACKPOT   $${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    ctx.font = '700 70px "Courier New", monospace';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#ff3a1a';
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = '#ff4a2a';
+    // Twice round the ring.
+    const w = ctx.measureText(text).width;
+    ctx.fillText(text, (c.width / 2 - w) / 2, c.height / 2);
+    ctx.fillText(text, c.width / 2 + (c.width / 2 - w) / 2, c.height / 2);
+    ctx.shadowBlur = 0;
+    tex.needsUpdate = true;
+    inner.needsUpdate = true;
+  };
+  // The inside of the ring reads the right way round too.
+  const inner = tex.clone();
+  inner.wrapS = THREE.RepeatWrapping;
+  inner.repeat.x = -1;
+  draw();
+  const R = m(2.6), H = m(0.38);
+  const y = FLOOR_Y + m(4.05);
+  const ringMesh = new THREE.Group();
+  ringMesh.position.set(0, y, -0.4);
+  ringMesh.add(new THREE.Mesh(new THREE.CylinderGeometry(R, R, H, 96, 1, true), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false })));
+  ringMesh.add(new THREE.Mesh(new THREE.CylinderGeometry(R - 0.02, R - 0.02, H, 96, 1, true), new THREE.MeshBasicMaterial({ map: inner, toneMapped: false, side: THREE.BackSide })));
+  room.add(ringMesh);
+  [y + H / 2, y - H / 2].forEach((ry) => {
+    const band = new THREE.Mesh(new THREE.TorusGeometry(R, m(0.04), 8, 96), gunmetal);
+    band.rotation.x = Math.PI / 2;
+    band.position.set(0, ry, -0.4);
+    room.add(band);
+  });
+  const rodH = CEIL - y - H / 2;
+  [0, 1, 2].forEach((k) => {
+    const a = (k / 3) * Math.PI * 2;
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(m(0.015), m(0.015), rodH, 6), chrome);
+    rod.position.set(Math.cos(a) * R, y + H / 2 + rodH / 2, -0.4 + Math.sin(a) * R);
+    room.add(rod);
+  });
+  let last = 0;
+  return (dt, now) => {
+    ringMesh.rotation.y += dt * 0.05;
+    if (now - last > 400) {
+      last = now;
+      amount += 0.37 + Math.random() * 2.1;
+      draw();
+    }
+  };
+}
+
+// ---------- neon ----------
+// Lettering in neon tube: a soft glow round a bright white-hot core.
+function neonType(ctx, w, h, text, color, sizeK) {
+  const size = h * sizeK;
+  ctx.font = `italic 700 ${size}px Georgia, serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  [[size * 0.14, 0.22], [size * 0.07, 0.45]].forEach(([lw, a]) => {
+    ctx.globalAlpha = a;
+    ctx.lineWidth = lw;
+    ctx.strokeStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = size * 0.35;
+    ctx.strokeText(text, w / 2, h / 2);
+  });
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur = size * 0.12;
+  ctx.lineWidth = size * 0.03;
+  ctx.strokeStyle = '#fff6f0';
+  ctx.strokeText(text, w / 2, h / 2);
+}
+function neonSign(room, text, color, w, h, x, y, z, yaw, flickers, sizeK = 0.62) {
+  const p = lightPanel((ctx, cw, ch) => neonType(ctx, cw, ch, text, color, sizeK), w, h, 1024);
+  p.position.set(x, y, z);
+  p.rotation.y = yaw;
+  room.add(p);
+  flickers.push({ mat: p.material, next: performance.now() + 6000 + Math.random() * 20000, until: 0 });
 }
 
 // ---------- booths ----------
-// A half-round booth of tufted red vinyl, chrome along its top, round a
-// table with a chrome rim on a chrome pedestal.
-let tuftTex = null;
-function tufted() {
-  if (tuftTex) return tuftTex;
-  const c = document.createElement('canvas');
-  c.width = c.height = 256;
-  const ctx = c.getContext('2d');
-  ctx.fillStyle = '#b3122e';
-  ctx.fillRect(0, 0, 256, 256);
-  for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) {
-    const cx = x * 64 + (y % 2) * 32, cy = y * 64 + 32;
-    const g = ctx.createRadialGradient(cx, cy, 2, cx, cy, 34);
-    g.addColorStop(0, 'rgba(0,0,0,0.5)'); g.addColorStop(0.2, 'rgba(0,0,0,0.12)'); g.addColorStop(1, 'rgba(255,255,255,0.06)');
-    ctx.fillStyle = g; ctx.fillRect(cx - 34, cy - 34, 68, 68);
-  }
-  tuftTex = new THREE.CanvasTexture(c);
-  tuftTex.colorSpace = THREE.SRGBColorSpace;
-  tuftTex.wrapS = tuftTex.wrapT = THREE.RepeatWrapping;
-  tuftTex.repeat.set(6, 1);
-  return tuftTex;
-}
+// A half-round booth of tufted leather, a brass cap along its back, round
+// a black stone table with a small lamp on it.
 function booth(room, x, z, yaw) {
   const g = new THREE.Group();
   const Rin = m(0.62), Rout = m(1.2), arc = Math.PI * 1.15, start = Math.PI / 2 - arc / 2 + Math.PI;
@@ -387,78 +663,104 @@ function booth(room, x, z, yaw) {
     s.absarc(0, 0, r0, start + arc, start, true);
     return s;
   };
-  const seat = new THREE.Mesh(new THREE.ExtrudeGeometry(ring(Rin, Rout), { depth: m(0.45), bevelEnabled: true, bevelThickness: m(0.03), bevelSize: m(0.03), bevelSegments: 3, curveSegments: 32 }), redVinyl);
+  const seat = new THREE.Mesh(new THREE.ExtrudeGeometry(ring(Rin, Rout), { depth: m(0.45), bevelEnabled: true, bevelThickness: m(0.04), bevelSize: m(0.04), bevelSegments: 4, curveSegments: 32 }), leather);
   seat.rotation.x = Math.PI / 2;
   seat.position.y = FLOOR_Y + m(0.48);
   g.add(seat);
-  const back = new THREE.Mesh(new THREE.ExtrudeGeometry(ring(Rout - m(0.04), Rout + m(0.16)), { depth: m(1.05), bevelEnabled: true, bevelThickness: m(0.04), bevelSize: m(0.04), bevelSegments: 4, curveSegments: 32 }), new THREE.MeshStandardMaterial({ map: tufted(), roughness: 0.4 }));
+  const back = new THREE.Mesh(new THREE.ExtrudeGeometry(ring(Rout - m(0.04), Rout + m(0.16)), { depth: m(1.05), bevelEnabled: true, bevelThickness: m(0.05), bevelSize: m(0.05), bevelSegments: 4, curveSegments: 32 }), leather);
   back.rotation.x = Math.PI / 2;
-  back.position.y = FLOOR_Y + m(1.1);
+  back.position.y = FLOOR_Y + m(1.12);
   g.add(back);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(Rout + m(0.06), m(0.03), 8, 48, arc), chrome);
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(m(0.5), m(0.5), m(0.04), 40), blackStone);
+  top.position.y = FLOOR_Y + m(0.74);
+  g.add(top);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(m(0.5), m(0.018), 8, 48), brass);
   rim.rotation.x = Math.PI / 2;
-  rim.rotation.z = -start;
-  rim.position.y = FLOOR_Y + m(1.15);
+  rim.position.y = FLOOR_Y + m(0.74);
   g.add(rim);
-  const tTop = new THREE.Mesh(new THREE.CylinderGeometry(m(0.5), m(0.5), m(0.04), 40), blackGloss);
-  tTop.position.y = FLOOR_Y + m(0.74);
-  g.add(tTop);
-  const tRim = new THREE.Mesh(new THREE.TorusGeometry(m(0.5), m(0.02), 8, 48), chrome);
-  tRim.rotation.x = Math.PI / 2;
-  tRim.position.y = FLOOR_Y + m(0.74);
-  g.add(tRim);
-  const post = new THREE.Mesh(new THREE.CylinderGeometry(m(0.05), m(0.25), m(0.72), 20), chrome);
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(m(0.05), m(0.25), m(0.72), 20), brass);
   post.position.y = FLOOR_Y + m(0.36);
   g.add(post);
+  const lamp = new THREE.Mesh(new THREE.CylinderGeometry(m(0.07), m(0.11), m(0.13), 16, 1, true), new THREE.MeshStandardMaterial({ color: 0xffd8a0, emissive: 0xffb060, emissiveIntensity: 1.2, side: THREE.DoubleSide }));
+  lamp.position.y = FLOOR_Y + m(0.98);
+  g.add(lamp);
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(m(0.01), m(0.03), m(0.2), 8), brass);
+  stem.position.y = FLOOR_Y + m(0.86);
+  g.add(stem);
   g.position.set(x, 0, z);
   g.rotation.y = yaw;
   room.add(g);
 }
 
 // ---------- the bar ----------
-// A chrome counter edged in neon, a black glass top, a wall of lit
-// bottles on glass shelves behind it, neon BAR above, and stools.
-function neonBar(room, flickers) {
-  const len = m(5.0);
-  const x = -half + m(0.9) + len / 2;
-  const z = -half + m(1.8);
-  const counter = new THREE.Mesh(new THREE.BoxGeometry(len, m(1.05), m(0.6)), chrome);
-  counter.position.set(x, FLOOR_Y + m(0.525), z);
-  room.add(counter);
-  const top = new THREE.Mesh(new THREE.BoxGeometry(len + m(0.1), m(0.05), m(0.75)), blackGloss);
-  top.position.set(x, FLOOR_Y + m(1.08), z - m(0.05));
-  room.add(top);
-  [[m(0.06), 0xff3ad0], [m(0.98), 0x29e0ff]].forEach(([y, c]) => {
-    const strip = new THREE.Mesh(new THREE.BoxGeometry(len, m(0.025), m(0.025)), neon(c));
-    strip.position.set(x, FLOOR_Y + y, z + m(0.31));
-    room.add(strip);
+// A counter fronted in backlit amber glass, a black stone top, a wall of
+// bottles lit from beneath on glass shelves, leather stools.
+function amberBar(room, flickers) {
+  const len = m(5.4);
+  const x = -half + m(1.0) + len / 2;
+  const z = -half + m(1.9);
+  const glow = canvasTex(1024, 256, (ctx, w, h) => {
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#ffd08a');
+    g.addColorStop(1, '#c86a1a');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = 'rgba(120,50,10,0.35)';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < w; i += 32) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke(); }
+    for (let j = 0; j < h; j += 32) { ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(w, j); ctx.stroke(); }
   });
-  // The bottle wall.
-  const wall = new THREE.Mesh(new THREE.BoxGeometry(len, m(2.6), m(0.1)), new THREE.MeshStandardMaterial({ color: 0x0e0818, roughness: 0.2, metalness: 0.4 }));
-  wall.position.set(x, FLOOR_Y + m(1.3), -half + m(0.12));
+  const amber = new THREE.MeshStandardMaterial({ map: glow, emissive: 0xffffff, emissiveMap: glow, emissiveIntensity: 0.9, roughness: 0.2 });
+  const front = new THREE.Mesh(new THREE.BoxGeometry(len, m(1.0), m(0.55)), [gunmetal, gunmetal, gunmetal, gunmetal, amber, gunmetal]);
+  front.position.set(x, FLOOR_Y + m(0.5), z);
+  room.add(front);
+  const top = new THREE.Mesh(new THREE.BoxGeometry(len + m(0.12), m(0.06), m(0.75)), blackStone);
+  top.position.set(x, FLOOR_Y + m(1.03), z - m(0.05));
+  room.add(top);
+  const rail = new THREE.Mesh(new THREE.CylinderGeometry(m(0.022), m(0.022), len, 12), brass);
+  rail.rotation.z = Math.PI / 2;
+  rail.position.set(x, FLOOR_Y + m(0.2), z + m(0.42));
+  room.add(rail);
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(len, m(2.8), m(0.12)), new THREE.MeshStandardMaterial({ color: 0x14110e, roughness: 0.3, metalness: 0.3 }));
+  wall.position.set(x, FLOOR_Y + m(1.4), -half + m(0.14));
   room.add(wall);
-  const colors = [0xff3ad0, 0x29e0ff, 0xffd23a, 0x7a5cff, 0x3cff7a];
-  const bottleGeo = new THREE.CylinderGeometry(m(0.035), m(0.04), m(0.28), 10);
-  [1.0, 1.45, 1.9].forEach((y, row) => {
-    const shelf = new THREE.Mesh(new THREE.BoxGeometry(len - m(0.2), m(0.02), m(0.28)), neon(0xe8e0ff));
-    shelf.position.set(x, FLOOR_Y + m(y), -half + m(0.3));
+  const BOTTLES = [0x2a4a1a, 0x6a2a0a, 0xe8d8a0, 0x3a0a1a, 0xb8865a, 0x1a2a4a];
+  const bottleMats = BOTTLES.map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.08, metalness: 0.1, emissive: c, emissiveIntensity: 0.35 }));
+  const bottleGeo = new THREE.CylinderGeometry(m(0.035), m(0.04), m(0.3), 12);
+  const neckGeo = new THREE.CylinderGeometry(m(0.012), m(0.02), m(0.1), 8);
+  const shelfMat = new THREE.MeshStandardMaterial({ color: 0xcfe0e0, roughness: 0.05, transparent: true, opacity: 0.4 });
+  const stripMat = light(0xffd8a0);
+  [1.05, 1.5, 1.95].forEach((y, row) => {
+    const shelf = new THREE.Mesh(new THREE.BoxGeometry(len - m(0.2), m(0.02), m(0.28)), shelfMat);
+    shelf.position.set(x, FLOOR_Y + m(y), -half + m(0.32));
     room.add(shelf);
-    const n = Math.floor((len - m(0.4)) / m(0.14));
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(len - m(0.2), m(0.01), m(0.02)), stripMat);
+    strip.position.set(x, FLOOR_Y + m(y) - m(0.015), -half + m(0.42));
+    room.add(strip);
+    const n = Math.floor((len - m(0.4)) / m(0.13));
     for (let i = 0; i < n; i++) {
-      const b = new THREE.Mesh(bottleGeo, new THREE.MeshStandardMaterial({ color: colors[(i + row) % colors.length], emissive: colors[(i + row) % colors.length], emissiveIntensity: 0.6, roughness: 0.1 }));
-      b.position.set(x - len / 2 + m(0.25) + i * m(0.14), FLOOR_Y + m(y) + m(0.15), -half + m(0.3));
+      const mat = bottleMats[(i * 3 + row) % BOTTLES.length];
+      const bx = x - len / 2 + m(0.25) + i * m(0.13);
+      const b = new THREE.Mesh(bottleGeo, mat);
+      b.position.set(bx, FLOOR_Y + m(y) + m(0.16), -half + m(0.32));
       room.add(b);
+      const neck = new THREE.Mesh(neckGeo, mat);
+      neck.position.set(bx, FLOOR_Y + m(y) + m(0.36), -half + m(0.32));
+      room.add(neck);
     }
   });
-  neonPiece(room, 'title', m(2.6), m(0.7), x, FLOOR_Y + m(2.35), -half + m(0.2), 0, flickers);
-  // Stools before the counter.
-  for (let i = 0; i < 5; i++) {
-    const sx = x - len / 2 + (i + 0.5) * (len / 5);
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(m(0.03), m(0.14), m(0.75), 12), chrome);
-    post.position.set(sx, FLOOR_Y + m(0.375), z + m(0.65));
+  neonSign(room, 'Bar', '#ffb05a', m(1.6), m(0.6), x, FLOOR_Y + m(2.45), -half + m(0.22), 0, flickers, 0.7);
+  // Leather stools before it.
+  for (let i = 0; i < 6; i++) {
+    const sx = x - len / 2 + (i + 0.5) * (len / 6);
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(m(0.03), m(0.03), m(0.72), 12), chrome);
+    post.position.set(sx, FLOOR_Y + m(0.36), z + m(0.7));
     room.add(post);
-    const seat = new THREE.Mesh(new THREE.CylinderGeometry(m(0.21), m(0.21), m(0.1), 20), redVinyl);
-    seat.position.set(sx, FLOOR_Y + m(0.8), z + m(0.65));
+    const foot = new THREE.Mesh(new THREE.CylinderGeometry(m(0.2), m(0.22), m(0.03), 24), chrome);
+    foot.position.set(sx, FLOOR_Y + m(0.015), z + m(0.7));
+    room.add(foot);
+    const seat = new THREE.Mesh(new THREE.CylinderGeometry(m(0.21), m(0.2), m(0.1), 24), leather);
+    seat.position.set(sx, FLOOR_Y + m(0.77), z + m(0.7));
     room.add(seat);
   }
   room.userData.bar = {
@@ -467,128 +769,116 @@ function neonBar(room, flickers) {
   };
 }
 
-// ---------- cocktail tables ----------
-// A high round table of black glass on a chrome pole, a ring of neon under
-// its edge, two chrome stools.
-function cocktailTable(room, x, z, color) {
-  const top = new THREE.Mesh(new THREE.CylinderGeometry(m(0.38), m(0.38), m(0.04), 32), blackGloss);
-  top.position.set(x, FLOOR_Y + m(1.05), z);
-  room.add(top);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(m(0.36), m(0.015), 6, 48), neon(color));
-  ring.rotation.x = Math.PI / 2;
-  ring.position.set(x, FLOOR_Y + m(1.02), z);
-  room.add(ring);
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(m(0.04), m(0.22), m(1.03), 16), chrome);
-  pole.position.set(x, FLOOR_Y + m(0.515), z);
-  room.add(pole);
-  [-1, 1].forEach((s) => {
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(m(0.03), m(0.14), m(0.75), 12), chrome);
-    post.position.set(x + s * m(0.6), FLOOR_Y + m(0.375), z);
-    room.add(post);
-    const seat = new THREE.Mesh(new THREE.CylinderGeometry(m(0.2), m(0.2), m(0.09), 20), redVinyl);
-    seat.position.set(x + s * m(0.6), FLOOR_Y + m(0.8), z);
-    room.add(seat);
-  });
+// ---------- the ceiling ----------
+// Coffers of dark lacquer between beams edged in brass, a line of warm
+// light along each beam.
+function cofferedCeiling(room) {
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(2 * half, 2 * half), new THREE.MeshStandardMaterial({ color: 0x0e0c10, roughness: 0.3, metalness: 0.3 }));
+  ceil.rotation.x = Math.PI / 2;
+  ceil.position.y = CEIL;
+  room.add(ceil);
+  const step = m(3.6);
+  const beam = new THREE.MeshStandardMaterial({ color: 0x0a0706, roughness: 0.22, metalness: 0.5 });
+  const cove = light(0xffc884);
+  for (let k = -half + step; k < half; k += step) {
+    [true, false].forEach((alongX) => {
+      const [w, d] = alongX ? [2 * half, m(0.3)] : [m(0.3), 2 * half];
+      const [bx, bz] = alongX ? [0, k] : [k, 0];
+      const b = new THREE.Mesh(new THREE.BoxGeometry(w, m(0.35), d), beam);
+      b.position.set(bx, CEIL - m(0.17), bz);
+      room.add(b);
+      [-1, 1].forEach((sd) => {
+        const edge = new THREE.Mesh(new THREE.BoxGeometry(alongX ? w : m(0.025), m(0.025), alongX ? m(0.025) : d), brass);
+        edge.position.set(bx + (alongX ? 0 : sd * m(0.15)), CEIL - m(0.35), bz + (alongX ? sd * m(0.15) : 0));
+        room.add(edge);
+      });
+      const line = new THREE.Mesh(new THREE.BoxGeometry(alongX ? w : m(0.02), m(0.015), alongX ? m(0.02) : d), cove);
+      line.position.set(bx + (alongX ? 0 : m(0.17)), CEIL - m(0.04), bz + (alongX ? m(0.17) : 0));
+      room.add(line);
+    });
+  }
 }
 
 // ---------- the room ----------
 export const LUCKY_SEVENS = {
-  tableGlow: 0xff4fd0,
+  tableGlow: 0xffb060,
   half,
-  ceilingY: 9.4,
-  paintWall: (ctx, d) => paintNeonWall(ctx, d),
-  floorPx: 512, floorRepeat: 72 / 4,
-  paintFloor: paintVegasCarpet,
+  ceilingY: CEIL,
+  ceiling: null,
   noPanel: true,
-  ceiling: 0x0c0618, ceilingGlow: 0.15, cove: 0xff3ad0, diffuser: 0xffffff, accent: 0xff3ad0, washAlpha: 0,
-  wall: { style: 'panels', base: VIOLET, wainscot: VIOLET, rail: 0xe6e9ee, skirting: 0x0a0612 },
-  floor: { style: 'ornate', base: 0x1a0b2e, pattern: 0xe0328a },
-  light: { sky: 0xe6d0ff, ground: 0x4a2a5a, fill: 2.0, key: 0xfff0e0, keyPower: 96, wash: 0xff9ad8, washPower: 40, fog: 0x140a24, fogNear: 60, fogFar: 150 },
-  furnish(room, h, CEILING_Y) {
+  paintWall: (ctx, d) => paintLoungeWall(ctx, d),
+  floorPx: 1024, floorRepeat: 72 / 4,
+  paintFloor: paintCasinoCarpet,
+  cove: 0xffc884, diffuser: 0xffffff, accent: 0xb8965a, washAlpha: 0,
+  wall: { style: 'panels', base: 0x2a1810, wainscot: 0x0c0b0e, rail: 0xb8965a, skirting: 0x0a0806 },
+  floor: { style: 'ornate', base: 0x3a0c18, pattern: 0xc9a24f },
+  light: { sky: 0xfff0e0, ground: 0x4a2a24, fill: 2.3, key: 0xfff0e0, keyPower: 92, wash: 0xffc890, washPower: 40, fog: 0x120a0a, fogNear: 60, fogFar: 150 },
+  furnish(room) {
     const flickers = [];
-    const chasers = [];
-    const spinners = [];
+    const machines = [];
     const updates = [];
+    cofferedCeiling(room);
 
-    // A neon grid overhead.
-    const tube = (color) => neon(color);
-    for (let k = -half + m(3); k < half; k += m(3.2)) {
-      const a = new THREE.Mesh(new THREE.BoxGeometry(m(0.03), m(0.03), 2 * half), tube(0xff3ad0));
-      a.position.set(k, CEILING_Y - m(0.04), 0);
-      room.add(a);
-      const b = new THREE.Mesh(new THREE.BoxGeometry(2 * half, m(0.03), m(0.03)), tube(0x29e0ff));
-      b.position.set(0, CEILING_Y - m(0.08), k);
-      room.add(b);
-    }
-
-    // The sign, with bulbs chasing round it, LUCKY SEVENS in neon over it.
-    brandSign(room, half, { rgb: '255,214,120', plate: '#14081e' });
-    marquee(room, rectPoints(0, FLOOR_Y + m(2.75), -half + 0.1, m(2.4), m(1.5), m(0.14)), chasers);
-    neonPiece(room, 'title', m(5.0), m(1.3), 0, FLOOR_Y + m(4.05), -half + 0.08, 0, flickers);
-    // Neon down the side walls and across the front.
-    const kinds = ['sevens', 'cherries', 'dice', 'horseshoe', 'jackpot', 'suits'];
+    // The sign, LUCKY SEVENS in neon over it.
+    brandSign(room, half, { rgb: '236,206,140', plate: '#120a08' });
+    neonSign(room, 'Lucky Sevens', '#ff3a6a', m(5.0), m(1.0), 0, FLOOR_Y + m(4.0), -half + 0.08, 0, flickers);
+    // Neon down the side walls: the signs of a slot floor.
     [-1, 1].forEach((side) => {
-      [-m(9), -m(3), m(3), m(9)].forEach((z, i) => neonPiece(room, kinds[(i + (side > 0 ? 2 : 0)) % kinds.length], m(2.4), m(1.5), side * (half - 0.08), FLOOR_Y + m(2.9), z, -side * Math.PI / 2, flickers));
+      [['High Limit', '#ffb05a'], ['777', '#ff3a2a'], ['Jackpot', '#ffd24a'], ['Slots', '#5ac8ff']].forEach(([t, c], i) => {
+        neonSign(room, t, c, m(2.8), m(0.9), side * (half - 0.08), FLOOR_Y + m(3.5), -m(10) + i * m(6.5), -side * Math.PI / 2, flickers, 0.6);
+      });
     });
-    [-m(6), m(6)].forEach((x, i) => neonPiece(room, i ? 'jackpot' : 'sevens', m(3.2), m(1.4), x, FLOOR_Y + m(2.9), half - 0.08, Math.PI, flickers));
-    brandSign(room, half, { wall: 'front', width: m(1.8), rgb: '255,214,120', plate: '#14081e' });
+    brandSign(room, half, { wall: 'front', width: m(1.8), rgb: '236,206,140', plate: '#120a08' });
 
-    // The great slot machine over the table.
-    updates.push(giantSlot(room, CEILING_Y, chasers));
-    // A ring of light round the table, on a rug of the carpet's own violet.
-    room.add(roundRug(m(4.4), { base: '#120822', gold: '#e0328a', bright: '#29e0ff' }));
-    room.add(lightRing(m(4.9), 0xff4fd0));
+    // The progressive jackpot over the table, on a rug framing it.
+    updates.push(jackpotRing(room));
+    room.add(roundRug(m(4.4), { base: '#1a0a10', gold: '#b8965a', bright: '#e0c07a' }));
 
-    // Banks of slot machines down both sides, facing in.
-    const strip = reelStrip();
+    // Banks of slots down both walls, and islands back to back out on the
+    // floor either side of the table.
     [-1, 1].forEach((side) => {
-      for (let i = 0; i < 9; i++) {
-        const z = -m(11) + i * m(1.05);
-        slotMachine(room, side * (half - m(0.7)), z, side < 0 ? Math.PI / 2 : -Math.PI / 2, strip, spinners);
+      for (let i = 0; i < 9; i++) slotMachine(room, side * (half - m(0.75)), -m(10.8) + i * m(0.78), side < 0 ? Math.PI / 2 : -Math.PI / 2, (i + (side > 0 ? 2 : 0)) % 4, machines);
+      for (let i = 0; i < 7; i++) {
+        const z = -m(4.6) + i * m(0.78);
+        slotMachine(room, side * m(7.2) - m(0.45), z, -Math.PI / 2, (i + 1) % 4, machines);
+        slotMachine(room, side * m(7.2) + m(0.45), z, Math.PI / 2, (i + 3) % 4, machines);
       }
     });
-    // Islands of machines back to back out on the floor either side of the
-    // table, and high tables between them.
-    [-1, 1].forEach((side) => {
-      for (let i = 0; i < 6; i++) {
-        const z = -m(4.6) + i * m(1.05);
-        slotMachine(room, side * m(7.2) - m(0.42), z, -Math.PI / 2, strip, spinners);
-        slotMachine(room, side * m(7.2) + m(0.42), z, Math.PI / 2, strip, spinners);
-      }
-      [[m(9.8), -m(6.4)], [m(9.8), m(3.2)], [m(4.8), m(7.8)]].forEach(([x, z], i) => cocktailTable(room, side * x, z, [0xff3ad0, 0x29e0ff, 0xffd23a][i]));
-    });
-    // Booths in the front half, in a row each side.
-    [-1, 1].forEach((side) => {
-      [m(3.2), m(6.6), m(10)].forEach((z) => booth(room, side * (half - m(2.2)), z, side < 0 ? -Math.PI / 2 : Math.PI / 2));
-    });
+    // A bank along the back wall either side of the sign.
+    for (let i = 0; i < 9; i++) slotMachine(room, m(4.4) + i * m(0.78), -half + m(0.75), 0, i % 4, machines);
+    for (let i = 0; i < 3; i++) slotMachine(room, -m(4.4) - i * m(0.78), -half + m(0.75), 0, (i + 2) % 4, machines);
+    // Booths in the front half.
+    [-1, 1].forEach((side) => [m(3.2), m(6.6), m(10)].forEach((z) => booth(room, side * (half - m(2.2)), z, side < 0 ? -Math.PI / 2 : Math.PI / 2)));
     [-m(4.5), m(4.5)].forEach((x) => booth(room, x, half - m(2.3), Math.PI));
-    // The bar.
-    neonBar(room, flickers);
+    amberBar(room, flickers);
 
     walkway(room);
     staffPosts(room, [[10, -9.6], [-10.2, 10.2], [10.2, 10.2]]);
 
-    const glow = new THREE.Color();
+    const N = SYMBOLS.length;
     room.userData.update = (dt, now) => {
       updates.forEach((u) => u(dt, now));
-      // Reels in the machines, each now and then pausing on a line.
-      spinners.forEach((sp) => {
-        if (sp.pause > now) return;
-        sp.tex.offset.y = (sp.tex.offset.y + dt * sp.speed) % 1;
-        if (Math.random() < 0.003) sp.pause = now + 1500 + Math.random() * 2500;
-      });
-      // Bulbs chasing: every third lit, the pattern stepping on.
-      const step = Math.floor(now / 140);
-      chasers.forEach((c) => {
-        for (let i = 0; i < c.n; i++) {
-          c.mesh.setColorAt(i, glow.setHex((i + step) % 3 === 0 ? 0xfff2c0 : 0x7a5a20));
+      // Now and then a machine spins: its reels run, then stop one by one
+      // on a symbol, left to right.
+      machines.forEach((mc) => {
+        if (now > mc.next && now > mc.spinUntil) {
+          mc.stops = mc.reels.map((_, i) => now + 1400 + i * 260);
+          mc.spinUntil = mc.stops[mc.stops.length - 1];
+          mc.next = now + 6000 + Math.random() * 22000;
         }
-        c.mesh.instanceColor.needsUpdate = true;
+        if (now < mc.spinUntil + 100) {
+          mc.reels.forEach((tex, i) => {
+            if (now < mc.stops[i]) tex.offset.y = (tex.offset.y + dt * 3.2) % 1;
+            else tex.offset.y = Math.round(tex.offset.y * N) / N;
+          });
+        }
       });
-      // Neon flickering now and then, as old neon does.
       flickers.forEach((f) => {
-        if (now > f.next) { f.until = now + 120 + Math.random() * 380; f.next = now + 6000 + Math.random() * 16000; }
-        f.mat.opacity = now < f.until ? (Math.random() < 0.5 ? 0.25 : 1) : 1;
+        if (now > f.next) {
+          f.until = now + 120 + Math.random() * 300;
+          f.next = now + 8000 + Math.random() * 20000;
+        }
+        f.mat.opacity = now < f.until ? (Math.random() < 0.5 ? 0.3 : 1) : 1;
       });
     };
   },
