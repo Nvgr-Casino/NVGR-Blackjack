@@ -1,5 +1,6 @@
 import { ROOM_NAMES } from '../app/roomLogic.js';
 import { TERRACE, DECO, LIBRARY, MIRRORS } from './showrooms.js';
+import { LUCKY_SEVENS } from './luckySevens.js';
 import { HIGH_ROLLER } from './highRoller.js';
 import { ROYAL_FLUSH } from './royalFlush.js';
 
@@ -23,8 +24,8 @@ import { ROYAL_FLUSH } from './royalFlush.js';
 // are in metres (m), so a room keeps its proportions at any size.
 
 export const ROOM_THEMES = {
-  // Lucky Sevens — 100 / 2K: the terrace over the sea.
-  1: { name: ROOM_NAMES[0], ...TERRACE },
+  // Lucky Sevens — 100 / 2K: a neon lounge off the Strip.
+  1: { name: ROOM_NAMES[0], ...LUCKY_SEVENS },
   // The Wild Card — 500 / 10K: the Art Deco ballroom.
   2: { name: ROOM_NAMES[1], ...DECO },
   // The Full House — 1K / 25K: two storeys of books under the stars.
