@@ -1,6 +1,7 @@
 import { ROOM_NAMES } from '../app/roomLogic.js';
 import { TERRACE, DECO, LIBRARY, MIRRORS } from './showrooms.js';
 import { LUCKY_SEVENS } from './luckySevens.js';
+import { WILD_CARD } from './wildCard.js';
 import { HIGH_ROLLER } from './highRoller.js';
 import { ROYAL_FLUSH } from './royalFlush.js';
 
@@ -26,8 +27,8 @@ import { ROYAL_FLUSH } from './royalFlush.js';
 export const ROOM_THEMES = {
   // Lucky Sevens — 100 / 2K: a neon lounge off the Strip.
   1: { name: ROOM_NAMES[0], ...LUCKY_SEVENS },
-  // The Wild Card — 500 / 10K: the Art Deco ballroom.
-  2: { name: ROOM_NAMES[1], ...DECO },
+  // The Wild Card — 500 / 10K: Le Grand Cirque, a big top.
+  2: { name: ROOM_NAMES[1], ...WILD_CARD },
   // The Full House — 1K / 25K: two storeys of books under the stars.
   3: { name: ROOM_NAMES[2], ...LIBRARY },
   // The Golden Ace — 5K / 100K: the hall of mirrors.
