@@ -3,6 +3,7 @@ import { TERRACE, DECO, LIBRARY, MIRRORS } from './showrooms.js';
 import { LUCKY_SEVENS } from './luckySevens.js';
 import { WILD_CARD } from './wildCard.js';
 import { FULL_HOUSE } from './fullHouse.js';
+import { GOLDEN_ACE } from './goldenAce.js';
 import { HIGH_ROLLER } from './highRoller.js';
 import { ROYAL_FLUSH } from './royalFlush.js';
 
@@ -32,8 +33,8 @@ export const ROOM_THEMES = {
   2: { name: ROOM_NAMES[1], ...WILD_CARD },
   // The Full House — 1K / 25K: a pavilion in a moonlit garden.
   3: { name: ROOM_NAMES[2], ...FULL_HOUSE },
-  // The Golden Ace — 5K / 100K: the hall of mirrors.
-  4: { name: ROOM_NAMES[3], ...MIRRORS },
+  // The Golden Ace — 5K / 100K: Atlantis, a hall on the floor of the sea.
+  4: { name: ROOM_NAMES[3], ...GOLDEN_ACE },
   // The High Roller — 25K / 500K: the sky lounge over New York.
   5: { name: ROOM_NAMES[4], ...HIGH_ROLLER },
   // The Royal Flush — 100K / 2M: above the clouds.
