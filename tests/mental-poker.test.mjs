@@ -35,7 +35,7 @@ const setPath = (obj, path, value) => {
   ok(new Set(MP.CARDS.map((_, i) => MP.encode(i).toString())).size === 52, '52 distinct encodings');
 }
 
-async function playHand({ n, script, dropAfterDeal = null, label }) {
+async function playHand({ n, script, dropAfterDeal = null, label, lose = 0 }) {
   const room = { sb: 50, bb: 100, players: {}, log: [], buttonSeat: n - 1 };
   for (let i = 0; i < n; i++) room.players['p' + i] = { name: 'P' + i, seat: i, stack: 10000, status: 'active', waitBB: false, timeouts: 0, timeBank: 30 };
   R.startHand(room, 'H' + Math.random().toString(36).slice(2), Date.now());
@@ -52,6 +52,8 @@ async function playHand({ n, script, dropAfterDeal = null, label }) {
       const res = await c.proto.update({ hand: clone(room.hand), mp: clone(mp), players: clone(room.players), now: Date.now() + clockOffset });
       if (res.error) throw new Error(c.key + ': ' + res.error);
       for (const w of res.writes) {
+        // A flaky connection: some writes never arrive.
+        if (lose && Math.random() < lose) continue;
         if (w.ifStep !== undefined && ((mp.deck && mp.deck.step) ?? -1) !== w.ifStep) continue;
         setPath(mp, w.path, clone(w.value));
       }
@@ -74,15 +76,18 @@ async function playHand({ n, script, dropAfterDeal = null, label }) {
       const c = clients.find((x) => x.key === dropAfterDeal);
       if (!c.dropped) { c.dropped = true; room.players[dropAfterDeal].online = false; }
     }
-    // Let time pass for custodians when stuck.
-    if (rounds % 20 === 0) clockOffset += 6000;
+    // Let time pass for custodians when stuck — and, on a flaky
+    // connection, a second a round: every client runs its part each
+    // second (pokerSession's tick), so a lost write is sent again.
+    if (lose) clockOffset += 1000;
+    else if (rounds % 20 === 0) clockOffset += 6000;
   }
   return { room, mp, clients, rounds };
 }
 
 const passive = (room, who, legal) => (legal.check ? ['check'] : ['call']);
 
-for (const n of [2, 3, 6]) {
+for (const n of [2, 3, 5, 6]) {
   const { room, mp, clients, rounds } = await playHand({ n, script: passive });
   const h = room.hand;
   ok(h && h.phase === 'done', `n=${n}: hand played to the end (${rounds} rounds)`);
@@ -96,6 +101,13 @@ for (const n of [2, 3, 6]) {
   // Nothing public reveals a hole card before showdown: the only keys for
   // hole positions published are at showdown, and the deliveries are sealed.
   ok(Object.values(mp.hole || {}).every((row) => Object.values(row).every((box) => box.iv && box.ct)), `n=${n}: hole-card keys only ever travel sealed`);
+}
+
+// Five players on a flaky connection — a third of all writes lost: every
+// lost one is sent again, and the hand is dealt and played out.
+{
+  const { room, clients, rounds } = await playHand({ n: 5, script: passive, lose: 0.3 });
+  ok(room.hand.phase === 'done' && clients.every((c) => c.cards && c.cards.length === 2), `five players, a third of writes lost: dealt and played out (${rounds} rounds)`);
 }
 
 // Fold before the flop: no board turned.

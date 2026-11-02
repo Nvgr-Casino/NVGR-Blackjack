@@ -341,6 +341,26 @@ const storage = {
   set: (k, v) => { try { sessionStorage.setItem(k, v); } catch { /* private mode */ } },
 };
 
+// Clears out the crypto nodes of earlier hands — never the one being
+// dealt. This was a remove of the whole of rooms/<code>_mp by every client
+// on every tick between hands; a client whose snapshot of the room was a
+// moment behind still saw no hand and removed it just after the next hand
+// had started, wiping the new hand's keys and half-shuffled deck. Every
+// client's writes were then held back as already sent, nothing changed to
+// set them going again, and the deal sat until it was voided — the more
+// players, the surer it was to happen. Now it is done once a hand, by
+// whoever is first to act in it, and only for other hands.
+let cleanedFor = null;
+async function clearOldHands(code, keepId) {
+  if (cleanedFor === keepId) return;
+  cleanedFor = keepId;
+  try {
+    const snap = await get(ref(db, 'rooms/' + code + '_mp'));
+    const ids = snap.exists() ? Object.keys(snap.val()) : [];
+    await Promise.all(ids.filter((id) => id !== keepId).map((id) => remove(ref(db, mpPath(code, id)))));
+  } catch { /* tidying only */ }
+}
+
 /** Called with every new snapshot of a poker room (session.js). */
 export function onRoom(room) {
   lastRoom = room;
@@ -353,6 +373,7 @@ export function onRoom(room) {
     mpData = null;
     if (handId) {
       mpUnsub = onValue(ref(db, mpPath(room.code, handId)), (snap) => { mpData = snap.val(); drive(); });
+      if (room.hand.players && room.hand.players[0] === key) clearOldHands(room.code, handId);
     }
   }
   // A hand just ended with this player gone from the table — or holding
@@ -439,6 +460,11 @@ export function tick(room) {
     return;
   }
   if (T.isTournament(room) && !T.running(room)) { tournamentLobbyTick(room, now); return; }
+  // While cards are being dealt or turned, this player's part is run again
+  // every second, not only when something changes: a write that was lost
+  // is sent again once its retry time is up, instead of waiting for a
+  // change that may never come.
+  if (h && ['deal', 'board', 'showdown'].includes(h.phase)) drive();
   if (h && h.phase === 'betting' && h.deadline && now >= h.deadline) {
     S.mutateRoom(code, (r) => { if (r.hand && r.hand.id === h.id) R.processTimeout(r, Date.now()); });
   } else if (h && R.stalled(room, now)) {
@@ -465,8 +491,6 @@ export function tick(room) {
     const ready = Object.entries(room.players || {}).filter(([k, p]) => p.status === 'active' && p.stack > 0 && here[k] && !p.leaving);
     if (T.isTournament(room)) { tournamentHandTick(room, here, ready.length, now); return; }
     if (ready.length >= 2) {
-      // Nothing of an earlier hand is still needed once none is running.
-      remove(ref(db, 'rooms/' + code + '_mp')).catch(() => {});
       const id = genCode() + now.toString(36);
       S.mutateRoom(code, (r) => {
         if (r.hand) return;
@@ -490,7 +514,6 @@ function tournamentHandTick(room, here, readyCount, now) {
     || (p.status === 'sitout' && p.sitOutAt && now - p.sitOutAt > T.AWAY_LIMIT_MS));
   if (readyCount < 2 && !due) return;
   const code = room.code;
-  if (readyCount >= 2) remove(ref(db, 'rooms/' + code + '_mp')).catch(() => {});
   const id = genCode() + now.toString(36);
   S.mutateRoom(code, (r) => {
     if (r.hand || !T.running(r)) return;
@@ -550,7 +573,16 @@ export function countdownText(room, key) {
     const p = room.players[h.toAct];
     return (p ? p.name : 'A player') + ' to act · ' + secs + 's' + bank;
   }
-  if (h.phase === 'deal') return 'Shuffling and dealing…';
+  if (h.phase === 'deal') {
+    // Once it has taken a while, whose device it is waiting on.
+    const waited = h.stallAt ? R.DEAL_STALL_MS - (h.stallAt - Date.now()) : 0;
+    const slow = waited > 8000 && protocol ? protocol.blame(h, mpData).filter((k) => k !== key) : [];
+    if (slow.length) {
+      const names = slow.map((k) => (room.players[k] ? room.players[k].name.split(' ')[0] : 'a player'));
+      return 'Shuffling — waiting for ' + names.join(', ') + '…';
+    }
+    return 'Shuffling and dealing…';
+  }
   if (h.phase === 'board') return 'Dealing the ' + h.street + '…';
   if (h.phase === 'showdown') return 'Showdown';
   return '';

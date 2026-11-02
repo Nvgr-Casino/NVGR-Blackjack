@@ -10,7 +10,7 @@
 // Messages live in the database rather than in a session, so anything sent
 // while someone is offline is simply waiting for them next time they open
 // the app.
-import { ref, set, push, update, remove, onValue, onDisconnect } from 'firebase/database';
+import { ref, get, set, push, update, remove, onValue, onDisconnect } from 'firebase/database';
 import { db } from '../firebase/config.js';
 import { safeKey } from './roomLogic.js';
 import { session, refresh } from './session.js';
@@ -60,6 +60,7 @@ export function initSocial() {
     const val = snap.val() || {};
     requests = Object.entries(val).map(([key, r]) => ({ key, name: r.name, at: r.at }));
     refresh();
+    showRequestToast();
   }));
 
   unsubs.push(onValue(ref(db, 'dmInbox/' + me), (snap) => {
@@ -98,12 +99,85 @@ export async function goOffline() {
 export function isFriend(key) { return friends.some((f) => f.key === key); }
 export function requestPending(key) { return requests.some((r) => r.key === key); }
 
+// ---------- requests sent, and players met ----------
+// Kept in this browser, per player: a request once sent shows as sent
+// (the other player's inbox can't be read from here), and the players
+// sat with at a table are there to add later from the Friends page.
+const local = (name) => `nvgr-${name}:${session.uid ? safeKey(session.uid) : ''}`;
+const loadLocal = (name, fallback) => { try { return JSON.parse(localStorage.getItem(local(name))) || fallback; } catch { return fallback; } };
+const saveLocal = (name, value) => { try { localStorage.setItem(local(name), JSON.stringify(value)); } catch { /* private mode */ } };
+
+export function requestSent(key) { return !!loadLocal('sent', {})[key]; }
+
+/** Players this player has sat with lately, newest first: [{ key, name, at }]. */
+export function recentPlayers() { return loadLocal('met', []).filter((p) => !isFriend(p.key)); }
+let metSeen = '';
+/** Notes the other players at `room`'s table (called as the table is shown). */
+export function notePlayers(room) {
+  if (!session.uid || !room || room.offline || !room.players) return;
+  const me = safeKey(session.uid);
+  const here = Object.entries(room.players).filter(([k, p]) => k !== me && !p.bot && p.name).map(([k, p]) => ({ key: k, name: p.name }));
+  const sig = here.map((p) => p.key).sort().join(',');
+  if (!sig || sig === metSeen) return;
+  metSeen = sig;
+  const met = loadLocal('met', []).filter((p) => !here.some((h) => h.key === p.key));
+  saveLocal('met', here.map((p) => ({ ...p, at: Date.now() })).concat(met).slice(0, 30));
+}
+
 export async function sendFriendRequest(toKey, toName) {
   const me = safeKey(session.uid);
   if (!toKey || toKey === me || isFriend(toKey)) return;
+  // They asked first: this is a yes.
+  if (requestPending(toKey)) { await acceptRequest(toKey, toName); return; }
   await set(ref(db, `friendRequests/${toKey}/${me}`), { name: session.name, at: Date.now() });
+  saveLocal('sent', { ...loadLocal('sent', {}), [toKey]: Date.now() });
   setSocialNotice('Friend request sent to ' + toName + '.');
 }
+
+// ---------- finding players ----------
+let directory = null;
+let directoryAt = 0;
+/** Players whose name has `query` in it (from the public directory), up to 20. */
+export async function findPlayers(query) {
+  const q = query.trim().toLowerCase();
+  if (q.length < 2) return [];
+  if (!directory || Date.now() - directoryAt > 60000) {
+    const snap = await get(ref(db, 'users'));
+    directory = Object.entries(snap.val() || {}).map(([key, u]) => ({ key, name: u.name || '', online: !!u.online, lastSeen: u.lastSeen || 0 }));
+    directoryAt = Date.now();
+  }
+  const me = session.uid ? safeKey(session.uid) : null;
+  return directory.filter((u) => u.key !== me && u.name.toLowerCase().includes(q))
+    .sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name))
+    .slice(0, 20);
+}
+
+// ---------- a request, wherever the player is ----------
+// A request that comes in shows at once, on any page, at a table too, with
+// its answer right there — not only on the Friends page, where it was
+// easy never to see.
+const dismissed = new Set();
+function showRequestToast() {
+  let box = document.getElementById('friendToast');
+  const r = requests.find((x) => !dismissed.has(x.key));
+  if (!r || session.screen === 'friends' || session.screen === 'loading' || session.screen === 'auth') { if (box) box.remove(); return; }
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'friendToast';
+    box.className = 'friend-toast';
+    box.setAttribute('role', 'status');
+    document.body.appendChild(box);
+  }
+  if (box.dataset.key === r.key) return;
+  box.dataset.key = r.key;
+  const safe = String(r.name).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  box.innerHTML = `<span class="ft-text"><b>${safe}</b> wants to be friends</span>
+    <button class="btn btn-sm btn-primary" data-ft-accept>Accept</button>
+    <button class="btn btn-sm btn-quiet" data-ft-later>Later</button>`;
+  box.querySelector('[data-ft-accept]').onclick = async () => { box.remove(); await acceptRequest(r.key, r.name); };
+  box.querySelector('[data-ft-later]').onclick = () => { dismissed.add(r.key); box.remove(); showRequestToast(); };
+}
+export const syncRequestToast = showRequestToast;
 
 export async function acceptRequest(fromKey, fromName) {
   const me = safeKey(session.uid);
@@ -114,7 +188,9 @@ export async function acceptRequest(fromKey, fromName) {
     [`friends/${fromKey}/${me}`]: { name: session.name, since: Date.now() },
     [`friendRequests/${me}/${fromKey}`]: null,
   });
+  dismissed.delete(fromKey);
   setSocialNotice('You and ' + fromName + ' are now friends.');
+  showRequestToast();
 }
 
 export async function declineRequest(fromKey) {

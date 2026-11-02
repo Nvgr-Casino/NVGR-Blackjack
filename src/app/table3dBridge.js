@@ -186,6 +186,7 @@ export function syncRoomToScene(room, myKey) {
   syncService(room);
   // Voice with the others at the table, where there is any.
   syncVoice(room);
+  Social.notePlayers(room);
 
   if (room.round !== lastRound) {
     lastRound = room.round;

@@ -40,7 +40,7 @@ export function playerCardSheet(r) {
   } else if (Social.requestPending(k)) {
     relation = `${first} wants to be your friend.`;
     action = `<button class="btn btn-primary" data-pc-accept>Accept friend request</button>`;
-  } else if (sent.has(k)) {
+  } else if (sent.has(k) || Social.requestSent(k)) {
     relation = `Friend request sent. ${first} will see it in Friends.`;
   } else {
     relation = 'Friends can message each other, and talk by voice at any table.';

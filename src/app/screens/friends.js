@@ -23,6 +23,43 @@ function personRow(f) {
     </div>`;
 }
 
+// ---------- finding a player ----------
+let findQuery = '';
+let findResults = [];
+
+// A player to add: their state with you as the button — Add, Sent, Accept
+// (they asked first), or Friends.
+function findRow(p) {
+  let action;
+  if (Social.isFriend(p.key)) action = '<span class="person-status on">Friends</span>';
+  else if (Social.requestPending(p.key)) action = `<button class="btn btn-sm btn-primary" data-add="${esc(p.key)}" data-add-name="${esc(p.name)}">Accept</button>`;
+  else if (Social.requestSent(p.key)) action = '<span class="person-status">Request sent</span>';
+  else action = `<button class="btn btn-sm btn-primary" data-add="${esc(p.key)}" data-add-name="${esc(p.name)}">Add friend</button>`;
+  return `
+    <div class="person">
+      ${initialsDisc(p.name)}
+      <div class="person-info">
+        <span class="person-name">${esc(p.name)}</span>
+        ${p.online !== undefined ? `<span class="person-status ${p.online ? 'on' : ''}"><i class="dot ${p.online ? 'on' : ''}"></i>${p.online ? 'Online' : 'Offline'}</span>` : ''}
+      </div>
+      ${action}
+    </div>`;
+}
+function findHtml() {
+  if (findQuery.trim().length < 2) return '';
+  if (!findResults.length) return '<div class="empty-state">No player by that name.</div>';
+  return findResults.map(findRow).join('');
+}
+function attachAdd() {
+  document.querySelectorAll('[data-add]').forEach((b) => {
+    b.onclick = async () => {
+      b.disabled = true;
+      try { await Social.sendFriendRequest(b.dataset.add, b.dataset.addName); } catch { b.disabled = false; return; }
+      S.refresh();
+    };
+  });
+}
+
 export function renderFriends() {
   const reqHtml = Social.requests.map((r) => `
     <div class="person">
@@ -37,7 +74,13 @@ export function renderFriends() {
 
   const listHtml = Social.friends.length
     ? Social.friends.slice().sort((a, b) => (b.online ? 1 : 0) - (a.online ? 1 : 0)).map(personRow).join('')
-    : '<div class="empty-state">No friends yet. At a table, tap another player to send a request.</div>';
+    : '<div class="empty-state">No friends yet. Find a player above by name, or tap a player\'s face at a table.</div>';
+
+  const recent = Social.recentPlayers().slice(0, 8);
+  const recentHtml = recent.length ? `
+      <div class="section-head"><h2>Played with recently</h2></div>
+      <div class="person-list">${recent.map((p) => findRow(p)).join('')}</div>
+      <div class="section"></div>` : '';
 
   return `
     ${backBar('friendsBackBtn', 'Friends')}
@@ -45,6 +88,13 @@ export function renderFriends() {
       <div class="page-head"><h1>Friends</h1></div>
       ${Social.socialNotice ? '<p class="notice-text">' + esc(Social.socialNotice) + '</p>' : ''}
       ${reqHtml ? `<div class="section-head"><h2>Requests</h2></div><div class="person-list">${reqHtml}</div><div class="section"></div>` : ''}
+      <div class="section-head"><h2>Find a player</h2></div>
+      <div class="compose find-player">
+        <input type="search" id="findPlayerInput" placeholder="Their name" maxlength="40" value="${esc(findQuery)}" autocomplete="off">
+      </div>
+      <div class="person-list" id="findResults">${findHtml()}</div>
+      <div class="section"></div>
+      ${recentHtml}
       <div class="section-head"><h2>Your friends</h2></div>
       <div class="person-list">${listHtml}</div>
     </main>
@@ -52,6 +102,20 @@ export function renderFriends() {
 }
 
 export function attachFriends() {
+  const input = document.getElementById('findPlayerInput');
+  if (input) {
+    let timer = null;
+    input.oninput = () => {
+      findQuery = input.value;
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        findResults = await Social.findPlayers(findQuery).catch(() => []);
+        const box = document.getElementById('findResults');
+        if (box) { box.innerHTML = findHtml(); attachAdd(); }
+      }, 250);
+    };
+  }
+  attachAdd();
   const back = document.getElementById('friendsBackBtn');
   if (back) back.onclick = () => S.goToScreen('home');
   document.querySelectorAll('[data-accept]').forEach((b) => {

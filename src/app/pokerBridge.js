@@ -78,6 +78,7 @@ export function syncPokerToScene(room, myKey) {
   syncService(room);
   // Voice with the others at the table, where there is any.
   syncVoice(room);
+  Social.notePlayers(room);
   driver.setVisible(true);
   driver.setLadder(ladderFor(room));
 
@@ -492,6 +493,8 @@ function winnerPopup(r, h, myKey) {
     const p = r.players[k];
     const name = k === myKey ? 'You' : p ? p.name : 'A player';
     const best = h.hands && h.hands[k] && h.hands[k].best;
+    // The winner's own two cards, so everyone can see how it was won.
+    const hole = (h.shown && h.shown[k]) || (k === myKey ? Poker.myHoleCards(r) : null);
     const how = w.hand ? (h.hands && h.hands[k] && h.hands[k].name) || w.hand : 'Everyone else folded';
     const pots = h.results.length > 1 ? (w.pots.length === h.results.length ? 'All pots' : w.pots.map((i) => (i === 0 ? 'Main pot' : 'Side pot')).join(' + ')) : '';
     return `
@@ -503,7 +506,8 @@ function winnerPopup(r, h, myKey) {
         </div>
         <span class="wp-amount">+${w.amount.toLocaleString()}</span>
       </div>
-      ${best && best.length === 5 ? `<div class="wp-cards">${best.map(cardImg).join('')}</div>` : ''}`;
+      ${hole ? `<div class="wp-line"><span class="wp-label">${k === myKey ? 'Your cards' : 'Their cards'}</span><div class="wp-cards wp-hole">${hole.map(cardImg).join('')}</div></div>` : ''}
+      ${best && best.length === 5 ? `<div class="wp-line"><span class="wp-label">Best five</span><div class="wp-cards">${best.map((c) => `<span class="wp-card ${hole && hole.includes(c) ? 'theirs' : ''}">${cardImg(c)}</span>`).join('')}</div></div>` : ''}`;
   }).join('');
   const title = mine ? (won.size > 1 ? 'Split pot — you share it' : 'You win the hand!') : split ? 'Split pot' : 'Hand won';
   return `

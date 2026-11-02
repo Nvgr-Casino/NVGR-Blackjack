@@ -41,6 +41,9 @@ export function createProtocol({ me, storage }) {
   // seems to have been lost.
   const done = new Map();
   const RETRY_MS = 4000;
+  // The time of the update being worked out (its `now`), which the retry
+  // is measured against.
+  let clock = Date.now();
 
   async function ensureKeys(hand, positions) {
     if (handId === hand.id && secrets) return;
@@ -64,7 +67,7 @@ export function createProtocol({ me, storage }) {
   // `ifStep`, for the deck: written only if the deck is still at that
   // step — a retried write must never land on top of the next player's.
   const write = (out, path, value, tag = path.join('/'), ifStep) => {
-    const now = Date.now();
+    const now = clock;
     if (done.has(tag) && now - done.get(tag) < RETRY_MS) return;
     done.set(tag, now);
     out.writes.push(ifStep === undefined ? { path, value } : { path, value, ifStep });
@@ -76,6 +79,7 @@ export function createProtocol({ me, storage }) {
    */
   async function update({ hand, mp, players, now = Date.now() }) {
     const out = { writes: [], ready: false, myCards: null, board: null, shown: {}, error: null };
+    clock = now;
     if (!hand || !hand.players || !hand.players.includes(me)) return out;
     const order = hand.players;
     const n = order.length;

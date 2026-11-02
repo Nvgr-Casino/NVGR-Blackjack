@@ -8,6 +8,7 @@ import { session, initAuth, setOnChange, joinRoom, lobbyGame } from './app/sessi
 import { dealerKeyFor } from './scene/dealer.js';
 import { mountService, clearService } from './app/service.js';
 import { leaveVoice } from './app/voice.js';
+import { syncRequestToast } from './app/social.js';
 import { mountTable3D, syncRoomToScene, renderTableScreen, attachTableScreen, resetTableDiffState, hideBlackjackTable } from './app/table3dBridge.js';
 import { mountPoker3D, syncPokerToScene, renderPokerScreen, attachPokerScreen, leavePokerView } from './app/pokerBridge.js';
 import { renderAuth, attachAuth } from './app/screens/auth.js';
@@ -38,9 +39,20 @@ let sceneHandles = null;
 const BACKDROP_SCREENS = new Set(['auth', 'home']);
 
 function render() {
+  syncRequestToast();
   const showTable = session.screen === 'table';
   const backdrop = BACKDROP_SCREENS.has(session.screen);
-  canvas.style.display = showTable || backdrop ? 'block' : 'none';
+  // The scene is hidden until there is something to show behind or under
+  // the page — never the table and its dealer on their own while the page
+  // is still loading — and fades in when it first appears.
+  const showScene = (showTable || backdrop) && !!sceneHandles;
+  if (showScene && canvas.style.display === 'none') {
+    canvas.style.opacity = '0';
+    canvas.style.display = 'block';
+    requestAnimationFrame(() => requestAnimationFrame(() => { canvas.style.opacity = '1'; }));
+  } else if (!showScene) {
+    canvas.style.display = 'none';
+  }
   // At the table the page layer sits over the 3D view; it must let drags
   // through to the canvas, or the view can't be turned (see app.css).
   root.classList.toggle('on-table', showTable);
@@ -130,6 +142,8 @@ function checkInviteParam() {
 // needs an esnext build target, and this ordering (fonts → scene → first
 // render) is the only reason the await exists.
 async function boot() {
+  // The house mark at once, while fonts and the scene load.
+  render();
   await Promise.all([
     document.fonts.load("700 40px 'Cinzel'"),
     // Card indices are drawn in Inter; a card painted before it loads is

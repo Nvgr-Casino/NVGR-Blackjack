@@ -28,7 +28,9 @@ export const SHOWDOWN_PAUSE_MS = 7000;
 export const FOLD_PAUSE_MS = 3500;
 // How long the protocol may take to deal, or to turn a street, before the
 // hand is called off and everyone's chips go back.
-export const DEAL_STALL_MS = 45000;
+// Six phones take turns at the deck, each a round trip and a pass of the
+// maths; this leaves room for a slow one before the deal is given up.
+export const DEAL_STALL_MS = 75000;
 export const REVEAL_STALL_MS = 30000;
 // Two clocks run out in a row and a player is sat out; out for this long
 // and they are stood up and their stack goes back to their account.
