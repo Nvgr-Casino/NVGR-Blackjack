@@ -1,16 +1,18 @@
 import * as THREE from 'three';
 import { FLOOR_Y, m } from './scale.js';
+import { drawCasinoCrest } from './crest.js';
+import { GOLD_INK, GOLD_INK_SOFT, feltWeave, addTableGlow, PEDESTAL_LACQUER, GOLD } from './tableLux.js';
 
 // A real casino "D" table: a semicircular front for the players plus a pair
 // of straight parallel sides running back to a flat rear edge for the
 // dealer. TABLE_RADIUS is the semicircle's radius (and so the felt's full
 // width, held constant all the way back); SIDE_LENGTH is how far the
 // straight sides run before the flat back edge closes the shape off.
-// About 2.5 m across overall: a five-spot table built generously, so the
-// five players have room between them and the felt doesn't feel crowded.
-// (At 2.1 m it read as cramped once the rooms around it grew.)
-export const TABLE_RADIUS = m(1.02);
-const SIDE_LENGTH = 1.15;
+// About 2.9 m across overall: a five-spot table built generously, so the
+// five players sit well apart round a felt with room on it. (At 2.1 m, and
+// then 2.5, it read as cramped once the rooms round it grew.)
+export const TABLE_RADIUS = m(1.2);
+const SIDE_LENGTH = 1.35;
 export const TABLE_BACK_Z = -SIDE_LENGTH;
 
 // The border, from the felt outward, as a real table is built: a burl-wood
@@ -149,14 +151,26 @@ function createFeltTexture(themeKey) {
     px[i] += n; px[i + 1] += n; px[i + 2] += n;
   }
   ctx.putImageData(grain, 0, 0);
+  feltWeave(ctx, FELT_W, FELT_H, PX * 0.09);
 
-  // The markings a real table carries, and nothing else: the payout line,
-  // the dealer's rule, and the insurance band. One cream ink, one typeface.
-  // The old felt also carried five crests and a ring of suit pips; on a
-  // table this size that read as wallpaper and fought the cards for
-  // attention.
-  const INK = 'rgba(232,220,192,0.80)';
-  const INK_SOFT = 'rgba(232,220,192,0.45)';
+  // The markings a real table carries, printed in gold: the payout line,
+  // the dealer's rule, the insurance band, a fine line round the edge of
+  // the cloth, and the house crest once, tone on tone, between the
+  // dealer's rack and their cards. (Five crests and a ring of suit pips
+  // read as wallpaper and fought the cards for attention.)
+  const INK = GOLD_INK;
+  const INK_SOFT = GOLD_INK_SOFT;
+  {
+    const inset = m(0.05);
+    const shape = buildTableShape(TABLE_RADIUS - inset, SIDE_LENGTH - inset);
+    ctx.strokeStyle = INK_SOFT;
+    ctx.lineWidth = 0.008 * PX;
+    ctx.beginPath();
+    shape.getPoints(96).forEach((p, i) => { const [x, y] = toPx(p.x, p.y); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); });
+    ctx.stroke();
+    const [cx, cy] = toPx(0, -SIDE_LENGTH * 0.36);
+    drawCasinoCrest(ctx, { x: cx, y: cy, width: PX * 0.5, alpha: 0.3, rgb: '230,198,126', foreshorten: FORESHORTEN });
+  }
   const font = (worldSize, weight = 600) => `${weight} ${worldSize * PX}px 'Cinzel', Georgia, serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -365,6 +379,23 @@ export function createTable() {
   // Deep enough to meet the apron below, with no gap under the cushion.
   band(TABLE_RADIUS + RIM + cushion.size, RAIL_OUTER - cushion.size, RIM_TOP + m(0.068), m(0.006) + 0.025, LEATHER, cushion);
 
+  // Gold piping stitched along the top of the armrest, and a gold line
+  // inlaid in the wood between the chip channel and the rail.
+  const flatBand = (inner, outer, y, mat) => {
+    const mesh = new THREE.Mesh(new THREE.ShapeGeometry(buildRailShape(inner, outer, SIDE_LENGTH), 1), mat);
+    mesh.rotation.x = Math.PI / 2;
+    mesh.position.y = y;
+    group.add(mesh);
+  };
+  const flatTop = RIM_TOP + m(0.068) + 0.002;
+  const cushionIn = TABLE_RADIUS + RIM + cushion.size, cushionOut = RAIL_OUTER - cushion.size;
+  [0.2, 0.8].forEach((k) => {
+    const r = cushionIn + (cushionOut - cushionIn) * k;
+    flatBand(r - m(0.003), r + m(0.003), flatTop, GOLD);
+  });
+  const inlay = TABLE_RADIUS + RIM_LIP + CHANNEL + m(0.012);
+  flatBand(inlay - m(0.003), inlay + m(0.003), RIM_TOP + 0.001, GOLD);
+
   // The apron below: lacquered walnut, carrying the outline round to the
   // dealer's ledge along the back.
   const woodMat = new THREE.MeshStandardMaterial({ map: createWoodTexture(), roughness: 0.5, metalness: 0 });
@@ -391,7 +422,7 @@ export function createTable() {
       buildTableShape(RAIL_OUTER - INSET, SIDE_LENGTH + LEDGE - INSET * 0.4),
       { depth: pedestalTop - FLOOR_Y, bevelEnabled: false, curveSegments: 32 }
     ),
-    new THREE.MeshStandardMaterial({ color: 0x120d0a, roughness: 0.7, metalness: 0 })
+    PEDESTAL_LACQUER
   );
   pedestal.rotation.x = Math.PI / 2;
   pedestal.position.y = pedestalTop;
@@ -399,17 +430,18 @@ export function createTable() {
   pedestal.receiveShadow = true;
   group.add(pedestal);
 
-  // A low brass kickplate where the pedestal meets the carpet.
-  const kick = new THREE.Mesh(
-    new THREE.ExtrudeGeometry(
-      buildTableShape(RAIL_OUTER - INSET + m(0.015), SIDE_LENGTH + LEDGE - INSET * 0.4 + m(0.015)),
-      { depth: m(0.05), bevelEnabled: false, curveSegments: 32 }
-    ),
-    BRASS
-  );
-  kick.rotation.x = Math.PI / 2;
-  kick.position.y = FLOOR_Y + m(0.05);
-  group.add(kick);
+  // Where the pedestal meets the floor, a line of light round its foot,
+  // and the pool of that light on the floor round the table.
+  addTableGlow(group, {
+    footOuter: buildTableShape(RAIL_OUTER - INSET + m(0.03), SIDE_LENGTH + LEDGE - INSET * 0.4 + m(0.03)),
+    footInner: buildTableShape(RAIL_OUTER - INSET + m(0.002), SIDE_LENGTH + LEDGE - INSET * 0.4 + m(0.002)),
+    w: RAIL_OUTER * 3.4, d: RAIL_OUTER * 3.0, cz: -SIDE_LENGTH * 0.2,
+    edge: {
+      outer: buildTableShape(RAIL_OUTER + 0.012, SIDE_LENGTH + LEDGE + 0.012),
+      inner: buildTableShape(RAIL_OUTER - m(0.04), SIDE_LENGTH + LEDGE - m(0.04)),
+      y: -0.025 - APRON - 0.022,
+    },
+  });
 
   return group;
 }

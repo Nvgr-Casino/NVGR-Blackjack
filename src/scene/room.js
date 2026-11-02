@@ -453,8 +453,8 @@ export function createRoom(tier = 3) {
     const shape = new THREE.Shape();
     shape.moveTo(-ROOM_HALF, -ROOM_HALF); shape.lineTo(ROOM_HALF, -ROOM_HALF); shape.lineTo(ROOM_HALF, ROOM_HALF); shape.lineTo(-ROOM_HALF, ROOM_HALF);
     const hole = new THREE.Path();
-    // Laid flat by the rotation below, the shape's y becomes -z.
-    hole.absarc(x, -z, r, 0, Math.PI * 2, true);
+    // Laid flat by the rotation below, the shape's y becomes z.
+    hole.absarc(x, z, r, 0, Math.PI * 2, true);
     shape.holes.push(hole);
     ceilingGeo = new THREE.ShapeGeometry(shape, 48);
   }

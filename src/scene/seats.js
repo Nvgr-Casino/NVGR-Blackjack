@@ -61,8 +61,8 @@ export const SEATS = SEAT_ANGLES_DEG.map((deg, i) => {
 // the camera stands back and above your chair, over your shoulder, far
 // enough to take in the whole width of the table.
 const VIEWS = {
-  wide: { back: m(0.35), height: m(1.75), lookY: 0.5 },
-  tall: { back: m(1.45), height: m(2.55), lookY: 0.9 },
+  wide: { back: m(0.5), height: m(1.85), lookY: 0.5 },
+  tall: { back: m(1.75), height: m(2.75), lookY: 0.9 },
 };
 export const isTallScreen = () => window.innerWidth < window.innerHeight;
 const view = () => (isTallScreen() ? VIEWS.tall : VIEWS.wide);
@@ -119,16 +119,16 @@ export const DEALER = {
   // holder on their right. A card comes out of the shoe under the left
   // hand, which slides it across to the handoff point, where the right hand
   // takes it and deals it.
-  shoePosition: new THREE.Vector3(1.4, 0, TABLE_BACK_Z + 0.34),
-  deckPosition: new THREE.Vector3(1.0, 0.06, TABLE_BACK_Z + 0.34),
-  handoffPosition: new THREE.Vector3(0.68, 0.012, TABLE_BACK_Z + 0.82),
-  discardPosition: new THREE.Vector3(-1.38, 0, TABLE_BACK_Z + 0.34),
+  shoePosition: new THREE.Vector3(1.62, 0, TABLE_BACK_Z + 0.4),
+  deckPosition: new THREE.Vector3(1.16, 0.06, TABLE_BACK_Z + 0.4),
+  handoffPosition: new THREE.Vector3(0.78, 0.012, TABLE_BACK_Z + 0.95),
+  discardPosition: new THREE.Vector3(-1.6, 0, TABLE_BACK_Z + 0.4),
   // The chip rack; losing bets go in, payouts come out.
-  trayPosition: new THREE.Vector3(0, 0.01, TABLE_BACK_Z + 0.34),
+  trayPosition: new THREE.Vector3(0, 0.01, TABLE_BACK_Z + 0.4),
   // Pulled just clear of the rail/tray/shoe cluster so the dealer's cards
   // (and hand-value badge) aren't lost in that clutter — with the back
   // stretch of felt shrunk down, this now lands right at the start of the
   // front curve instead of needing a long forward push to close a big gap.
-  handSpot: new THREE.Vector3(0, 0.04, TABLE_BACK_Z + 1.3),
+  handSpot: new THREE.Vector3(0, 0.04, TABLE_BACK_Z + 1.52),
   facingAngle: 0,
 };

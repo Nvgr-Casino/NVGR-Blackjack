@@ -3,6 +3,7 @@ import { FLOOR_Y, m } from './scale.js';
 import { BRASS, LEATHER, FELT_THEMES, feltTheme, createBurlTexture, createWoodTexture } from './table.js';
 import { drawCasinoCrest } from './crest.js';
 import { CARD_WIDTH, CARD_HEIGHT } from './card.js';
+import { GOLD_INK, GOLD_INK_SOFT, feltWeave, addTableGlow, PEDESTAL_LACQUER, GOLD } from './tableLux.js';
 
 // The Hold'em table: a six-seat racetrack oval, 3.0 m by 1.6 m of felt —
 // a broad table, so the seats have room between them and the board room
@@ -212,8 +213,10 @@ function createPokerFelt(themeKey) {
     grain.data[i] += n; grain.data[i + 1] += n; grain.data[i + 2] += n;
   }
   ctx.putImageData(grain, 0, 0);
+  feltWeave(ctx, FELT_W, FELT_H, PX * 0.09);
 
-  const INK = 'rgba(232,220,192,0.55)';
+  // Printed in gold.
+  const INK = GOLD_INK_SOFT;
   // The betting line: a thin racetrack printed round the felt, inside which
   // chips are in the pot.
   ctx.strokeStyle = INK;
@@ -231,9 +234,9 @@ function createPokerFelt(themeKey) {
   // The house crest each side of the board, and the game's name.
   [-1, 1].forEach((side) => {
     const [x, y] = toPx(side * (STRAIGHT + END_R * 0.15), 0);
-    drawCasinoCrest(ctx, { x, y, width: PX * 0.3, alpha: 0.42, rgb: '232,220,192', foreshorten: 1.3 });
+    drawCasinoCrest(ctx, { x, y, width: PX * 0.34, alpha: 0.5, rgb: '230,198,126', foreshorten: 1.3 });
   });
-  ctx.fillStyle = 'rgba(232,220,192,0.38)';
+  ctx.fillStyle = GOLD_INK_SOFT;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.font = `600 ${PX * 0.032}px 'Cinzel', Georgia, serif`;
@@ -294,6 +297,18 @@ export function createPokerTable() {
   const cushion = { thickness: m(0.03), size: m(0.045) };
   band(RIM + TRACK + cushion.size, POKER_RAIL_OUTER - cushion.size, 0.03 + m(0.06), m(0.006) + 0.025, LEATHER, cushion);
 
+  // Gold piping along the top of the armrest, and a gold line inlaid down
+  // the middle of the wooden racetrack.
+  const flat = (inner, outer, y) => {
+    const mesh = new THREE.Mesh(new THREE.ShapeGeometry(ring(inner, outer), 48), GOLD);
+    mesh.rotation.x = Math.PI / 2;
+    mesh.position.y = y;
+    group.add(mesh);
+  };
+  const cIn = RIM + TRACK + cushion.size, cOut = POKER_RAIL_OUTER - cushion.size;
+  [0.2, 0.8].forEach((k) => { const r = cIn + (cOut - cIn) * k; flat(r - m(0.003), r + m(0.003), 0.03 + m(0.06) + 0.002); });
+  flat(RIM + TRACK / 2 - m(0.003), RIM + TRACK / 2 + m(0.003), 0.025);
+
   // A brass bead where the felt meets the rim.
   const bead = new THREE.Mesh(new THREE.ShapeGeometry(ring(-0.025, -0.006), 24),
     new THREE.MeshStandardMaterial({ color: 0x9c7d4a, roughness: 0.42, metalness: 0.75, side: THREE.DoubleSide }));
@@ -301,7 +316,8 @@ export function createPokerTable() {
   bead.position.y = 0.013;
   group.add(bead);
 
-  // Apron, pedestal and brass kick, as on the blackjack table.
+  // Apron, a lacquered pedestal, and the glow at its foot, as on the
+  // blackjack table.
   const APRON = m(0.13);
   const apron = new THREE.Mesh(new THREE.ExtrudeGeometry(stadium(POKER_RAIL_OUTER), {
     depth: APRON, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 3, curveSegments: 40,
@@ -314,17 +330,17 @@ export function createPokerTable() {
   const pedestalTop = -0.025 - APRON;
   const pedestal = new THREE.Mesh(new THREE.ExtrudeGeometry(stadium(POKER_RAIL_OUTER - m(0.55)), {
     depth: pedestalTop - FLOOR_Y, bevelEnabled: false, curveSegments: 32,
-  }), new THREE.MeshStandardMaterial({ color: 0x120d0a, roughness: 0.7, metalness: 0 }));
+  }), PEDESTAL_LACQUER);
   pedestal.rotation.x = Math.PI / 2;
   pedestal.position.y = pedestalTop;
   pedestal.castShadow = true;
   group.add(pedestal);
-  const kick = new THREE.Mesh(new THREE.ExtrudeGeometry(stadium(POKER_RAIL_OUTER - m(0.535)), {
-    depth: m(0.05), bevelEnabled: false, curveSegments: 32,
-  }), BRASS);
-  kick.rotation.x = Math.PI / 2;
-  kick.position.y = FLOOR_Y + m(0.05);
-  group.add(kick);
+  addTableGlow(group, {
+    footOuter: stadium(POKER_RAIL_OUTER - m(0.52)),
+    footInner: stadium(POKER_RAIL_OUTER - m(0.548)),
+    w: LENGTH + POKER_RAIL_OUTER * 2 + m(2.4), d: WIDTH + POKER_RAIL_OUTER * 2 + m(2.0),
+    edge: { outer: stadium(POKER_RAIL_OUTER + 0.012), inner: stadium(POKER_RAIL_OUTER - m(0.04)), y: pedestalTop - 0.022 },
+  });
 
   // The dealer's tray, set into the felt in front of them.
   const tray = new THREE.Mesh(new THREE.BoxGeometry(m(0.42), 0.012, m(0.1)),

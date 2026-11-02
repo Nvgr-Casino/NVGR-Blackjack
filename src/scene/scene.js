@@ -138,6 +138,8 @@ export function initScene(canvas) {
   let room = null;
   let roomTier = 0;
   let service = null;   // the waiters and cup holders, once the tables exist
+  let tableGlow = 0xffc878;
+  const glowing = [];
   function setRoomTheme(tier) {
     if (tier === roomTier) return;
     roomTier = tier;
@@ -162,6 +164,10 @@ export function initScene(canvas) {
     wash.intensity = l.washPower;
     scene.background.setHex(l.fog);
     scene.fog.color.setHex(l.fog);
+    // The glow under the tables, in the room's own colour (the tables are
+    // made after the first room, so they take it up when they are).
+    tableGlow = room.userData.theme.tableGlow ?? 0xffc878;
+    glowing.forEach((t) => t.userData.setGlow(tableGlow));
     // How far the room's air softens what is far off: the bright rooms
     // barely at all, so their far walls don't sink into gloom.
     scene.fog.near = l.fogNear ?? 18;
@@ -232,6 +238,7 @@ export function initScene(canvas) {
 
   // The Hold'em table and its six chairs.
   const pokerTable = createPokerTable();
+  [table, pokerTable].forEach((t) => { if (t.userData.setGlow) { glowing.push(t); t.userData.setGlow(tableGlow); } });
   pokerSet.add(pokerTable);
   const pokerChairs = new Map();
   POKER_SEATS_3D.forEach((seat) => {

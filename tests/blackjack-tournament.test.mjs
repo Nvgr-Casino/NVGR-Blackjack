@@ -193,7 +193,9 @@ playOut(elim, 200);
   ['a', 'b', 'c'].forEach((k) => T.register(r, k, { name: k, now: 0 }));
   T.start(r, 0);
   const err = playHand(r, { skip: ['c'] });
-  ok(!err && r.players.c.hands.length === 1 && r.players.c.hands[0].bet <= T.MIN_BET * 2, 'a player who doesn\'t bet is dealt in for the minimum');
+  // Played out by basic strategy once dealt in, so a pair may be split (two
+  // hands, the minimum on each) or a hand doubled (twice it).
+  ok(!err && r.players.c.hands.length >= 1 && r.players.c.hands.every((h) => h.bet <= T.MIN_BET * 2), 'a player who doesn\'t bet is dealt in for the minimum');
 }
 
 // ----- leaving on your own turn

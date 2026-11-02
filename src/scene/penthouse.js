@@ -283,6 +283,7 @@ export function onyxMaterial() {
 // The largest room by far: 28 m of floor across, and tall, with a pool
 // deck of its own down the right-hand side.
 export const PENTHOUSE = {
+  tableGlow: 0xffe2b0,
   half: 36,
   ceilingY: 11.0,
   windows: true,

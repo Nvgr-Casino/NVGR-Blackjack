@@ -269,6 +269,7 @@ function stringLights(from, to, sag, bulbs, out) {
 const TERRACE_SIGN_Y = FLOOR_Y + m(2.6);
 
 export const TERRACE = {
+  tableGlow: 0xffa860,
   open: { back: true, sides: true },
   ceiling: null, noPanel: true, noCove: true,
   floorPx: 1024, floorRepeat: 36 / 3.2,
@@ -524,6 +525,7 @@ function decoCeiling(room, CEILING_Y) {
 }
 
 export const DECO = {
+  tableGlow: 0xffd27a,
   ceilingY: 8.4,
   paintWall: paintDecoWall,
   floorPx: 2048, floorRepeat: 1,
@@ -712,6 +714,7 @@ function bankersLamp(room, x, y, z, yaw = 0) {
 }
 
 export const LIBRARY = {
+  tableGlow: 0xffbe6a,
   ceilingY: 9.6,
   ceilingHole: { x: 0, z: -0.4, r: m(2.4) },
   paintWall: paintLibraryWall,
@@ -1018,6 +1021,7 @@ function fireplace(room, z) {
 }
 
 export const MIRRORS = {
+  tableGlow: 0xffdc96,
   ceilingY: 8.8,
   paintWall: paintMirrorWall,
   floorPx: 1024, floorRepeat: 36 / 4,
