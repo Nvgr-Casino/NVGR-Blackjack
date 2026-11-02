@@ -29,7 +29,8 @@ export function initScene(canvas) {
     54,
     window.innerWidth / window.innerHeight,
     0.1,
-    100
+    // Far enough for the Penthouse's city, round the largest room.
+    160
   );
   // Wide enough, and pulled back far enough (see cameraPositionForSeat), to
   // keep the dealer's cards and every seat's hand spot in frame at once —

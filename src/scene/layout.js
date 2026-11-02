@@ -222,10 +222,10 @@ export function walkway(room, { x = 8.4, back = -7.0, front = 8.4 } = {}) {
  * over it. Records on the room where the bartender stands and where a
  * waiter waits at its end to collect (room.userData.bar, for waiters.js).
  */
-export function barCorner(room, half, ceilingY, { length = m(3.2), body, top, wood, rgb = '216,180,110', lamp = 'modern_ceiling_lamp_01', lampSize = 1 } = {}) {
+export function barCorner(room, half, ceilingY, { length = m(3.2), body, top, bodyMaterial, wood, rgb = '216,180,110', lamp = 'modern_ceiling_lamp_01', lampSize = 1 } = {}) {
   const x = -half + m(0.7) + length / 2;
   const z = -half + m(1.55);
-  const counter = createBar(length, rgb, { body, top });
+  const counter = createBar(length, rgb, { body, top, bodyMaterial });
   counter.position.set(x, 0, z);
   room.add(counter);
   const back = createBackBar(length, { wood, rgb });

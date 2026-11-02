@@ -91,10 +91,11 @@ function crestPanel(w, h, accentRgb) {
  * with brass trim and the house crest on the front, a marble top, and a
  * brass foot rail. Its origin is on the floor at the middle of the front.
  */
-export function createBar(length, accentRgb = '216,180,110', { body: bodyColor = 0x141316, top: topColor = 0xe9e3d7 } = {}) {
+export function createBar(length, accentRgb = '216,180,110', { body: bodyColor = 0x141316, top: topColor = 0xe9e3d7, bodyMaterial = null } = {}) {
   const group = new THREE.Group();
   const h = m(1.08), depth = m(0.62);
-  const lacquer = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.3, metalness: 0 });
+  // The body's own material, if it has one (the Penthouse's backlit onyx).
+  const lacquer = bodyMaterial || new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.3, metalness: 0 });
   const body = new THREE.Mesh(new THREE.BoxGeometry(length, h - m(0.05), depth), lacquer);
   body.position.set(0, FLOOR_Y + (h - m(0.05)) / 2, -depth / 2);
   body.castShadow = true;
