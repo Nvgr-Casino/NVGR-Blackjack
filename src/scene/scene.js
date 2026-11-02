@@ -406,6 +406,7 @@ export function initScene(canvas) {
       tickAnimations();
       updateDealerAnimations(d);
       service.update(d);
+      if (room && room.userData.update) room.userData.update(d, now);
       placeBackdropCamera(d);
       renderer.render(scene, camera);
       return;
@@ -417,6 +418,8 @@ export function initScene(canvas) {
     updateDealerAnimations(delta);
     updateSeatedCharacters(delta);
     service.update(Math.min(0.1, delta));
+    // Anything in the room that moves: the sea, a fire, the lights.
+    if (room && room.userData.update) room.userData.update(Math.min(0.1, delta), now);
     if (!cameraOverride.active) controls.update();
     renderer.render(scene, camera);
   }

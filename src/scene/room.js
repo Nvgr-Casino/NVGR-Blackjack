@@ -95,13 +95,21 @@ function ornament(ctx, x, y, size, fill) {
  * the table. Every wall carries the house crest: large on the back wall
  * the players face, smaller on the others.
  */
-function createWallTexture(theme, d, { back = false, glazed = false } = {}) {
+function createWallTexture(theme, d, { back = false, glazed = false, which = back ? 'back' : 'side' } = {}) {
   const { texW: WALL_TEX_W, texH: WALL_TEX_H, px: PX_PER_UNIT, texY: markTexY, ceiling: CEILING_Y } = d;
   const w = theme.wall;
   const canvas = document.createElement('canvas');
   canvas.width = WALL_TEX_W;
   canvas.height = WALL_TEX_H;
   const ctx = canvas.getContext('2d');
+  // A room that paints its own walls (showrooms.js) does it all itself.
+  if (theme.paintWall) {
+    theme.paintWall(ctx, d, which);
+    const t = new THREE.CanvasTexture(canvas);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 8;
+    return t;
+  }
   const base = rgb(w.base);
 
   ctx.fillStyle = css(base);
@@ -254,6 +262,18 @@ function createWallTexture(theme, d, { back = false, glazed = false } = {}) {
 // The floor: carpet in the theme's colour, with a tonal pattern you only
 // notice up close, or polished boards.
 function createCarpetTexture(theme) {
+  // A room that paints its own floor: one canvas of its size, laid once or
+  // tiled as it says.
+  if (theme.paintFloor) {
+    const c = document.createElement('canvas');
+    c.width = c.height = theme.floorPx || 2048;
+    theme.paintFloor(c.getContext('2d'), c.width);
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 8;
+    return t;
+  }
   const S = 512;
   const canvas = document.createElement('canvas');
   canvas.width = S;
@@ -416,7 +436,8 @@ export function createRoom(tier = 3) {
     new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE),
     new THREE.MeshLambertMaterial({ map: createCarpetTexture(theme) })
   );
-  floor.material.map.repeat.set(ROOM_SIZE / 3, ROOM_SIZE / 3);
+  const tiles = theme.floorRepeat ?? ROOM_SIZE / 3;
+  floor.material.map.repeat.set(tiles, tiles);
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = FLOOR_Y;
   floor.receiveShadow = true;
@@ -425,27 +446,41 @@ export function createRoom(tier = 3) {
   // A ceiling faces down, into nothing but the dim light thrown up from
   // the floor, so a pale one came out brown: it gives a little light of its
   // own, as a ceiling lit by the room's lamps does.
+  // A ceiling can have a round opening in it — for the Library's dome.
+  let ceilingGeo = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
+  if (theme.ceilingHole) {
+    const { x, z, r } = theme.ceilingHole;
+    const shape = new THREE.Shape();
+    shape.moveTo(-ROOM_HALF, -ROOM_HALF); shape.lineTo(ROOM_HALF, -ROOM_HALF); shape.lineTo(ROOM_HALF, ROOM_HALF); shape.lineTo(-ROOM_HALF, ROOM_HALF);
+    const hole = new THREE.Path();
+    // Laid flat by the rotation below, the shape's y becomes -z.
+    hole.absarc(x, -z, r, 0, Math.PI * 2, true);
+    shape.holes.push(hole);
+    ceilingGeo = new THREE.ShapeGeometry(shape, 48);
+  }
   const ceiling = new THREE.Mesh(
-    new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE),
-    new THREE.MeshLambertMaterial({ color: theme.ceiling, emissive: theme.ceiling, emissiveIntensity: theme.ceilingGlow ?? 0.55 })
+    ceilingGeo,
+    new THREE.MeshLambertMaterial({ color: theme.ceiling ?? 0, emissive: theme.ceiling ?? 0, emissiveIntensity: theme.ceilingGlow ?? 0.55 })
   );
   ceiling.rotation.x = Math.PI / 2;
   ceiling.position.y = CEILING_Y;
-  room.add(ceiling);
+  if (theme.ceiling !== null) room.add(ceiling);
 
   // The side walls carry the crest; the back and front walls carry the lit
   // house sign instead (rooms.js), so none is painted on them. In the
   // penthouse the back and side walls are glass.
   const glazed = !!theme.windows;
-  const sideWall = createWallTexture(theme, d, { glazed });
-  const backWall = createWallTexture(theme, d, { back: true, glazed });
-  const frontWall = glazed ? createWallTexture(theme, d, { back: true }) : backWall;
+  const open = theme.open || {};
+  const sideWall = open.sides ? null : createWallTexture(theme, d, { glazed });
+  const backWall = open.back ? null : createWallTexture(theme, d, { back: true, glazed });
+  const frontWall = theme.paintWall ? createWallTexture(theme, d, { which: 'front' }) : (glazed ? createWallTexture(theme, d, { back: true }) : backWall);
+  // An open side (a terrace's) has no wall at all.
   const walls = [
     { rotY: 0, pos: [0, -ROOM_HALF], map: backWall },
     { rotY: Math.PI, pos: [0, ROOM_HALF], map: frontWall },
     { rotY: Math.PI / 2, pos: [-ROOM_HALF, 0], map: sideWall },
     { rotY: -Math.PI / 2, pos: [ROOM_HALF, 0], map: sideWall },
-  ];
+  ].filter((w) => w.map);
   if (glazed) room.add(createSkyline(ROOM_HALF));
   walls.forEach(({ rotY, pos, map }) => {
     const wall = new THREE.Mesh(
@@ -460,7 +495,7 @@ export function createRoom(tier = 3) {
   // The cove the wall wash comes from: a thin warm line where each wall
   // meets the ceiling. MeshBasic, so it glows without lighting anything.
   const coveMat = new THREE.MeshBasicMaterial({ color: theme.cove });
-  walls.forEach(({ rotY, pos }) => {
+  (theme.noCove ? [] : walls).forEach(({ rotY, pos }) => {
     const cove = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, 0.06), coveMat);
     const inward = new THREE.Vector3(0, 0, 0.02).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY);
     cove.position.set(pos[0] + inward.x, CEILING_Y - 0.12, pos[1] + inward.z);
@@ -475,14 +510,14 @@ export function createRoom(tier = 3) {
     new THREE.MeshLambertMaterial({ color: 0x060505 })
   );
   panelFrame.position.set(0, CEILING_Y - 0.06, -0.4);
-  room.add(panelFrame);
+  if (!theme.noPanel) room.add(panelFrame);
   const diffuser = new THREE.Mesh(
     new THREE.PlaneGeometry(4.8, 3.2),
     new THREE.MeshBasicMaterial({ color: theme.diffuser })
   );
   diffuser.rotation.x = Math.PI / 2;
   diffuser.position.set(0, CEILING_Y - 0.125, -0.4);
-  room.add(diffuser);
+  if (!theme.noPanel) room.add(diffuser);
 
   theme.furnish(room, ROOM_HALF, CEILING_Y);
   return room;
