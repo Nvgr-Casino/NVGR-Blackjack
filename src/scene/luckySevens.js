@@ -462,95 +462,201 @@ const edgeMats = GAMES.map((g) => light(g.edge));
 const candleMat = light(0xc8281c);
 
 // A video slot: cabinet, screen, top box, button deck, light along its
-// edges, and a padded swivel chair before it.
-function slotMachine(room, x, z, yaw, game, machines) {
+// edges, and a padded swivel chair before it. Built once as a pattern; the
+// floor draws every machine from it, instanced, so a floor of eighty
+// costs no more to draw than a handful. Each mesh says what it is: most
+// are the same on every machine; the screen and the logo are the game's;
+// the edge light takes the game's colour; the reels scroll on their own.
+function slotPattern() {
   const g = new THREE.Group();
+  const add = (parent, mesh, kind = 'static') => { mesh.userData.kind = kind; parent.add(mesh); return mesh; };
   const W = m(0.66), D = m(0.62);
-  const base = new THREE.Mesh(new THREE.BoxGeometry(W, m(0.82), D), gloss);
-  base.position.y = FLOOR_Y + m(0.41);
-  g.add(base);
-  const kick = new THREE.Mesh(new THREE.BoxGeometry(W + m(0.02), m(0.08), D + m(0.02)), gunmetal);
-  kick.position.y = FLOOR_Y + m(0.04);
-  g.add(kick);
+  add(g, new THREE.Mesh(new THREE.BoxGeometry(W, m(0.82), D), gloss)).position.y = FLOOR_Y + m(0.41);
+  add(g, new THREE.Mesh(new THREE.BoxGeometry(W + m(0.02), m(0.08), D + m(0.02)), gunmetal)).position.y = FLOOR_Y + m(0.04);
   // The button deck, sloped toward the player.
-  const deck = new THREE.Mesh(new THREE.BoxGeometry(W, m(0.06), m(0.34)), [gunmetal, gunmetal, deckMat, gunmetal, gunmetal, gunmetal]);
+  const deck = add(g, new THREE.Mesh(new THREE.BoxGeometry(W, m(0.06), m(0.34)), [gunmetal, gunmetal, deckMat, gunmetal, gunmetal, gunmetal]));
   deck.position.set(0, FLOOR_Y + m(0.86), D / 2 + m(0.05));
   deck.rotation.x = 0.2;
-  g.add(deck);
   // The screen housing, leaning back a little.
   const head = new THREE.Group();
   head.position.set(0, FLOOR_Y + m(0.9), 0);
   head.rotation.x = -0.1;
   g.add(head);
-  const housing = new THREE.Mesh(new THREE.BoxGeometry(W, m(0.86), m(0.36)), gloss);
-  housing.position.set(0, m(0.43), m(0.05));
-  head.add(housing);
+  add(head, new THREE.Mesh(new THREE.BoxGeometry(W, m(0.86), m(0.36)), gloss)).position.set(0, m(0.43), m(0.05));
   const SW = W * 0.88, SH = m(0.76);
-  const screen = new THREE.Mesh(new THREE.PlaneGeometry(SW, SH), screenMats[game]);
-  screen.position.set(0, m(0.44), m(0.232));
-  head.add(screen);
+  add(head, new THREE.Mesh(new THREE.PlaneGeometry(SW, SH), screenMats[0]), 'screen').position.set(0, m(0.44), m(0.232));
   // A chrome bezel round the screen.
   [[SW + m(0.03), m(0.015), 0, SH / 2], [SW + m(0.03), m(0.015), 0, -SH / 2], [m(0.015), SH, SW / 2, 0], [m(0.015), SH, -SW / 2, 0]].forEach(([bw, bh, bx, by]) => {
-    const b = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, m(0.012)), chrome);
-    b.position.set(bx, m(0.44) + by, m(0.234));
-    head.add(b);
+    add(head, new THREE.Mesh(new THREE.BoxGeometry(bw, bh, m(0.012)), chrome)).position.set(bx, m(0.44) + by, m(0.234));
   });
-  // Five reels over the screen's window, each its own scrolling column.
-  const reels = [];
+  // Five reels over the screen's window.
   const winW = SW * 0.92, winH = SH * 0.58;
   const winY = m(0.44) + SH * (0.5 - 0.2 - 0.29);
-  for (let i = 0; i < 5; i++) {
-    const tex = reelColumn().clone();
-    tex.needsUpdate = true;
-    tex.repeat.set(1, 3 / SYMBOLS.length);
-    tex.offset.y = Math.floor(Math.random() * SYMBOLS.length) / SYMBOLS.length;
-    const reel = new THREE.Mesh(new THREE.PlaneGeometry(winW / 5 - m(0.005), winH - m(0.008)), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
-    reel.position.set(-winW / 2 + (i + 0.5) * (winW / 5), winY, m(0.2335));
-    head.add(reel);
-    reels.push(tex);
-  }
+  const reelGeo = new THREE.PlaneGeometry(winW / 5 - m(0.005), winH - m(0.008));
+  for (let i = 0; i < 5; i++) add(head, new THREE.Mesh(reelGeo), 'reel').position.set(-winW / 2 + (i + 0.5) * (winW / 5), winY, m(0.2335));
   // The top box, its logo lit, its jackpot in it.
-  const top = new THREE.Mesh(new THREE.BoxGeometry(W, m(0.36), m(0.3)), gloss);
-  top.position.set(0, m(1.06), m(0.02));
-  head.add(top);
-  const logo = new THREE.Mesh(new THREE.PlaneGeometry(W * 0.9, m(0.3)), topperMats[game]);
-  logo.position.set(0, m(1.06), m(0.172));
-  head.add(logo);
+  add(head, new THREE.Mesh(new THREE.BoxGeometry(W, m(0.36), m(0.3)), gloss)).position.set(0, m(1.06), m(0.02));
+  add(head, new THREE.Mesh(new THREE.PlaneGeometry(W * 0.9, m(0.3)), topperMats[0]), 'logo').position.set(0, m(1.06), m(0.172));
   // Light along the cabinet's edges, in the game's colour.
-  [-1, 1].forEach((s) => {
-    const strip = new THREE.Mesh(new THREE.BoxGeometry(m(0.012), m(1.95), m(0.012)), edgeMats[game]);
-    strip.position.set(s * (W / 2 + m(0.006)), FLOOR_Y + m(1.0), D / 2 - m(0.04));
-    g.add(strip);
-  });
+  const edgeGeo = new THREE.BoxGeometry(m(0.012), m(1.95), m(0.012));
+  [-1, 1].forEach((s) => add(g, new THREE.Mesh(edgeGeo), 'edge').position.set(s * (W / 2 + m(0.006)), FLOOR_Y + m(1.0), D / 2 - m(0.04)));
   // The candle on top that calls an attendant.
-  const candle = new THREE.Mesh(new THREE.CylinderGeometry(m(0.025), m(0.025), m(0.1), 12), candleMat);
-  candle.position.set(0, FLOOR_Y + m(2.18), -m(0.08));
-  g.add(candle);
+  add(g, new THREE.Mesh(new THREE.CylinderGeometry(m(0.025), m(0.025), m(0.1), 12), candleMat)).position.set(0, FLOOR_Y + m(2.18), -m(0.08));
   // Its chair: a padded seat with a back, on a chrome column.
   const chair = new THREE.Group();
   chair.position.set(0, 0, D / 2 + m(0.62));
-  const col = new THREE.Mesh(new THREE.CylinderGeometry(m(0.035), m(0.035), m(0.5), 12), chrome);
-  col.position.y = FLOOR_Y + m(0.25);
-  chair.add(col);
-  const foot = new THREE.Mesh(new THREE.CylinderGeometry(m(0.24), m(0.26), m(0.03), 24), chrome);
-  foot.position.y = FLOOR_Y + m(0.015);
-  chair.add(foot);
-  const seat = new THREE.Mesh(new THREE.CylinderGeometry(m(0.24), m(0.22), m(0.12), 24), leather);
-  seat.position.y = FLOOR_Y + m(0.56);
-  chair.add(seat);
-  const back = new THREE.Mesh(new THREE.BoxGeometry(m(0.42), m(0.42), m(0.08)), leather);
+  g.add(chair);
+  add(chair, new THREE.Mesh(new THREE.CylinderGeometry(m(0.035), m(0.035), m(0.5), 12), chrome)).position.y = FLOOR_Y + m(0.25);
+  add(chair, new THREE.Mesh(new THREE.CylinderGeometry(m(0.24), m(0.26), m(0.03), 24), chrome)).position.y = FLOOR_Y + m(0.015);
+  add(chair, new THREE.Mesh(new THREE.CylinderGeometry(m(0.24), m(0.22), m(0.12), 24), leather)).position.y = FLOOR_Y + m(0.56);
+  const back = add(chair, new THREE.Mesh(new THREE.BoxGeometry(m(0.42), m(0.42), m(0.08)), leather));
   back.position.set(0, FLOOR_Y + m(0.86), m(0.2));
   back.rotation.x = -0.12;
-  chair.add(back);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(m(0.16), m(0.012), 6, 24), chrome);
+  const ring = add(chair, new THREE.Mesh(new THREE.TorusGeometry(m(0.16), m(0.012), 6, 24), chrome));
   ring.rotation.x = Math.PI / 2;
   ring.position.y = FLOOR_Y + m(0.25);
-  chair.add(ring);
-  g.add(chair);
-  g.position.set(x, 0, z);
-  g.rotation.y = yaw;
-  room.add(g);
-  machines.push({ reels, spinUntil: 0, next: performance.now() + 2000 + Math.random() * 20000, stops: reels.map(() => 0) });
+  g.updateMatrixWorld(true);
+  return g;
+}
+
+// The reels: one material for all of them, each instance scrolled by its
+// own offset (an attribute the shader adds to the reel's v).
+function reelMaterial() {
+  const tex = reelColumn();
+  tex.repeat.set(1, 3 / SYMBOLS.length);
+  const mat = new THREE.MeshBasicMaterial({ map: tex, toneMapped: false });
+  mat.onBeforeCompile = (sh) => {
+    sh.vertexShader = 'attribute float reelOff;\n' + sh.vertexShader.replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_MAP\n  vMapUv.y += reelOff;\n#endif');
+  };
+  return mat;
+}
+
+// The slot floor: every machine at its place [x, z, yaw, game], drawn from
+// the pattern. Returns the reels' offsets and the machines, each with the
+// index of its first reel.
+function slotFloor(room, places) {
+  const pattern = slotPattern();
+  const up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
+  const where = places.map(([x, z, yaw]) => new THREE.Matrix4().compose(new THREE.Vector3(x, 0, z), new THREE.Quaternion().setFromAxisAngle(up, yaw), one));
+  const mtx = new THREE.Matrix4();
+  const instanced = (geo, mat, list, part, colour) => {
+    const im = new THREE.InstancedMesh(geo, mat, list.length);
+    list.forEach((i, k) => {
+      im.setMatrixAt(k, mtx.multiplyMatrices(where[i], part));
+      if (colour) im.setColorAt(k, colour(i));
+    });
+    im.frustumCulled = false;
+    room.add(im);
+    return im;
+  };
+  const all = places.map((_, i) => i);
+  const reelParts = [];
+  pattern.traverse((o) => {
+    if (!o.isMesh) return;
+    const kind = o.userData.kind;
+    if (kind === 'static') instanced(o.geometry, o.material, all, o.matrixWorld);
+    else if (kind === 'screen' || kind === 'logo') {
+      GAMES.forEach((_, gi) => {
+        const list = all.filter((i) => places[i][3] === gi);
+        if (list.length) instanced(o.geometry, (kind === 'screen' ? screenMats : topperMats)[gi], list, o.matrixWorld);
+      });
+    } else if (kind === 'edge') {
+      const c = new THREE.Color();
+      instanced(o.geometry, light(0xffffff), all, o.matrixWorld, (i) => c.setHex(GAMES[places[i][3]].edge));
+    } else if (kind === 'reel') reelParts.push(o);
+  });
+  // The reels, all in one: five to a machine, in order.
+  const n = places.length * 5;
+  const geo = reelParts[0].geometry.clone();
+  const off = new THREE.InstancedBufferAttribute(new Float32Array(n), 1);
+  geo.setAttribute('reelOff', off);
+  const reels = new THREE.InstancedMesh(geo, reelMaterial(), n);
+  places.forEach((_, i) => reelParts.forEach((part, k) => {
+    reels.setMatrixAt(i * 5 + k, mtx.multiplyMatrices(where[i], part.matrixWorld));
+    off.array[i * 5 + k] = Math.floor(Math.random() * SYMBOLS.length) / SYMBOLS.length;
+  }));
+  reels.frustumCulled = false;
+  room.add(reels);
+  return { off, machines: places.map((_, i) => ({ first: i * 5, spinUntil: 0, next: performance.now() + 2000 + Math.random() * 20000, stops: [0, 0, 0, 0, 0] })) };
+}
+
+// Where the machines stand, as a slot floor lays them out: banks down
+// both side walls and along the back wall to the right of the sign; out
+// on the floor either side, a long island of machines back to back with
+// an end cap at each end; aisles between, the table and the bar clear.
+// Positions in metres from the middle of the room.
+function slotPlaces() {
+  const H = half / m(1);
+  const P = [];
+  const at = (xm, zm, yaw) => P.push([m(xm), m(zm), yaw, P.length % 4]);
+  const STEP = 0.8;
+  // The back wall, right of the sign.
+  for (let i = 0; i < 9; i++) at(3.6 + i * STEP, -H + 0.75, 0);
+  // The side walls: the right from the back corner, the left from beyond
+  // the bar.
+  for (let i = 0; i < 16; i++) at(H - 0.75, -12.0 + i * STEP, -Math.PI / 2);
+  for (let i = 0; i < 13; i++) at(-H + 0.75, -9.6 + i * STEP, Math.PI / 2);
+  // The islands, an end cap at either end.
+  [-1, 1].forEach((s) => {
+    for (let i = 0; i < 11; i++) {
+      const z = -8.4 + i * STEP;
+      at(s * 9.2 - 0.45, z, -Math.PI / 2);
+      at(s * 9.2 + 0.45, z, Math.PI / 2);
+    }
+    at(s * 9.2, -8.4 - STEP, Math.PI);
+    at(s * 9.2, -8.4 + 11 * STEP, 0);
+  });
+  // A carousel either side in the front half: eight machines round a
+  // column, facing out.
+  CAROUSELS.forEach(([cx, cz]) => {
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      at(cx + Math.sin(a) * 1.2, cz + Math.cos(a) * 1.2, a);
+    }
+  });
+  return P;
+}
+const CAROUSELS = [[-7.3, 7.0], [7.3, 7.0]];
+
+// The column at a carousel's heart, and over it a drum showing the
+// progressive the machines round it play for.
+function carouselColumn(room, xm, zm) {
+  const x = m(xm), z = m(zm);
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(m(0.62), m(0.62), m(2.3), 32), gloss);
+  col.position.set(x, FLOOR_Y + m(1.15), z);
+  room.add(col);
+  const tex = canvasTex(2048, 256, (ctx, w, h) => {
+    ctx.fillStyle = '#080404';
+    ctx.fillRect(0, 0, w, h);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let k = 0; k < 2; k++) {
+      const cx = w * (0.25 + k * 0.5);
+      ctx.font = "900 italic 92px Georgia, serif";
+      ctx.fillStyle = '#f2c84a';
+      ctx.fillText('777 PROGRESSIVE', cx, h * 0.34);
+      ctx.font = '700 84px "Courier New", monospace';
+      ctx.fillStyle = '#ff3a2a';
+      ctx.shadowColor = '#ff3a2a';
+      ctx.shadowBlur = 16;
+      ctx.fillText('$' + (240000 + Math.floor(Math.random() * 60000)).toLocaleString('en-US') + '.' + String(Math.floor(Math.random() * 100)).padStart(2, '0'), cx, h * 0.74);
+      ctx.shadowBlur = 0;
+    }
+  });
+  const drum = new THREE.Mesh(new THREE.CylinderGeometry(m(1.0), m(1.0), m(0.5), 48, 1, true), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
+  drum.position.set(x, FLOOR_Y + m(2.6), z);
+  room.add(drum);
+  [m(2.35), m(2.85)].forEach((y) => {
+    const band = new THREE.Mesh(new THREE.TorusGeometry(m(1.0), m(0.03), 8, 64), chrome);
+    band.rotation.x = Math.PI / 2;
+    band.position.set(x, FLOOR_Y + y, z);
+    room.add(band);
+  });
+  const cap = new THREE.Mesh(new THREE.CircleGeometry(m(1.0), 48), gloss);
+  cap.rotation.x = -Math.PI / 2;
+  cap.position.set(x, FLOOR_Y + m(2.85), z);
+  room.add(cap);
+  return (dt) => { drum.rotation.y += dt * 0.15; };
 }
 
 // ---------- the jackpot ----------
@@ -815,7 +921,6 @@ export const LUCKY_SEVENS = {
   light: { sky: 0xfff0e0, ground: 0x4a2a24, fill: 2.3, key: 0xfff0e0, keyPower: 92, wash: 0xffc890, washPower: 40, fog: 0x120a0a, fogNear: 60, fogFar: 150 },
   furnish(room) {
     const flickers = [];
-    const machines = [];
     const updates = [];
     cofferedCeiling(room);
 
@@ -834,19 +939,9 @@ export const LUCKY_SEVENS = {
     updates.push(jackpotRing(room));
     room.add(roundRug(m(4.4), { base: '#1a0a10', gold: '#b8965a', bright: '#e0c07a' }));
 
-    // Banks of slots down both walls, and islands back to back out on the
-    // floor either side of the table.
-    [-1, 1].forEach((side) => {
-      for (let i = 0; i < 9; i++) slotMachine(room, side * (half - m(0.75)), -m(10.8) + i * m(0.78), side < 0 ? Math.PI / 2 : -Math.PI / 2, (i + (side > 0 ? 2 : 0)) % 4, machines);
-      for (let i = 0; i < 7; i++) {
-        const z = -m(4.6) + i * m(0.78);
-        slotMachine(room, side * m(7.2) - m(0.45), z, -Math.PI / 2, (i + 1) % 4, machines);
-        slotMachine(room, side * m(7.2) + m(0.45), z, Math.PI / 2, (i + 3) % 4, machines);
-      }
-    });
-    // A bank along the back wall either side of the sign.
-    for (let i = 0; i < 9; i++) slotMachine(room, m(4.4) + i * m(0.78), -half + m(0.75), 0, i % 4, machines);
-    for (let i = 0; i < 3; i++) slotMachine(room, -m(4.4) - i * m(0.78), -half + m(0.75), 0, (i + 2) % 4, machines);
+    // The slot floor.
+    const slots = slotFloor(room, slotPlaces());
+    CAROUSELS.forEach(([x, z]) => updates.push(carouselColumn(room, x, z)));
     // Booths in the front half.
     [-1, 1].forEach((side) => [m(3.2), m(6.6), m(10)].forEach((z) => booth(room, side * (half - m(2.2)), z, side < 0 ? -Math.PI / 2 : Math.PI / 2)));
     [-m(4.5), m(4.5)].forEach((x) => booth(room, x, half - m(2.3), Math.PI));
@@ -860,19 +955,22 @@ export const LUCKY_SEVENS = {
       updates.forEach((u) => u(dt, now));
       // Now and then a machine spins: its reels run, then stop one by one
       // on a symbol, left to right.
-      machines.forEach((mc) => {
+      let moved = false;
+      slots.machines.forEach((mc) => {
         if (now > mc.next && now > mc.spinUntil) {
-          mc.stops = mc.reels.map((_, i) => now + 1400 + i * 260);
-          mc.spinUntil = mc.stops[mc.stops.length - 1];
+          mc.stops = mc.stops.map((_, i) => now + 1400 + i * 260);
+          mc.spinUntil = mc.stops[4];
           mc.next = now + 6000 + Math.random() * 22000;
         }
         if (now < mc.spinUntil + 100) {
-          mc.reels.forEach((tex, i) => {
-            if (now < mc.stops[i]) tex.offset.y = (tex.offset.y + dt * 3.2) % 1;
-            else tex.offset.y = Math.round(tex.offset.y * N) / N;
-          });
+          moved = true;
+          for (let i = 0; i < 5; i++) {
+            const k = mc.first + i;
+            slots.off.array[k] = now < mc.stops[i] ? (slots.off.array[k] + dt * 3.2) % 1 : Math.round(slots.off.array[k] * N) / N;
+          }
         }
       });
+      if (moved) slots.off.needsUpdate = true;
       flickers.forEach((f) => {
         if (now > f.next) {
           f.until = now + 120 + Math.random() * 300;
