@@ -191,3 +191,23 @@ export function bottleRow(parent, x0, x1, y, z, palette, step = m(0.11)) {
     parent.add(b);
   }
 }
+
+// Gilt lettering cut from a canvas: transparent where there are no letters.
+export function giltText(text, w, h, font) {
+  const tex = canvasTex(1024, Math.round((1024 * h) / w), (ctx, W, H) => {
+    ctx.font = font.replace('{S}', Math.round(H * 0.7));
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const g = ctx.createLinearGradient(0, H * 0.15, 0, H * 0.85);
+    g.addColorStop(0, '#fff0b8');
+    g.addColorStop(0.45, '#d4a84a');
+    g.addColorStop(0.55, '#8a6220');
+    g.addColorStop(1, '#e8c470');
+    ctx.shadowColor = 'rgba(0,0,0,0.55)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 3;
+    ctx.fillStyle = g;
+    ctx.fillText(text, W / 2, H / 2);
+  });
+  return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, transparent: true, alphaTest: 0.1, roughness: 0.3, metalness: 0.6, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.25 }));
+}
