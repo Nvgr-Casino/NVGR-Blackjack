@@ -231,21 +231,32 @@ function createPokerFelt(themeKey) {
   ctx.lineTo(cx - sx, cy + r);
   ctx.arc(cx - sx, cy, r, Math.PI / 2, Math.PI * 1.5);
   ctx.stroke();
-  // The house crest each side of the board, and the game's name.
+  // The house crest at each end of the board, and the game's name large
+  // between the board and the front seats, a line under it; drawn taller
+  // than wide, as the felt is read at a shallow angle, with a faint dark
+  // edge so the gold reads on any cloth.
   [-1, 1].forEach((side) => {
-    const [x, y] = toPx(side * (STRAIGHT + END_R * 0.15), 0);
-    drawCasinoCrest(ctx, { x, y, width: PX * 0.34, alpha: 0.5, rgb: '230,198,126', foreshorten: 1.3 });
+    const [x, y] = toPx(side * (STRAIGHT + END_R * 0.12), 0);
+    drawCasinoCrest(ctx, { x, y, width: PX * 0.62, alpha: 0.55, rgb: '230,198,126', foreshorten: 1.35 });
   });
-  ctx.fillStyle = GOLD_INK_SOFT;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = `600 ${PX * 0.032}px 'Cinzel', Georgia, serif`;
-  const [tx, ty] = toPx(0, m(0.17));
-  ctx.save();
-  ctx.translate(tx, ty);
-  ctx.scale(1, 1.4);
-  ctx.fillText("NVGR CASINO  ·  TEXAS HOLD'EM", 0, 0);
-  ctx.restore();
+  const line = (text, z, size, weight, fill, spacing) => {
+    const [tx, ty] = toPx(0, z);
+    ctx.save();
+    ctx.translate(tx, ty);
+    ctx.scale(1, 1.4);
+    ctx.font = `${weight} ${PX * size}px 'Cinzel', Georgia, serif`;
+    ctx.letterSpacing = `${PX * size * spacing}px`;
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillText(text, PX * size * 0.03, PX * size * 0.03);
+    ctx.fillStyle = fill;
+    ctx.fillText(text, 0, 0);
+    ctx.letterSpacing = '0px';
+    ctx.restore();
+  };
+  line("TEXAS HOLD'EM", m(0.23), 0.2, 700, GOLD_INK, 0.16);
+  line('NO LIMIT  ·  NVGR CASINO', m(0.335), 0.075, 600, GOLD_INK_SOFT, 0.22);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;

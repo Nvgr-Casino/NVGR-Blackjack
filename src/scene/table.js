@@ -169,57 +169,88 @@ function createFeltTexture(themeKey) {
     shape.getPoints(96).forEach((p, i) => { const [x, y] = toPx(p.x, p.y); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); });
     ctx.stroke();
     const [cx, cy] = toPx(0, -SIDE_LENGTH * 0.36);
-    drawCasinoCrest(ctx, { x: cx, y: cy, width: PX * 0.5, alpha: 0.3, rgb: '230,198,126', foreshorten: FORESHORTEN });
+    drawCasinoCrest(ctx, { x: cx, y: cy, width: PX * 0.62, alpha: 0.5, rgb: '230,198,126', foreshorten: FORESHORTEN });
   }
   const font = (worldSize, weight = 600) => `${weight} ${worldSize * PX}px 'Cinzel', Georgia, serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  const label = (text, z, size, fill, weight) => {
-    const [x, y] = toPx(0, z);
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(1, FORESHORTEN);
-    ctx.fillStyle = fill;
-    ctx.font = font(size, weight);
-    ctx.fillText(text, 0, 0);
-    ctx.restore();
-  };
   // Positions are proportions of the table's radius, so the layout holds
   // whatever size the table is.
   const R = TABLE_RADIUS;
-  label('BLACKJACK PAYS 3 TO 2', R * 0.215, 0.105, INK, 700);
-  label('DEALER MUST DRAW TO 16 AND STAND ON ALL 17s', R * 0.29, 0.048, INK_SOFT, 600);
 
-  // Insurance band: two printed arcs concentric with the table's own front
-  // edge, with the line set between them, letter by letter.
-  const [ox, oy] = toPx(0, 0);
-  const INNER = R * 0.385;
-  const OUTER = R * 0.46;
-  const ARC_FROM = THREE.MathUtils.degToRad(28);
-  const ARC_TO = THREE.MathUtils.degToRad(152);
-  ctx.strokeStyle = INK_SOFT;
-  ctx.lineWidth = 0.012 * PX;
-  [INNER, OUTER].forEach((r) => {
-    ctx.beginPath();
-    ctx.arc(ox, oy, r * PX, ARC_FROM, ARC_TO);
-    ctx.stroke();
-  });
-  const band = 'INSURANCE PAYS 2 TO 1';
-  const bandR = ((INNER + OUTER) / 2) * PX;
-  const spread = THREE.MathUtils.degToRad(46);
-  ctx.fillStyle = INK_SOFT;
-  ctx.font = font(0.066, 700);
-  [...band].forEach((ch, i) => {
-    // Left to right as the player reads it: canvas angles grow clockwise,
-    // and +90deg points at the players.
-    const a = Math.PI / 2 + spread / 2 - (spread * i) / (band.length - 1);
+  // Lettering is read lower across the cloth than the crest is, so it is
+  // drawn taller still.
+  const STRETCH = 2.0;
+  // Set straight and centred, in the manner of the house crest: a lockup
+  // of the game's promise, the dealer's rule under it, and the insurance
+  // line in a ribbon nearer the players. Sizes are in world units, the
+  // letters drawn taller by STRETCH as the felt is read at a shallow
+  // angle, each with a faint dark edge so the gold reads on any cloth.
+  const text = (str, z, size, { weight = 700, fill = INK, spacing = 0.12, shadow = true } = {}) => {
+    const [x, y] = toPx(0, z);
     ctx.save();
-    ctx.translate(ox + Math.cos(a) * bandR, oy + Math.sin(a) * bandR);
-    ctx.rotate(a - Math.PI / 2);
-    ctx.fillText(ch, 0, 0);
+    ctx.translate(x, y);
+    ctx.scale(1, STRETCH);
+    ctx.font = font(size, weight);
+    ctx.letterSpacing = `${size * PX * spacing}px`;
+    if (shadow) { ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillText(str, size * PX * 0.035, size * PX * 0.035); }
+    ctx.fillStyle = fill;
+    ctx.fillText(str, 0, 0);
+    const w = ctx.measureText(str).width / PX;
+    ctx.letterSpacing = '0px';
     ctx.restore();
-  });
+    return w;
+  };
+  // A fine gold rule from x0 to x1 at z, a small diamond at each end.
+  const rule = (x0, x1, z, width = 0.008) => {
+    const [a, y] = toPx(x0, z);
+    const [b] = toPx(x1, z);
+    ctx.strokeStyle = INK_SOFT;
+    ctx.lineWidth = width * PX;
+    ctx.beginPath(); ctx.moveTo(a, y); ctx.lineTo(b, y); ctx.stroke();
+    const d = 0.028 * PX;
+    [a, b].forEach((px) => {
+      ctx.fillStyle = INK;
+      ctx.beginPath();
+      ctx.moveTo(px, y - d * STRETCH); ctx.lineTo(px + d, y); ctx.lineTo(px, y + d * STRETCH); ctx.lineTo(px - d, y);
+      ctx.closePath(); ctx.fill();
+    });
+  };
+
+  // BLACKJACK, large and wide; PAYS 3 TO 2 under it between rules.
+  const wide = text('BLACKJACK', R * 0.24, 0.2, { spacing: 0.32 });
+  const pays = text('PAYS 3 TO 2', R * 0.335, 0.11, { spacing: 0.24 });
+  const gapX = pays / 2 + 0.1;
+  rule(-wide / 2, -gapX, R * 0.335);
+  rule(gapX, wide / 2, R * 0.335);
+  // The dealer's rule.
+  text('DEALER MUST DRAW TO 16 AND STAND ON ALL 17s', R * 0.392, 0.06, { weight: 600, fill: INK_SOFT, spacing: 0.1, shadow: false });
+
+  // The insurance ribbon: a long band with pointed ends, the line in it.
+  {
+    const z = R * 0.468;
+    const w = text('INSURANCE PAYS 2 TO 1', z, 0.1, { spacing: 0.22 }) / 2 + 0.22;
+    const h = 0.075;
+    const [cx, cy] = toPx(0, z);
+    const pts = [[-w, -h], [w, -h], [w + 0.08, 0], [w, h], [-w, h], [-w - 0.08, 0]];
+    ctx.strokeStyle = INK_SOFT;
+    ctx.lineWidth = 0.009 * PX;
+    ctx.beginPath();
+    pts.forEach(([x, y], i) => { const X = cx + x * PX, Y = cy + y * PX * STRETCH; if (i) ctx.lineTo(X, Y); else ctx.moveTo(X, Y); });
+    ctx.closePath();
+    ctx.stroke();
+    // A suit just inside each point.
+    [[-w + 0.07, '♠'], [w - 0.07, '♦']].forEach(([x, g]) => {
+      ctx.save();
+      ctx.translate(cx + x * PX, cy);
+      ctx.scale(1, STRETCH);
+      ctx.font = `${0.085 * PX}px Georgia, 'Segoe UI Symbol', serif`;
+      ctx.fillStyle = INK;
+      ctx.fillText(g, 0, 0);
+      ctx.restore();
+    });
+  }
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;

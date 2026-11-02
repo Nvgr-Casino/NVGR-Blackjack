@@ -432,8 +432,9 @@ export function createRoom(tier = 3) {
   room.userData.theme = theme;
   room.userData.dims = d;
 
+  // A round room (the Penthouse's pavilion) has a round floor.
   const floor = new THREE.Mesh(
-    new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE),
+    theme.floorRadius ? new THREE.CircleGeometry(theme.floorRadius, 96) : new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE),
     new THREE.MeshLambertMaterial({ map: createCarpetTexture(theme) })
   );
   const tiles = theme.floorRepeat ?? ROOM_SIZE / 3;
@@ -473,7 +474,7 @@ export function createRoom(tier = 3) {
   const open = theme.open || {};
   const sideWall = open.sides ? null : createWallTexture(theme, d, { glazed });
   const backWall = open.back ? null : createWallTexture(theme, d, { back: true, glazed });
-  const frontWall = theme.paintWall ? createWallTexture(theme, d, { which: 'front' }) : (glazed ? createWallTexture(theme, d, { back: true }) : backWall);
+  const frontWall = open.front ? null : theme.paintWall ? createWallTexture(theme, d, { which: 'front' }) : (glazed ? createWallTexture(theme, d, { back: true }) : backWall);
   // An open side (a terrace's) has no wall at all.
   const walls = [
     { rotY: 0, pos: [0, -ROOM_HALF], map: backWall },

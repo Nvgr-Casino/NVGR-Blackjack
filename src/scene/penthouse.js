@@ -1,395 +1,399 @@
 import * as THREE from 'three';
 import { place } from './furniture.js';
 import { FLOOR_Y, m } from './scale.js';
-import { createRug, createDrape, createBrandSign, createTrayCeiling } from './luxury.js';
-import { lounge, walkway, facing, barCorner, brandSign, staffPosts } from './layout.js';
+import { createBrandSign } from './luxury.js';
+import { walkway, facing, barCorner, staffPosts } from './layout.js';
+import { onyxMaterial } from './onyx.js';
 
-// The Penthouse: a sky lounge on the top floor of a tower, New York at
-// night through glass floor to ceiling on three sides (room.js's
-// createSkyline). What is in it is made to be looked at:
+// The Penthouse: above the clouds.
 //
-//   - over the table, a chandelier of crystal rain: hundreds of glowing
-//     drops on fine threads, falling in a spiral, catching the light and
-//     twinkling;
-//   - along the right-hand glass, an infinity pool lit from within, its
-//     water moving, the city beyond its edge;
-//   - searchlights sweeping slowly across the sky over the city;
-//   - a bar of backlit amber onyx, glowing from inside the stone;
-//   - a lounge round a long fire table at the back right, turned to the
-//     view;
-//   - black marble underfoot, inlaid with gold, a line of gold light along
-//     the foot of all the glass;
-//   - the house sign hung on fine cables before the glass over the dealer.
+// A round pavilion of glass at the top of the world, open to the night on
+// every side and overhead. Below, a sea of cloud lit by the moon, drifting.
+// Above, more stars than a city ever shows, the Milky Way across them, the
+// moon, and the northern lights moving in slow green and violet curtains.
+// The glass is a ring of tall panes between gold mullions under a dome of
+// gold ribs. Underfoot, black obsidian inlaid with constellations in
+// glowing gold, a ring of light round the table, a round rug of night
+// sky. Over the table turns an orrery — gilt rings, planets in their
+// orbits, a sun glowing at its heart. The bar is backlit onyx; lounges
+// sit at the glass, turned out to the view.
 //
-// The drapes that once hung between every bay are gone but for the
-// corners: they framed the view by cutting it up.
+// The sky and the cloud are one painted dome round the camera, drawn first
+// and behind everything (as the terrace's sea and sunset are), so they
+// are as far off as the horizon, and move.
 
-// ---------- the floor ----------
-// Black marble in large slabs, soft white veins, a fine gold inlay between
-// the slabs.
-export function paintPenthouseFloor(ctx, S) {
-  ctx.fillStyle = '#1a1920';
-  ctx.fillRect(0, 0, S, S);
-  for (let v = 0; v < 14; v++) {
-    ctx.strokeStyle = `rgba(220,214,200,${0.06 + Math.random() * 0.1})`;
-    ctx.lineWidth = 1 + Math.random() * 2.5;
-    ctx.beginPath();
-    let x = Math.random() * S, y = 0;
-    ctx.moveTo(x, y);
-    while (y < S) { x += (Math.random() - 0.5) * 70; y += 25 + Math.random() * 40; ctx.lineTo(x, y); }
-    ctx.stroke();
-  }
-  const img = ctx.getImageData(0, 0, S, S);
-  for (let i = 0; i < img.data.length; i += 4) { const n = (Math.random() - 0.5) * 8; img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n; }
-  ctx.putImageData(img, 0, 0);
-  ctx.strokeStyle = 'rgba(214,180,110,0.85)';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(1.5, 1.5, S - 3, S - 3);
-}
+const R = 30;                    // the pavilion's radius, to the glass
+const GLASS_H = m(4.4);          // the panes' height
+const DOME_RISE = m(3.4);        // the dome over them
 
-// ---------- the chandelier of crystal rain ----------
-// Drops on threads from a gilt ring in the ceiling, in a falling spiral —
-// longest at the back of the ring away from the sign's line of sight, so
-// no seat looks at the sign through them — each one twinkling now and then.
-function crystalRain(room, CEILING_Y, center) {
-  const N = 900;
-  const ringR = m(3.0);
-  const drop = new THREE.OctahedronGeometry(m(0.035), 0);
-  drop.scale(1, 1.8, 1);
-  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
-  const crystals = new THREE.InstancedMesh(drop, mat, N);
-  const mtx = new THREE.Matrix4();
-  const base = [];
-  const threads = [];
-  const lowest = 5.1;   // world y: kept above the line from any seat to the sign
-  for (let i = 0; i < N; i++) {
-    const turn = i / N;
-    const a = turn * Math.PI * 2 * 7 + (Math.random() - 0.5) * 0.08;
-    const r = ringR * (0.25 + 0.75 * ((i * 37) % N) / N);
-    const x = center.x + Math.cos(a) * r;
-    const z = center.z + Math.sin(a) * r;
-    // A spiral that falls toward the middle.
-    const depth = (1 - r / ringR) * (CEILING_Y - lowest) * 0.85 + Math.sin(a * 1.0) * 0.25 + 0.4;
-    const y = Math.max(lowest, CEILING_Y - depth);
-    mtx.makeRotationY(Math.random() * Math.PI);
-    mtx.setPosition(x, y, z);
-    crystals.setMatrixAt(i, mtx);
-    crystals.setColorAt(i, new THREE.Color(0xfff1d6));
-    base.push(new THREE.Color().setHSL(0.11, 0.6, 0.78 + Math.random() * 0.12));
-    threads.push(new THREE.Vector3(x, CEILING_Y, z), new THREE.Vector3(x, y + m(0.06), z));
-  }
-  crystals.instanceColor.needsUpdate = true;
-  room.add(crystals);
-  room.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(threads),
-    new THREE.LineBasicMaterial({ color: 0xd8c08a, transparent: true, opacity: 0.35 })));
-  const brass = new THREE.MeshStandardMaterial({ color: 0xc9a86a, roughness: 0.25, metalness: 0.9 });
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(ringR + m(0.1), m(0.06), 8, 64), brass);
-  ring.rotation.x = Math.PI / 2;
-  ring.position.set(center.x, CEILING_Y - m(0.04), center.z);
-  room.add(ring);
-  const glow = new THREE.Mesh(new THREE.CircleGeometry(ringR + m(0.05), 48), new THREE.MeshBasicMaterial({ color: 0xffd9a0, toneMapped: false, transparent: true, opacity: 0.35 }));
-  glow.rotation.x = Math.PI / 2;
-  glow.position.set(center.x, CEILING_Y - 0.01, center.z);
-  room.add(glow);
-  // Twinkling: a few drops at a time flare and fade.
-  const flare = new Float32Array(N);
-  const c = new THREE.Color();
-  return (dt) => {
-    for (let k = 0; k < 6; k++) flare[Math.floor(Math.random() * N)] = 1;
-    for (let i = 0; i < N; i++) {
-      if (flare[i] <= 0) continue;
-      flare[i] = Math.max(0, flare[i] - dt * 1.6);
-      c.copy(base[i]).lerp(new THREE.Color(0xffffff), flare[i]).multiplyScalar(1 + flare[i] * 1.6);
-      crystals.setColorAt(i, c);
-    }
-    crystals.instanceColor.needsUpdate = true;
-  };
-}
-
-// ---------- the infinity pool ----------
-const WATER_VERT = `
-varying vec2 vUv;
-void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
-const WATER_FRAG = `
+// ---------- the night: stars, aurora, moon, and cloud below ----------
+const NIGHT_VERT = `
+varying vec3 vDir;
+void main() { vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+const NIGHT_FRAG = `
 uniform float uTime;
-uniform vec2 uSize;
-varying vec2 vUv;
-float wave(vec2 p, float t) {
-  return sin(p.x * 3.1 + t * 1.3) * 0.5 + sin(p.y * 2.3 - t * 1.1) * 0.5
-       + sin((p.x + p.y) * 4.7 + t * 1.9) * 0.35 + sin((p.x - p.y) * 6.1 - t * 2.3) * 0.25;
+uniform vec3 uMoon;
+varying vec3 vDir;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float hash3(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+float noise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
 }
+float fbm(vec2 p) { float v = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { v += a * noise(p); p *= 2.03; a *= 0.5; } return v; }
 void main() {
-  vec2 p = vUv * uSize;
-  float t = uTime;
-  float w = wave(p, t);
-  // Caustics: the bright net of light on the floor of a lit pool.
-  float n = abs(sin(p.x * 5.0 + w * 1.6 + t * 0.7)) * abs(sin(p.y * 5.0 - w * 1.4 - t * 0.6));
-  float caustic = pow(1.0 - n, 8.0);
-  vec3 deep = vec3(0.02, 0.36, 0.50);
-  vec3 shallow = vec3(0.10, 0.72, 0.82);
-  vec3 col = mix(deep, shallow, 0.55 + 0.25 * w);
-  col += vec3(0.75, 0.95, 1.0) * caustic * 0.55;
-  // The far edge, where it spills over toward the city: brighter, as the
-  // light catches the lip.
-  col += vec3(0.6, 0.85, 1.0) * smoothstep(0.92, 1.0, vUv.x) * 0.5;
+  vec3 d = normalize(vDir);
+  float h = d.y;
+  float az = atan(d.x, -d.z);
+  // The night itself: indigo at the horizon to near black overhead.
+  vec3 col = mix(vec3(0.07, 0.09, 0.22), vec3(0.01, 0.015, 0.05), smoothstep(0.0, 0.75, h));
+  // The Milky Way: a soft band of dust and light across the sky.
+  float band = exp(-pow(dot(d, normalize(vec3(0.35, 0.45, 0.82))), 2.0) * 22.0);
+  col += vec3(0.24, 0.22, 0.36) * band * (0.35 + fbm(vec2(az * 3.0, h * 6.0)) * 0.9) * smoothstep(0.0, 0.15, h);
+  // Stars, a few bright, twinkling.
+  vec3 sd = d * 160.0;
+  vec3 cell = floor(sd);
+  float s = hash3(cell);
+  if (s > 0.972 && h > -0.02) {
+    vec3 f = fract(sd) - 0.5;
+    float star = smoothstep(0.16, 0.0, length(f)) * (0.55 + 0.45 * sin(uTime * (1.5 + s * 3.0) + s * 90.0));
+    col += vec3(0.85, 0.9, 1.0) * star * (s > 0.995 ? 1.8 : 0.9);
+  }
+  // The northern lights: curtains hanging in the upper sky, their folds
+  // moving, green at the foot to violet at the crown.
+  for (int i = 0; i < 3; i++) {
+    float fi = float(i);
+    float base = 0.2 + fi * 0.07 + sin(az * 2.0 + uTime * 0.07 + fi * 2.1) * 0.05 + (fbm(vec2(az * 1.6 + fi, uTime * 0.04)) - 0.5) * 0.12;
+    float y = h - base;
+    float curtain = smoothstep(-0.02, 0.0, y) * exp(-y * (6.0 + fi * 2.0));
+    float folds = 0.45 + 0.55 * fbm(vec2(az * 9.0 + fi * 3.0, uTime * 0.12));
+    vec3 aur = mix(vec3(0.1, 0.95, 0.55), vec3(0.55, 0.3, 0.95), smoothstep(0.0, 0.22, y));
+    col += aur * curtain * folds * (0.42 - fi * 0.1) * smoothstep(-0.2, 0.6, cos(az * 0.8 - 0.4));
+  }
+  // The moon, and its light round it.
+  float mo = dot(d, uMoon);
+  col += vec3(0.95, 0.96, 1.0) * smoothstep(0.99955, 0.99975, mo) * 1.6;
+  col += vec3(0.35, 0.42, 0.7) * pow(max(mo, 0.0), 80.0) * 0.5;
+  // Below: a sea of cloud, moonlit on its tops, drifting.
+  if (h < 0.03) {
+    vec2 p = d.xz / max(0.06 - h, 0.02);
+    float c = fbm(p * 0.25 + vec2(uTime * 0.008, uTime * 0.003));
+    float c2 = fbm(p * 0.9 - vec2(uTime * 0.012, 0.0));
+    float k = smoothstep(0.32, 0.78, c * 0.7 + c2 * 0.3);
+    vec3 cloud = mix(vec3(0.05, 0.06, 0.14), vec3(0.52, 0.56, 0.74), k);
+    vec2 toMoon = normalize(uMoon.xz);
+    cloud += vec3(0.3, 0.33, 0.5) * pow(max(dot(normalize(d.xz), toMoon), 0.0), 6.0) * k * 0.6;
+    // Aurora light caught on the cloud tops.
+    cloud += vec3(0.05, 0.25, 0.15) * k * 0.4;
+    col = mix(col, cloud, smoothstep(0.03, -0.04, h));
+  }
   gl_FragColor = vec4(col, 1.0);
 }`;
 
-function infinityPool(room, x0, x1, z0, z1, ceilingY) {
-  const w = x1 - x0, d = z1 - z0;
-  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(w, d),
-    new THREE.ShaderMaterial({ vertexShader: WATER_VERT, fragmentShader: WATER_FRAG, uniforms: { uTime: { value: 0 }, uSize: { value: new THREE.Vector2(w / 2.5, d / 2.5) } } }));
-  water.rotation.x = -Math.PI / 2;
-  water.position.set(cx, FLOOR_Y + 0.02, cz);
-  room.add(water);
-  // A coping of white stone round three sides; the side to the glass is
-  // the infinity edge, a fine line of light.
-  const stone = new THREE.MeshStandardMaterial({ color: 0xece6da, roughness: 0.4, metalness: 0 });
-  const c = m(0.3);
-  [[w + c * 2, c, cx, z0 - c / 2], [w + c * 2, c, cx, z1 + c / 2], [c, d, x0 - c / 2, cz]].forEach(([bw, bd, x, z]) => {
-    const b = new THREE.Mesh(new THREE.BoxGeometry(bw, 0.06, bd), stone);
-    b.position.set(x, FLOOR_Y + 0.03, z);
-    room.add(b);
+function createNight() {
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: NIGHT_VERT,
+    fragmentShader: NIGHT_FRAG,
+    uniforms: { uTime: { value: 0 }, uMoon: { value: new THREE.Vector3(-0.42, 0.32, -0.85).normalize() } },
+    side: THREE.BackSide, depthWrite: false, depthTest: false,
   });
-  const lip = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, d), new THREE.MeshBasicMaterial({ color: 0x8fe6ff, toneMapped: false }));
-  lip.position.set(x1 + 0.03, FLOOR_Y + 0.025, cz);
-  room.add(lip);
-  // Its light thrown up on the ceiling over it.
-  const halo = new THREE.Mesh(new THREE.PlaneGeometry(w * 1.1, d * 1.05), new THREE.MeshBasicMaterial({ color: 0x3fb8d0, transparent: true, opacity: 0.14, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
-  halo.rotation.x = Math.PI / 2;
-  halo.position.set(cx, ceilingY - 0.02, cz);
-  room.add(halo);
-  // Loungers along the deck on its inner side, set back from the edge.
-  for (let z = z0 + m(1.0); z < z1 - m(0.6); z += m(1.8)) place(room, 'mid_century_lounge_chair', { x: x0 - m(1.7), z, yaw: Math.PI / 2 });
-  // And between the deck and the room, a long stone planter of palms, so
-  // the pool is a place of its own.
-  const px = x0 - m(3.6);
-  const darkStone = new THREE.MeshStandardMaterial({ color: 0x1d1c22, roughness: 0.3, metalness: 0.1 });
-  const planter = new THREE.Mesh(new THREE.BoxGeometry(m(0.8), m(0.55), d * 0.9), darkStone);
-  planter.position.set(px, FLOOR_Y + m(0.275), cz);
-  room.add(planter);
-  const trim = new THREE.Mesh(new THREE.BoxGeometry(m(0.84), m(0.03), d * 0.9 + m(0.04)), new THREE.MeshStandardMaterial({ color: 0xc9a86a, roughness: 0.3, metalness: 0.9 }));
-  trim.position.set(px, FLOOR_Y + m(0.56), cz);
-  room.add(trim);
-  for (let z = z0 + m(0.8); z < z1 - m(0.4); z += m(1.7)) place(room, 'potted_plant_02', { x: px, y: FLOOR_Y + m(0.4), z, size: 2.3 });
-  return (dt, now) => { water.material.uniforms.uTime.value = now / 1000; };
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(45, 48, 32), mat);
+  dome.renderOrder = -1000;
+  dome.frustumCulled = false;
+  dome.onBeforeRender = (r, s, cam) => { dome.position.copy(cam.position); dome.updateMatrixWorld(); };
+  return dome;
 }
 
-// ---------- searchlights over the city ----------
-// Pale beams rising from the city and sweeping slowly back and forth —
-// out beyond the glass, in front of the skyline.
-function searchlights(room, half) {
-  const c = document.createElement('canvas');
-  c.width = 64; c.height = 256;
-  const ctx = c.getContext('2d');
-  const g = ctx.createLinearGradient(0, 256, 0, 0);
-  g.addColorStop(0, 'rgba(220,230,255,0.55)');
-  g.addColorStop(1, 'rgba(220,230,255,0)');
+// ---------- the floor ----------
+// Obsidian: near black, a deep sheen of violet in it, faint veins.
+function paintObsidian(ctx, S) {
+  const g = ctx.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+  g.addColorStop(0, '#15131c');
+  g.addColorStop(1, '#0b0a10');
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 64, 256);
-  const side = ctx.createLinearGradient(0, 0, 64, 0);
-  side.addColorStop(0, 'rgba(0,0,0,1)'); side.addColorStop(0.5, 'rgba(0,0,0,0)'); side.addColorStop(1, 'rgba(0,0,0,1)');
-  ctx.globalCompositeOperation = 'destination-out';
-  ctx.fillStyle = side;
-  ctx.fillRect(0, 0, 64, 256);
-  const tex = new THREE.CanvasTexture(c);
-  const beams = [];
-  [[-0.55, 1.0], [0.35, 1.25], [1.05, 0.8]].forEach(([az, speed], i) => {
-    const pivot = new THREE.Group();
-    const r = half * 2.0;
-    pivot.position.set(Math.sin(az) * r, -half * 0.6, -Math.cos(az) * r);
-    const len = half * 2.4;
-    const beam = new THREE.Mesh(new THREE.PlaneGeometry(half * 0.22, len),
-      new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false, toneMapped: false }));
-    beam.position.y = len / 2;
-    pivot.add(beam);
-    // Faces the room's middle, so it is seen broadside.
-    pivot.lookAt(0, pivot.position.y, 0);
-    room.add(pivot);
-    beams.push({ pivot, speed, phase: i * 2.1, baseZ: pivot.rotation.z });
-  });
-  // Each swings slowly to and fro in the plane it is seen in.
-  return (dt, now) => {
-    const t = now / 1000;
-    beams.forEach((b) => { b.pivot.rotation.z = b.baseZ + Math.sin(t * 0.12 * b.speed + b.phase) * 0.5; });
-  };
-}
-
-// ---------- the fire table ----------
-function fireTable(room, x, z, length) {
-  const stone = new THREE.MeshStandardMaterial({ color: 0x1b1a1f, roughness: 0.35, metalness: 0.1 });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(length, m(0.42), m(0.7)), stone);
-  body.position.set(x, FLOOR_Y + m(0.21), z);
-  room.add(body);
-  const glass = new THREE.Mesh(new THREE.BoxGeometry(length * 0.85, m(0.02), m(0.22)), new THREE.MeshBasicMaterial({ color: 0xff8a3a, toneMapped: false }));
-  glass.position.set(x, FLOOR_Y + m(0.43), z);
-  room.add(glass);
-  const fc = document.createElement('canvas');
-  fc.width = 128; fc.height = 256;
-  const fx = fc.getContext('2d');
-  const fg = fx.createRadialGradient(64, 230, 4, 64, 200, 130);
-  fg.addColorStop(0, 'rgba(255,245,200,1)');
-  fg.addColorStop(0.3, 'rgba(255,160,50,0.9)');
-  fg.addColorStop(0.7, 'rgba(220,70,10,0.35)');
-  fg.addColorStop(1, 'rgba(120,20,0,0)');
-  fx.fillStyle = fg;
-  fx.fillRect(0, 0, 128, 256);
-  const tex = new THREE.CanvasTexture(fc);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const flames = [];
-  const n = Math.round(length / m(0.25));
-  for (let i = 0; i < n; i++) {
-    const f = new THREE.Mesh(new THREE.PlaneGeometry(m(0.3), m(0.45)), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false }));
-    f.position.set(x - length * 0.42 + (i + 0.5) * (length * 0.84 / n), FLOOR_Y + m(0.43) + m(0.2), z);
-    f.rotation.y = (i % 2) * Math.PI / 2;
-    room.add(f);
-    flames.push(f);
-  }
-  return (dt, now) => flames.forEach((f, i) => {
-    const t = now / 1000 + i * 1.3;
-    f.scale.set(0.85 + Math.sin(t * 3.3) * 0.1, 0.8 + Math.sin(t * 4.7 + i) * 0.2 + Math.sin(t * 11.0) * 0.06, 1);
-  });
-}
-
-// ---------- the onyx ----------
-// Amber onyx, lit from behind: bands of honey and cream, veined.
-export function onyxMaterial() {
-  const W = 1024, H = 512;
-  const c = document.createElement('canvas');
-  c.width = W; c.height = H;
-  const ctx = c.getContext('2d');
-  const g = ctx.createLinearGradient(0, 0, W, H);
-  g.addColorStop(0, '#e9a64a');
-  g.addColorStop(0.5, '#f6d38c');
-  g.addColorStop(1, '#d8862e');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
-  for (let k = 0; k < 60; k++) {
-    ctx.strokeStyle = `rgba(${150 + Math.random() * 80},${70 + Math.random() * 60},${20 + Math.random() * 30},${0.12 + Math.random() * 0.25})`;
-    ctx.lineWidth = 2 + Math.random() * 10;
+  ctx.fillRect(0, 0, S, S);
+  for (let v = 0; v < 40; v++) {
+    ctx.strokeStyle = `rgba(150,140,190,${0.03 + Math.random() * 0.05})`;
+    ctx.lineWidth = 1 + Math.random() * 2;
     ctx.beginPath();
-    let y = Math.random() * H;
-    ctx.moveTo(0, y);
-    for (let x = 0; x <= W; x += 40) { y += (Math.random() - 0.5) * 30; ctx.lineTo(x, y); }
+    let x = Math.random() * S, y = Math.random() * S;
+    ctx.moveTo(x, y);
+    for (let k = 0; k < 12; k++) { x += (Math.random() - 0.5) * 120; y += (Math.random() - 0.5) * 120; ctx.lineTo(x, y); }
     ctx.stroke();
   }
+}
+
+// Constellations in glowing gold let into the floor, and a ring of light
+// round the table: drawn on a sheet laid just over the floor, adding light.
+const CONSTELLATIONS = [
+  [[0.18, 0.22], [0.24, 0.26], [0.29, 0.25], [0.34, 0.3], [0.31, 0.36], [0.26, 0.37]],
+  [[0.7, 0.18], [0.74, 0.24], [0.79, 0.22], [0.83, 0.28], [0.78, 0.33]],
+  [[0.14, 0.66], [0.2, 0.62], [0.25, 0.68], [0.22, 0.75], [0.16, 0.78]],
+  [[0.72, 0.7], [0.77, 0.66], [0.82, 0.7], [0.8, 0.77], [0.86, 0.8], [0.9, 0.74]],
+  [[0.46, 0.86], [0.52, 0.82], [0.58, 0.86], [0.55, 0.92]],
+  [[0.48, 0.1], [0.53, 0.14], [0.5, 0.19], [0.44, 0.16]],
+];
+function floorLight(size) {
+  const S = 2048;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const ctx = c.getContext('2d');
+  ctx.strokeStyle = 'rgba(232,196,120,0.75)';
+  CONSTELLATIONS.forEach((pts) => {
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    pts.forEach(([x, y], i) => (i ? ctx.lineTo(x * S, y * S) : ctx.moveTo(x * S, y * S)));
+    ctx.stroke();
+    pts.forEach(([x, y], i) => {
+      const r = i % 3 === 0 ? 9 : 6;
+      const g = ctx.createRadialGradient(x * S, y * S, 0, x * S, y * S, r * 3);
+      g.addColorStop(0, 'rgba(255,236,190,1)');
+      g.addColorStop(0.35, 'rgba(240,200,120,0.6)');
+      g.addColorStop(1, 'rgba(240,200,120,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x * S, y * S, r * 3, 0, Math.PI * 2); ctx.fill();
+    });
+  });
+  // Scattered single stars, clear of the table and the glass.
+  for (let k = 0; k < 160; k++) {
+    const x = Math.random() * S, y = Math.random() * S;
+    const r = Math.hypot(x - S / 2, y - S / 2);
+    if (r < S * 0.22 || r > S * 0.49) continue;
+    ctx.fillStyle = `rgba(240,210,150,${0.3 + Math.random() * 0.5})`;
+    ctx.beginPath(); ctx.arc(x, y, 1.5 + Math.random() * 2.5, 0, Math.PI * 2); ctx.fill();
+  }
+  // The ring of light round the table, a finer one inside it, and one
+  // along the glass.
+  const ringR = (11 / size) * S;
+  [[ringR, 10, 0.9], [ringR - 22, 3, 0.6], [S * 0.485, 6, 0.7]].forEach(([r, w, a]) => {
+    ctx.strokeStyle = `rgba(240,204,130,${a})`;
+    ctx.lineWidth = w;
+    ctx.beginPath(); ctx.arc(S / 2, S / 2, r, 0, Math.PI * 2); ctx.stroke();
+  });
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
-  return new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.85, roughness: 0.2, metalness: 0 });
+  tex.anisotropy = 8;
+  const sheet = new THREE.Mesh(new THREE.CircleGeometry(size / 2, 96),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+  sheet.rotation.x = -Math.PI / 2;
+  sheet.position.y = FLOOR_Y + 0.008;
+  return sheet;
+}
+
+// A round rug of night under the table: deep blue, gold rings, a scatter
+// of stars.
+function nightRug(radius) {
+  const S = 1536;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+  g.addColorStop(0, '#1c2350');
+  g.addColorStop(1, '#0d1130');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, S, S);
+  for (let k = 0; k < 500; k++) {
+    const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * S * 0.46;
+    ctx.fillStyle = `rgba(230,210,160,${0.15 + Math.random() * 0.35})`;
+    ctx.beginPath(); ctx.arc(S / 2 + Math.cos(a) * r, S / 2 + Math.sin(a) * r, 1 + Math.random() * 2, 0, Math.PI * 2); ctx.fill();
+  }
+  [[0.49, 14, '#c9a86a'], [0.46, 4, '#e8cd8a'], [0.43, 2, '#c9a86a']].forEach(([r, w, col]) => {
+    ctx.strokeStyle = col; ctx.lineWidth = w;
+    ctx.beginPath(); ctx.arc(S / 2, S / 2, S * r, 0, Math.PI * 2); ctx.stroke();
+  });
+  const img = ctx.getImageData(0, 0, S, S);
+  for (let i = 0; i < img.data.length; i += 4) { const n = (Math.random() - 0.5) * 10; img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n; }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  const rug = new THREE.Mesh(new THREE.CircleGeometry(radius, 96), new THREE.MeshLambertMaterial({ map: tex }));
+  rug.rotation.x = -Math.PI / 2;
+  rug.position.set(0, FLOOR_Y + 0.006, -0.4);
+  rug.receiveShadow = true;
+  return rug;
+}
+
+// ---------- the pavilion ----------
+const goldMaterial = () => new THREE.MeshStandardMaterial({ color: 0xd4af62, roughness: 0.25, metalness: 0.9, emissive: 0x2a1e08, emissiveIntensity: 0.5 });
+
+function pavilion(room) {
+  const gold = goldMaterial();
+  // The glass: barely there, a breath of blue where the light catches it.
+  const glass = new THREE.Mesh(new THREE.CylinderGeometry(R, R, GLASS_H, 96, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0x9fc0ff, transparent: true, opacity: 0.05, depthWrite: false, side: THREE.DoubleSide }));
+  glass.position.y = FLOOR_Y + GLASS_H / 2;
+  room.add(glass);
+  // Mullions round the ring, and gold rings at the foot and the head.
+  const PANES = 36;
+  const mull = new THREE.InstancedMesh(new THREE.BoxGeometry(m(0.05), GLASS_H, m(0.07)), gold, PANES);
+  const mtx = new THREE.Matrix4();
+  for (let i = 0; i < PANES; i++) {
+    const a = (i / PANES) * Math.PI * 2;
+    mtx.makeRotationY(-a);
+    mtx.setPosition(Math.sin(a) * R, FLOOR_Y + GLASS_H / 2, Math.cos(a) * R);
+    mull.setMatrixAt(i, mtx);
+  }
+  room.add(mull);
+  [[FLOOR_Y + 0.03, m(0.05)], [FLOOR_Y + GLASS_H, m(0.07)]].forEach(([y, t]) => {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(R, t, 6, 128), gold);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = y;
+    room.add(ring);
+  });
+  // The light along the foot of the glass.
+  const foot = new THREE.Mesh(new THREE.TorusGeometry(R - m(0.15), m(0.02), 4, 128), new THREE.MeshBasicMaterial({ color: 0xffcf80, toneMapped: false }));
+  foot.rotation.x = Math.PI / 2;
+  foot.position.y = FLOOR_Y + 0.02;
+  room.add(foot);
+  // The dome: gold ribs rising from the ring to an oculus, and two rings
+  // of latitude, the sky between.
+  const top = FLOOR_Y + GLASS_H;
+  const OCULUS = m(0.9);
+  const domePoint = (a, t) => {
+    const r = Math.max(OCULUS, R * Math.cos(t * Math.PI / 2));
+    return new THREE.Vector3(Math.sin(a) * r, top + DOME_RISE * Math.sin(t * Math.PI / 2), Math.cos(a) * r);
+  };
+  const RIBS = 18;
+  for (let i = 0; i < RIBS; i++) {
+    const a = (i / RIBS) * Math.PI * 2;
+    const pts = Array.from({ length: 16 }, (_, k) => domePoint(a, (k / 15) * 0.97));
+    room.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, m(0.035), 5, false), gold));
+  }
+  [0.45, 0.78].forEach((t) => {
+    const p = domePoint(0, t);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(Math.hypot(p.x, p.z), m(0.03), 5, 96), gold);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = p.y;
+    room.add(ring);
+  });
+  const ocu = domePoint(0, 0.97);
+  const oculus = new THREE.Mesh(new THREE.TorusGeometry(Math.hypot(ocu.x, ocu.z), m(0.07), 8, 48), gold);
+  oculus.rotation.x = Math.PI / 2;
+  oculus.position.y = ocu.y;
+  room.add(oculus);
+  return { apexY: ocu.y };
+}
+
+// ---------- the orrery ----------
+// Gilt rings tilted on three axes, turning; a sun at the heart; planets in
+// their orbits. Hung from the oculus over the table, well above any seat's
+// line to the sign.
+function orrery(room, apexY) {
+  const g = new THREE.Group();
+  const cy = FLOOR_Y + m(4.4);
+  g.position.set(0, cy, -0.4);
+  room.add(g);
+  const gold = goldMaterial();
+  const rod = new THREE.Mesh(new THREE.CylinderGeometry(m(0.02), m(0.02), apexY - cy, 6), gold);
+  rod.position.set(0, cy + (apexY - cy) / 2, -0.4);
+  room.add(rod);
+  const sun = new THREE.Mesh(new THREE.SphereGeometry(m(0.26), 32, 16), new THREE.MeshBasicMaterial({ color: 0xffd27a, toneMapped: false }));
+  g.add(sun);
+  const gc = document.createElement('canvas');
+  gc.width = gc.height = 128;
+  const gx = gc.getContext('2d');
+  const gg = gx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gg.addColorStop(0, 'rgba(255,220,140,0.9)'); gg.addColorStop(0.4, 'rgba(255,190,90,0.35)'); gg.addColorStop(1, 'rgba(255,190,90,0)');
+  gx.fillStyle = gg; gx.fillRect(0, 0, 128, 128);
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(gc), blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+  glow.scale.set(m(1.6), m(1.6), 1);
+  g.add(glow);
+  const rings = [];
+  [[m(1.25), 0.35, 0.0], [m(1.45), -0.6, 0.9], [m(1.65), 1.2, 0.3]].forEach(([r, tx, tz]) => {
+    const holder = new THREE.Group();
+    holder.rotation.set(tx, 0, tz);
+    g.add(holder);
+    const spin = new THREE.Group();
+    holder.add(spin);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(r, m(0.025), 8, 96), gold);
+    ring.rotation.x = Math.PI / 2;
+    spin.add(ring);
+    rings.push({ spin, speed: 0 });
+  });
+  // A planet on each ring, each at its own pace.
+  [[m(1.25), 0x7fb0ff, m(0.09), 0.5], [m(1.45), 0xe07a4a, m(0.12), 0.32], [m(1.65), 0xe9d7a0, m(0.15), 0.22]].forEach(([r, color, size, speed], i) => {
+    const planet = new THREE.Mesh(new THREE.SphereGeometry(size, 20, 12), new THREE.MeshStandardMaterial({ color, roughness: 0.5, emissive: color, emissiveIntensity: 0.25 }));
+    planet.position.set(r, 0, 0);
+    rings[i].spin.add(planet);
+    rings[i].speed = speed;
+  });
+  // An outer band of the zodiac, still.
+  const band = new THREE.Mesh(new THREE.TorusGeometry(m(1.95), m(0.04), 8, 96), gold);
+  band.rotation.x = Math.PI / 2 - 0.2;
+  g.add(band);
+  return (dt) => rings.forEach((r) => { r.spin.rotation.y += r.speed * dt; });
 }
 
 // ---------- the room ----------
-// The largest room by far: 28 m of floor across, and tall, with a pool
-// deck of its own down the right-hand side.
 export const PENTHOUSE = {
-  tableGlow: 0xffe2b0,
-  half: 36,
+  tableGlow: 0xb8c8ff,
+  half: 31,
   ceilingY: 11.0,
-  windows: true,
+  open: { back: true, sides: true, front: true },
+  ceiling: null, noPanel: true, noCove: true,
+  floorRadius: R + 0.2,
+  floorPx: 2048, floorRepeat: 1,
+  paintFloor: paintObsidian,
   wall: { style: 'lacquer', base: 0x17171b, trim: 0xc9a86a, skirting: 0x08080a },
   floor: { style: 'marble', base: 0x121116, pattern: 0xd9d2c3 },
-  floorPx: 1024, floorRepeat: 72 / 5,
-  paintFloor: paintPenthouseFloor,
-  noPanel: true,
-  ceiling: 0x161a2c, ceilingGlow: 0.3, cove: 0xd8b878, diffuser: 0xc8aa80, accent: 0xd8b46e, washAlpha: 0.16,
-  light: { sky: 0xd4dcff, ground: 0x3a2c38, fill: 1.6, key: 0xffe6c8, keyPower: 96, wash: 0xffd8b0, washPower: 34, fog: 0x05060b, fogNear: 30, fogFar: 90 },
+  cove: 0xd8b878, diffuser: 0xc8aa80, accent: 0xd8b46e, washAlpha: 0,
+  light: { sky: 0xaabaff, ground: 0x2a2038, fill: 1.75, key: 0xffe6c8, keyPower: 100, wash: 0xb8c4ff, washPower: 26, fog: 0x070912, fogNear: 60, fogFar: 160 },
   furnish(room, half, CEILING_Y) {
-    const wallH = CEILING_Y - FLOOR_Y;
     const updates = [];
-    // Drapes only at the corners, framing the glass.
-    const velvet = 0x2a1418;
-    [-1, 1].forEach((side) => {
-      const d1 = createDrape(wallH - 0.4, m(0.9), velvet);
-      d1.position.set(side * (half - m(0.5)), FLOOR_Y, -half + 0.25);
-      room.add(d1);
-      const d2 = createDrape(wallH - 0.4, m(0.9), velvet);
-      d2.position.set(side * (half - 0.25), FLOOR_Y, half - m(0.6));
-      d2.rotation.y = -side * Math.PI / 2;
-      room.add(d2);
-    });
-    // A line of gold light along the foot of all the glass.
-    const goldLight = new THREE.MeshBasicMaterial({ color: 0xffcf80, toneMapped: false });
-    [[2 * half, 0.04, 0, -half + 0.12], [0.04, 2 * half, -half + 0.12, 0], [0.04, 2 * half, half - 0.12, 0]].forEach(([w, d, x, z]) => {
-      const strip = new THREE.Mesh(new THREE.BoxGeometry(w, 0.03, d), goldLight);
-      strip.position.set(x, FLOOR_Y + 0.02, z);
-      room.add(strip);
-    });
+    const night = createNight();
+    room.add(night);
+    updates.push((dt, now) => { night.material.uniforms.uTime.value = now / 1000; });
+    const { apexY } = pavilion(room);
+    room.add(floorLight(R * 2));
+    room.add(nightRug(m(4.1)));
+    updates.push(orrery(room, apexY));
 
-    // The house sign, larger, hung on fine cables from the ceiling behind
-    // the dealer — out over the floor, not at the far glass, where in a
-    // room this size it would be small.
+    // The house sign, hung on fine cables behind the dealer, the night and
+    // the northern lights beyond it.
     const signW = m(3.0);
-    const sign = createBrandSign(signW, { rgb: '236,202,128', plate: '#0b0b0f', halo: false });
+    const sign = createBrandSign(signW, { rgb: '236,206,140', plate: '#0b0d1a', halo: false });
     const signY = FLOOR_Y + m(2.85);
     const signZ = -m(9.0);
     sign.position.set(0, signY, signZ);
     room.add(sign);
-    const cableMat = new THREE.MeshStandardMaterial({ color: 0xc9a86a, roughness: 0.3, metalness: 0.9 });
+    const cable = new THREE.MeshStandardMaterial({ color: 0xc9a86a, roughness: 0.3, metalness: 0.9 });
     [-1, 1].forEach((s) => {
-      const len = CEILING_Y - (signY + signW * 0.31);
-      const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, len, 6), cableMat);
-      cable.position.set(s * signW * 0.42, signY + signW * 0.31 + len / 2, signZ);
-      room.add(cable);
-    });
-    brandSign(room, half, { wall: 'front', width: m(2.2), rgb: '236,202,128', plate: '#0b0b0f' });
-
-    // Tray ceilings one inside the other, each ringed with gold light, so
-    // the great ceiling is a thing to look up at, not a dark void.
-    room.add(createTrayCeiling(54, 46, CEILING_Y, 0xe8c48a, 0x1c2034));
-    room.add(createTrayCeiling(30, 25, CEILING_Y - m(0.25), 0xe8c48a, 0x1c2034));
-
-    // Crystal rain over the table.
-    updates.push(crystalRain(room, CEILING_Y, new THREE.Vector3(0, 0, -0.4)));
-
-    // A rug under the table and chairs.
-    room.add(createRug(26, 21, { base: '#5a1622', border: '#2a0a10', accent: '#e0bf72' }));
-
-    // The onyx bar, at the back left.
-    barCorner(room, half, CEILING_Y, { length: m(3.8), bodyMaterial: onyxMaterial(), top: 0x111014, wood: 0x16121a, rgb: '216,180,110', lamp: 'Chandelier_03', lampSize: 1.4 });
-
-    // The fire-table lounge at the back right, turned to the view.
-    const fx = half - m(3.1), fz = -half + m(2.6);
-    updates.push(fireTable(room, fx, fz, m(1.8)));
-    [[0, 1.2, 'Sofa_01'], [0, -1.15, 'Sofa_01'], [-1.6, 0, 'mid_century_lounge_chair']].forEach(([dx, dz, id]) => {
-      const px = fx + m(dx), pz = fz + m(dz);
-      place(room, id, { x: px, z: pz, yaw: facing(px, pz, fx, fz), size: id === 'Sofa_01' ? 1.1 : 1 });
-    });
-    const r = createRug(m(4.2), m(4.0), { base: '#1d1a22', border: '#0d0b10', accent: '#c9a86a' });
-    r.position.set(fx, FLOOR_Y + 0.006, fz);
-    room.add(r);
-
-    // The infinity pool along the right-hand glass.
-    updates.push(infinityPool(room, half - m(5.3), half - m(0.35), -m(6.0), m(9.0), CEILING_Y));
-
-    // A lounge on the left, and palms.
-    lounge(room, half, -1, m(0.9), { sofa: 'Sofa_01', chair: 'mid_century_lounge_chair', sofaSize: 1.15, rug: { base: '#24161b', border: '#120b0e', accent: '#c9a86a' } });
-    place(room, 'Chandelier_03', { x: -(half - m(1.55)), y: CEILING_Y, z: m(0.9), size: 2.2 });
-    [[-(half - m(0.6)), m(3.6)], [-(half - m(0.6)), half - m(0.8)], [half - m(0.6), half - m(0.8)], [half - m(0.6), -m(3.4)]].forEach(([x, z]) => place(room, 'potted_plant_04', { x, z, size: 2.2 }));
-    // Art on plinths flanking the sign.
-    [-1, 1].forEach((side) => {
-      place(room, 'side_table_tall_01', { x: side * m(2.6), z: -half + m(0.6), size: 1.1 });
-      place(room, side < 0 ? 'marble_bust_01' : 'horse_statue_01', { x: side * m(2.6), y: FLOOR_Y + m(0.8), z: -half + m(0.6), size: 1.25 });
+      const t = signY + signW * 0.31;
+      const len = FLOOR_Y + GLASS_H + m(1.6) - t;
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, len, 6), cable);
+      c.position.set(s * signW * 0.42, t + len / 2, signZ);
+      room.add(c);
     });
 
-    // Searchlights over the city.
-    updates.push(searchlights(room, half));
+    // The bar of backlit onyx, in from the glass at the back left.
+    barCorner(room, R * 0.68, CEILING_Y, { length: m(3.8), bodyMaterial: onyxMaterial(), top: 0x111014, wood: 0x16121a, rgb: '216,180,110', lamp: null });
 
-    // The front half of the floor: two more conversation groups, drawn up
-    // round their tables and turned toward the table and the view.
-    [[-m(4.2), m(7.4)], [m(1.2), m(8.4)]].forEach(([gx, gz]) => {
-      place(room, 'modern_coffee_table_01', { x: gx, z: gz });
-      [[0, 1.2, 'Sofa_01'], [-1.25, -0.2, 'mid_century_lounge_chair'], [1.25, -0.2, 'mid_century_lounge_chair']].forEach(([dx, dz, id]) => {
-        const px = gx + m(dx), pz = gz + m(dz);
-        place(room, id, { x: px, z: pz, yaw: facing(px, pz, gx, gz), size: id === 'Sofa_01' ? 1.1 : 1 });
+    // Lounges at the glass, turned out to the view — each a sofa and two
+    // chairs round a low table on a round rug, a palm beside it.
+    [52, 118, -118, 158, 202].forEach((deg) => {
+      const a = THREE.MathUtils.degToRad(deg);
+      const out = new THREE.Vector3(Math.sin(a), 0, -Math.cos(a));
+      const c = out.clone().multiplyScalar(R * 0.8);
+      const view = out.clone().multiplyScalar(R * 2);
+      const side = new THREE.Vector3(-out.z, 0, out.x);
+      place(room, 'modern_coffee_table_01', { x: c.x, z: c.z, yaw: facing(c.x, c.z, view.x, view.z) });
+      const sofa = c.clone().addScaledVector(out, -m(1.15));
+      place(room, 'Sofa_01', { x: sofa.x, z: sofa.z, yaw: facing(sofa.x, sofa.z, view.x, view.z), size: 1.1 });
+      [-1, 1].forEach((s) => {
+        const ch = c.clone().addScaledVector(side, s * m(1.2)).addScaledVector(out, -m(0.1));
+        place(room, 'mid_century_lounge_chair', { x: ch.x, z: ch.z, yaw: facing(ch.x, ch.z, c.x + out.x * 3, c.z + out.z * 3) });
       });
-      const gr = createRug(m(3.8), m(3.4), { base: '#1d1a22', border: '#0d0b10', accent: '#c9a86a' });
-      gr.position.set(gx, FLOOR_Y + 0.006, gz);
-      room.add(gr);
-      place(room, 'Chandelier_03', { x: gx, y: CEILING_Y, z: gz, size: 2.2 });
+      const plant = c.clone().addScaledVector(side, m(2.3)).addScaledVector(out, m(0.4));
+      place(room, 'potted_plant_02', { x: plant.x, z: plant.z, size: 2.0 });
+      const rug = new THREE.Mesh(new THREE.CircleGeometry(m(1.9), 64), new THREE.MeshLambertMaterial({ color: 0x1a1d3c }));
+      rug.rotation.x = -Math.PI / 2;
+      rug.position.set(c.x - out.x * m(0.4), FLOOR_Y + 0.005, c.z - out.z * m(0.4));
+      room.add(rug);
     });
-    walkway(room, { x: 10.5, back: -9.2, front: 11.0 });
-    staffPosts(room, [[13, -12.5], [-13, 13.5], [7, 16.5]]);
+    walkway(room, { x: 10.5, back: -9.5, front: 10.5 });
+    staffPosts(room, [[12.5, -12.5], [-13, 12.5], [12.5, 12.5]]);
     room.userData.update = (dt, now) => updates.forEach((u) => u(dt, now));
   },
 };

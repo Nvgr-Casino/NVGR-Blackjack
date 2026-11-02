@@ -236,7 +236,8 @@ export function barCorner(room, half, ceilingY, { length = m(3.2), body, top, bo
     const sx = x - length / 2 + (i + 0.5) * (length / stools);
     place(room, 'bar_chair_round_01', { x: sx, z: z + m(0.55), yaw: Math.PI });
   }
-  [-0.3, 0.3].forEach((k) => place(room, lamp, { x: x + k * length, y: ceilingY - 0.05, z: z - m(0.25), size: lampSize }));
+  // Lamps over it — unless there is no ceiling to hang them from.
+  if (lamp) [-0.3, 0.3].forEach((k) => place(room, lamp, { x: x + k * length, y: ceilingY - 0.05, z: z - m(0.25), size: lampSize }));
   room.userData.bar = {
     bartender: { pos: new THREE.Vector3(x - length * 0.12, 0, -half + m(0.7)), yaw: 0 },
     pickup: { pos: new THREE.Vector3(x + length / 2 + m(0.5), 0, z - m(0.2)), look: new THREE.Vector3(x, 0, z - m(0.3)) },
