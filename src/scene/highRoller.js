@@ -1,54 +1,91 @@
 import * as THREE from 'three';
 import { place } from './furniture.js';
 import { FLOOR_Y, m } from './scale.js';
-import { createRug, createDrape, createBrandSign, createTrayCeiling, createBackBar } from './luxury.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { createDrape, createBrandSign, createBackBar, createBar, createRug } from './luxury.js';
 import { lounge, walkway, facing, barCorner, brandSign, staffPosts } from './layout.js';
 import { onyxMaterial } from './onyx.js';
 
-// The High Roller: a sky lounge on the top floor of a tower, New York at
-// night through glass floor to ceiling on three sides (room.js's
-// createSkyline). What is in it is made to be looked at:
+// The High Roller: a Manhattan sky club on the top floor of a tower, New
+// York at night through glass floor to ceiling on three sides (room.js's
+// createSkyline). Made to be looked at:
 //
-//   - over the table, a chandelier of crystal rain: hundreds of glowing
-//     drops on fine threads, falling in a spiral, catching the light and
-//     twinkling;
-//   - along the right-hand glass, an infinity pool lit from within, its
-//     water moving, the city beyond its edge;
-//   - searchlights sweeping slowly across the sky over the city;
-//   - a bar of backlit amber onyx, glowing from inside the stone;
-//   - a lounge round a long fire table at the back right, turned to the
-//     view;
-//   - black marble underfoot, inlaid with gold, a line of gold light along
-//     the foot of all the glass;
-//   - the house sign hung on fine cables before the glass over the dealer;
-//   - a black grand piano by the glass, its lid up; a tower of champagne
-//     by the bar; walls of wine either side of the second sign, behind the
-//     players, and great gilt-framed pictures beyond them.
-//
-// The drapes that once hung between every bay are gone but for the
-// corners: they framed the view by cutting it up.
+//   - a floor of white marble veined with gold, inlaid with gold, a ring of
+//     light round the table on a round rug of navy and gold;
+//   - over the table, a chandelier of crystal rain — hundreds of glowing
+//     drops on fine threads falling in a spiral, twinkling — and lines of
+//     gold light running out from it across the ceiling like a starburst;
+//   - glowing gold piers up the glass, framing the city between them;
+//   - down the right-hand glass, a long window bar: a counter of backlit
+//     onyx facing the room, stools turned to the view;
+//   - two great gold dice on a plinth of black marble, one tumbling;
+//   - a black grand piano by the glass, a tower of champagne, walls of lit
+//     wine either side of the sign behind the players, pictures in gilt;
+//   - the onyx bar at the back left, a lounge round a fire table at the
+//     back right, searchlights sweeping over the city;
+//   - the house sign hung on fine cables over the floor behind the dealer.
 
 // ---------- the floor ----------
-// Black marble in large slabs, soft white veins, a fine gold inlay between
-// the slabs.
-export function paintPenthouseFloor(ctx, S) {
-  ctx.fillStyle = '#1a1920';
+// White marble in large slabs, veined in grey and gold, a fine gold inlay
+// between the slabs.
+export function paintMarbleFloor(ctx, S) {
+  ctx.fillStyle = '#ece8e1';
   ctx.fillRect(0, 0, S, S);
-  for (let v = 0; v < 14; v++) {
-    ctx.strokeStyle = `rgba(220,214,200,${0.06 + Math.random() * 0.1})`;
-    ctx.lineWidth = 1 + Math.random() * 2.5;
+  for (let v = 0; v < 16; v++) {
+    const gold = v % 4 === 0;
+    ctx.strokeStyle = gold ? `rgba(196,160,92,${0.25 + Math.random() * 0.2})` : `rgba(120,116,110,${0.1 + Math.random() * 0.12})`;
+    ctx.lineWidth = (gold ? 1.5 : 1) + Math.random() * 2.5;
     ctx.beginPath();
     let x = Math.random() * S, y = 0;
     ctx.moveTo(x, y);
-    while (y < S) { x += (Math.random() - 0.5) * 70; y += 25 + Math.random() * 40; ctx.lineTo(x, y); }
+    while (y < S) { x += (Math.random() - 0.5) * 80; y += 20 + Math.random() * 40; ctx.lineTo(x, y); }
     ctx.stroke();
   }
   const img = ctx.getImageData(0, 0, S, S);
-  for (let i = 0; i < img.data.length; i += 4) { const n = (Math.random() - 0.5) * 8; img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n; }
+  for (let i = 0; i < img.data.length; i += 4) { const n = (Math.random() - 0.5) * 6; img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n; }
   ctx.putImageData(img, 0, 0);
-  ctx.strokeStyle = 'rgba(214,180,110,0.85)';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(1.5, 1.5, S - 3, S - 3);
+  ctx.strokeStyle = 'rgba(196,160,92,0.95)';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(2, 2, S - 4, S - 4);
+}
+
+// A round rug of navy and gold under the table, and a ring of light let
+// into the marble round it.
+function roundRug(radius) {
+  const S = 1536;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#141a38';
+  ctx.fillRect(0, 0, S, S);
+  // A fine lattice in the weave, and the borders.
+  ctx.strokeStyle = 'rgba(214,180,110,0.12)';
+  ctx.lineWidth = 2;
+  for (let k = -S; k < S * 2; k += 48) {
+    ctx.beginPath(); ctx.moveTo(k, 0); ctx.lineTo(k + S, S); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(k, S); ctx.lineTo(k + S, 0); ctx.stroke();
+  }
+  [[0.49, 30, '#c9a86a'], [0.455, 6, '#e8cd8a'], [0.43, 3, '#c9a86a'], [0.2, 4, '#c9a86a']].forEach(([r, w, col]) => {
+    ctx.strokeStyle = col; ctx.lineWidth = w;
+    ctx.beginPath(); ctx.arc(S / 2, S / 2, S * r, 0, Math.PI * 2); ctx.stroke();
+  });
+  const img = ctx.getImageData(0, 0, S, S);
+  for (let i = 0; i < img.data.length; i += 4) { const n = (Math.random() - 0.5) * 10; img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n; }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  const rug = new THREE.Mesh(new THREE.CircleGeometry(radius, 96), new THREE.MeshLambertMaterial({ map: tex }));
+  rug.rotation.x = -Math.PI / 2;
+  rug.position.set(0, FLOOR_Y + 0.006, -0.4);
+  rug.receiveShadow = true;
+  return rug;
+}
+function lightRing(radius) {
+  const ring = new THREE.Mesh(new THREE.RingGeometry(radius - m(0.03), radius + m(0.03), 128), new THREE.MeshBasicMaterial({ color: 0xffd58a, toneMapped: false }));
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.set(0, FLOOR_Y + 0.008, -0.4);
+  return ring;
 }
 
 // ---------- the chandelier of crystal rain ----------
@@ -110,74 +147,107 @@ function crystalRain(room, CEILING_Y, center) {
   };
 }
 
-// ---------- the infinity pool ----------
-const WATER_VERT = `
-varying vec2 vUv;
-void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
-const WATER_FRAG = `
-uniform float uTime;
-uniform vec2 uSize;
-varying vec2 vUv;
-float wave(vec2 p, float t) {
-  return sin(p.x * 3.1 + t * 1.3) * 0.5 + sin(p.y * 2.3 - t * 1.1) * 0.5
-       + sin((p.x + p.y) * 4.7 + t * 1.9) * 0.35 + sin((p.x - p.y) * 6.1 - t * 2.3) * 0.25;
-}
-void main() {
-  vec2 p = vUv * uSize;
-  float t = uTime;
-  float w = wave(p, t);
-  // Caustics: the bright net of light on the floor of a lit pool.
-  float n = abs(sin(p.x * 5.0 + w * 1.6 + t * 0.7)) * abs(sin(p.y * 5.0 - w * 1.4 - t * 0.6));
-  float caustic = pow(1.0 - n, 8.0);
-  vec3 deep = vec3(0.02, 0.36, 0.50);
-  vec3 shallow = vec3(0.10, 0.72, 0.82);
-  vec3 col = mix(deep, shallow, 0.55 + 0.25 * w);
-  col += vec3(0.75, 0.95, 1.0) * caustic * 0.55;
-  // The far edge, where it spills over toward the city: brighter, as the
-  // light catches the lip.
-  col += vec3(0.6, 0.85, 1.0) * smoothstep(0.92, 1.0, vUv.x) * 0.5;
-  gl_FragColor = vec4(col, 1.0);
-}`;
-
-function infinityPool(room, x0, x1, z0, z1, ceilingY) {
-  const w = x1 - x0, d = z1 - z0;
-  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(w, d),
-    new THREE.ShaderMaterial({ vertexShader: WATER_VERT, fragmentShader: WATER_FRAG, uniforms: { uTime: { value: 0 }, uSize: { value: new THREE.Vector2(w / 2.5, d / 2.5) } } }));
-  water.rotation.x = -Math.PI / 2;
-  water.position.set(cx, FLOOR_Y + 0.02, cz);
-  room.add(water);
-  // A coping of white stone round three sides; the side to the glass is
-  // the infinity edge, a fine line of light.
-  const stone = new THREE.MeshStandardMaterial({ color: 0xece6da, roughness: 0.4, metalness: 0 });
-  const c = m(0.3);
-  [[w + c * 2, c, cx, z0 - c / 2], [w + c * 2, c, cx, z1 + c / 2], [c, d, x0 - c / 2, cz]].forEach(([bw, bd, x, z]) => {
-    const b = new THREE.Mesh(new THREE.BoxGeometry(bw, 0.06, bd), stone);
-    b.position.set(x, FLOOR_Y + 0.03, z);
-    room.add(b);
+// ---------- the starburst ceiling ----------
+// Lines of gold light running out from the chandelier across the dark
+// ceiling, a ring of it round the chandelier and a cove round the room.
+function starburstCeiling(room, half, CEILING_Y) {
+  const glow = new THREE.MeshBasicMaterial({ color: 0xffd58a, toneMapped: false });
+  const RAYS = 28;
+  const inner = m(3.6);
+  for (let i = 0; i < RAYS; i++) {
+    const a = (i / RAYS) * Math.PI * 2;
+    // Each runs out to the ceiling's edge.
+    const reach = Math.min(half / Math.abs(Math.cos(a) || 1e-6), half / Math.abs(Math.sin(a) || 1e-6)) - m(0.8);
+    const len = reach - inner;
+    const ray = new THREE.Mesh(new THREE.BoxGeometry(m(0.035), m(0.02), len), glow);
+    const mid = inner + len / 2;
+    ray.position.set(Math.sin(a) * mid, CEILING_Y - m(0.03), -0.4 + Math.cos(a) * mid);
+    ray.rotation.y = a;
+    room.add(ray);
+  }
+  [inner, inner + m(0.25)].forEach((r) => {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(r, m(0.025), 4, 96), glow);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(0, CEILING_Y - m(0.03), -0.4);
+    room.add(ring);
   });
-  const lip = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, d), new THREE.MeshBasicMaterial({ color: 0x8fe6ff, toneMapped: false }));
-  lip.position.set(x1 + 0.03, FLOOR_Y + 0.025, cz);
-  room.add(lip);
-  // Its light thrown up on the ceiling over it.
-  const halo = new THREE.Mesh(new THREE.PlaneGeometry(w * 1.1, d * 1.05), new THREE.MeshBasicMaterial({ color: 0x3fb8d0, transparent: true, opacity: 0.14, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
-  halo.rotation.x = Math.PI / 2;
-  halo.position.set(cx, ceilingY - 0.02, cz);
-  room.add(halo);
-  // Loungers along the deck on its inner side, set back from the edge.
-  for (let z = z0 + m(1.0); z < z1 - m(0.6); z += m(1.8)) place(room, 'mid_century_lounge_chair', { x: x0 - m(1.7), z, yaw: Math.PI / 2 });
-  // And between the deck and the room, a long stone planter of palms, so
-  // the pool is a place of its own.
-  const px = x0 - m(3.6);
-  const darkStone = new THREE.MeshStandardMaterial({ color: 0x1d1c22, roughness: 0.3, metalness: 0.1 });
-  const planter = new THREE.Mesh(new THREE.BoxGeometry(m(0.8), m(0.55), d * 0.9), darkStone);
-  planter.position.set(px, FLOOR_Y + m(0.275), cz);
-  room.add(planter);
-  const trim = new THREE.Mesh(new THREE.BoxGeometry(m(0.84), m(0.03), d * 0.9 + m(0.04)), new THREE.MeshStandardMaterial({ color: 0xc9a86a, roughness: 0.3, metalness: 0.9 }));
-  trim.position.set(px, FLOOR_Y + m(0.56), cz);
+}
+
+// ---------- piers of light up the glass ----------
+function lightPiers(room, half, CEILING_Y) {
+  const glow = new THREE.MeshBasicMaterial({ color: 0xffd08a, toneMapped: false });
+  const H = CEILING_Y - FLOOR_Y - m(0.1);
+  const geo = new THREE.BoxGeometry(m(0.05), H, m(0.05));
+  const step = m(3.6);
+  const n = Math.floor((2 * half) / step);
+  for (let i = 1; i < n; i++) {
+    const t = -half + (i * 2 * half) / n;
+    [[t, -half + m(0.1)], [-half + m(0.1), t], [half - m(0.1), t]].forEach(([x, z]) => {
+      const pier = new THREE.Mesh(geo, glow);
+      pier.position.set(x, FLOOR_Y + H / 2, z);
+      room.add(pier);
+    });
+  }
+}
+
+// ---------- the window bar ----------
+// A long counter down the right-hand glass, its onyx front to the room,
+// stools on the room side turned to the view.
+function windowBar(room, half, z0, z1) {
+  const len = z1 - z0;
+  const cz = (z0 + z1) / 2;
+  const bar = createBar(len, '216,180,110', { bodyMaterial: onyxMaterial(), top: 0x111014 });
+  bar.position.set(half - m(1.4), 0, cz);
+  bar.rotation.y = -Math.PI / 2;
+  room.add(bar);
+  const stools = Math.floor(len / m(0.85));
+  for (let i = 0; i < stools; i++) {
+    const z = z0 + (i + 0.5) * (len / stools);
+    place(room, 'bar_chair_round_01', { x: half - m(1.95), z, yaw: Math.PI / 2 });
+  }
+}
+
+// ---------- the dice ----------
+// Two great gold dice on a plinth of black marble: one square on the
+// plinth, the other tumbling, caught on a corner.
+function goldDice(room, x, z) {
+  const plinthMat = new THREE.MeshStandardMaterial({ color: 0x141318, roughness: 0.2, metalness: 0.1 });
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(m(2.2), m(0.5), m(1.5)), plinthMat);
+  plinth.position.set(x, FLOOR_Y + m(0.25), z);
+  room.add(plinth);
+  const trim = new THREE.Mesh(new THREE.BoxGeometry(m(2.24), m(0.03), m(1.54)), new THREE.MeshStandardMaterial({ color: 0xc9a86a, roughness: 0.3, metalness: 0.9 }));
+  trim.position.set(x, FLOOR_Y + m(0.5), z);
   room.add(trim);
-  for (let z = z0 + m(0.8); z < z1 - m(0.4); z += m(1.7)) place(room, 'potted_plant_02', { x: px, y: FLOOR_Y + m(0.4), z, size: 2.3 });
-  return (dt, now) => { water.material.uniforms.uTime.value = now / 1000; };
+  const S = m(0.8);
+  const gold = new THREE.MeshStandardMaterial({ color: 0xd8b25e, roughness: 0.18, metalness: 1.0, emissive: 0x3a2808, emissiveIntensity: 0.35 });
+  const pipMat = new THREE.MeshStandardMaterial({ color: 0x0c0b0f, roughness: 0.4 });
+  const pipGeo = new THREE.CircleGeometry(S * 0.085, 20);
+  // Pips on each face, laid just proud of it: 1 opposite 6, 2 opposite 5, 3 opposite 4.
+  const LAYOUT = { 1: [[0, 0]], 2: [[-1, -1], [1, 1]], 3: [[-1, -1], [0, 0], [1, 1]], 4: [[-1, -1], [1, -1], [-1, 1], [1, 1]], 5: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]], 6: [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]] };
+  const FACES = [[1, new THREE.Vector3(0, 1, 0)], [6, new THREE.Vector3(0, -1, 0)], [2, new THREE.Vector3(0, 0, 1)], [5, new THREE.Vector3(0, 0, -1)], [3, new THREE.Vector3(1, 0, 0)], [4, new THREE.Vector3(-1, 0, 0)]];
+  const die = () => {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(new RoundedBoxGeometry(S, S, S, 4, S * 0.12), gold));
+    FACES.forEach(([n, normal]) => {
+      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+      LAYOUT[n].forEach(([u, v]) => {
+        const pip = new THREE.Mesh(pipGeo, pipMat);
+        pip.position.set(u * S * 0.26, v * S * 0.26, S / 2 + 0.003).applyQuaternion(q);
+        pip.quaternion.copy(q);
+        g.add(pip);
+      });
+    });
+    return g;
+  };
+  const a = die();
+  a.position.set(x - m(0.5), FLOOR_Y + m(0.5) + S / 2, z);
+  a.rotation.y = 0.4;
+  room.add(a);
+  const b = die();
+  // Balanced on a corner, as if still rolling.
+  b.position.set(x + m(0.55), FLOOR_Y + m(0.5) + S * 0.87, z + m(0.1));
+  b.rotation.set(Math.PI / 4, 0.7, Math.atan(1 / Math.SQRT2));
+  room.add(b);
 }
 
 // ---------- searchlights over the city ----------
@@ -384,20 +454,19 @@ function champagneTower(room, x, z) {
 }
 
 // ---------- the room ----------
-// The largest room by far: 28 m of floor across, and tall, with a pool
-// deck of its own down the right-hand side.
+// 28 m of floor across and tall, the window bar down its right-hand side.
 export const HIGH_ROLLER = {
   tableGlow: 0xffe2b0,
   half: 36,
   ceilingY: 11.0,
   windows: true,
   wall: { style: 'lacquer', base: 0x17171b, trim: 0xc9a86a, skirting: 0x08080a },
-  floor: { style: 'marble', base: 0x121116, pattern: 0xd9d2c3 },
+  floor: { style: 'marble', base: 0xece8e1, pattern: 0xc4a05c },
   floorPx: 1024, floorRepeat: 72 / 5,
-  paintFloor: paintPenthouseFloor,
+  paintFloor: paintMarbleFloor,
   noPanel: true,
   ceiling: 0x161a2c, ceilingGlow: 0.3, cove: 0xd8b878, diffuser: 0xc8aa80, accent: 0xd8b46e, washAlpha: 0.16,
-  light: { sky: 0xd4dcff, ground: 0x3a2c38, fill: 1.6, key: 0xffe6c8, keyPower: 96, wash: 0xffd8b0, washPower: 34, fog: 0x05060b, fogNear: 30, fogFar: 90 },
+  light: { sky: 0xd4dcff, ground: 0x6a5a50, fill: 1.55, key: 0xffe6c8, keyPower: 96, wash: 0xffd8b0, washPower: 34, fog: 0x05060b, fogNear: 30, fogFar: 90 },
   furnish(room, half, CEILING_Y) {
     const wallH = CEILING_Y - FLOOR_Y;
     const updates = [];
@@ -438,16 +507,17 @@ export const HIGH_ROLLER = {
     });
     brandSign(room, half, { wall: 'front', width: m(2.2), rgb: '236,202,128', plate: '#0b0b0f' });
 
-    // Tray ceilings one inside the other, each ringed with gold light, so
-    // the great ceiling is a thing to look up at, not a dark void.
-    room.add(createTrayCeiling(54, 46, CEILING_Y, 0xe8c48a, 0x1c2034));
-    room.add(createTrayCeiling(30, 25, CEILING_Y - m(0.25), 0xe8c48a, 0x1c2034));
+    // Gold light across the ceiling from the chandelier, and up the glass.
+    starburstCeiling(room, half, CEILING_Y);
+    lightPiers(room, half, CEILING_Y);
 
     // Crystal rain over the table.
     updates.push(crystalRain(room, CEILING_Y, new THREE.Vector3(0, 0, -0.4)));
 
-    // A rug under the table and chairs.
-    room.add(createRug(26, 21, { base: '#5a1622', border: '#2a0a10', accent: '#e0bf72' }));
+    // A round rug of navy and gold under the table and chairs, a ring of
+    // light in the marble round it.
+    room.add(roundRug(m(4.4)));
+    room.add(lightRing(m(4.9)));
 
     // The onyx bar, at the back left.
     barCorner(room, half, CEILING_Y, { length: m(3.8), bodyMaterial: onyxMaterial(), top: 0x111014, wood: 0x16121a, rgb: '216,180,110', lamp: 'Chandelier_03', lampSize: 1.4 });
@@ -463,13 +533,15 @@ export const HIGH_ROLLER = {
     r.position.set(fx, FLOOR_Y + 0.006, fz);
     room.add(r);
 
-    // The infinity pool along the right-hand glass.
-    updates.push(infinityPool(room, half - m(5.3), half - m(0.35), -m(6.0), m(9.0), CEILING_Y));
+    // Down the right-hand glass, the window bar, its stools to the view.
+    windowBar(room, half, -m(6.5), m(7.5));
+    // Two great gold dice, out on the floor at the front right.
+    goldDice(room, m(6.2), m(5.2));
 
-    // A lounge on the left, and palms.
-    lounge(room, half, -1, m(0.9), { sofa: 'Sofa_01', chair: 'mid_century_lounge_chair', sofaSize: 1.15, rug: { base: '#24161b', border: '#120b0e', accent: '#c9a86a' } });
+    // A lounge on the left, a tall palm at each end of it.
+    lounge(room, half, -1, m(0.9), { sofa: 'Sofa_01', chair: 'mid_century_lounge_chair', sofaSize: 1.15, rug: { base: '#141a38', border: '#0a0d20', accent: '#c9a86a' } });
     place(room, 'Chandelier_03', { x: -(half - m(1.55)), y: CEILING_Y, z: m(0.9), size: 2.2 });
-    [[-(half - m(0.6)), m(3.6)], [-(half - m(0.6)), half - m(0.8)], [half - m(0.6), half - m(0.8)], [half - m(0.6), -m(3.4)]].forEach(([x, z]) => place(room, 'potted_plant_04', { x, z, size: 2.2 }));
+    [m(-1.6), m(3.4)].forEach((z) => place(room, 'potted_plant_02', { x: -(half - m(0.6)), z, size: 2.0 }));
     // Art on plinths flanking the sign.
     [-1, 1].forEach((side) => {
       place(room, 'side_table_tall_01', { x: side * m(2.6), z: -half + m(0.6), size: 1.1 });
@@ -487,7 +559,7 @@ export const HIGH_ROLLER = {
         const px = gx + m(dx), pz = gz + m(dz);
         place(room, id, { x: px, z: pz, yaw: facing(px, pz, gx, gz), size: id === 'Sofa_01' ? 1.1 : 1 });
       });
-      const gr = createRug(m(3.8), m(3.4), { base: '#1d1a22', border: '#0d0b10', accent: '#c9a86a' });
+      const gr = createRug(m(3.8), m(3.4), { base: '#141a38', border: '#0a0d20', accent: '#c9a86a' });
       gr.position.set(gx, FLOOR_Y + 0.006, gz);
       room.add(gr);
       place(room, 'Chandelier_03', { x: gx, y: CEILING_Y, z: gz, size: 2.2 });

@@ -610,10 +610,13 @@ function emptyPublicRoom(stakes, felt) {
 // fresh lobby always offers a spread of limits instead of, say, five
 // high-roller tables.
 async function ensureOpenTables(tables) {
-  const missing = MIN_PUBLIC_TABLES - tables.length;
-  if (missing <= 0) return tables;
   const taken = new Set(tables.map((t) => t.minBet));
   const spread = TABLE_STAKES.filter((s) => !taken.has(s.min));
+  // At least one table at every stakes — so a room added at the top (the
+  // Royal Flush) has a table the first time the lobby is opened, even when
+  // the lobby already has its minimum — and enough in all.
+  const missing = Math.max(MIN_PUBLIC_TABLES - tables.length, spread.length);
+  if (missing <= 0) return tables;
   const created = [];
   for (let i = 0; i < missing; i++) {
     const room = emptyPublicRoom(
