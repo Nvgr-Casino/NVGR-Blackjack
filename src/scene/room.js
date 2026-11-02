@@ -102,7 +102,7 @@ function createWallTexture(theme, d, { back = false, glazed = false, which = bac
   canvas.width = WALL_TEX_W;
   canvas.height = WALL_TEX_H;
   const ctx = canvas.getContext('2d');
-  // A room that paints its own walls (showrooms.js) does it all itself.
+  // A room that paints its own walls does it all itself.
   if (theme.paintWall) {
     theme.paintWall(ctx, d, which);
     const t = new THREE.CanvasTexture(canvas);
