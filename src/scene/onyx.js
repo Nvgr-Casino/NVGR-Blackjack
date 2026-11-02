@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 
 // Amber onyx, lit from behind: bands of honey and cream, veined — for the
-// front of the Penthouse's bar, which glows from within the stone.
+// front of the High Roller's and the Royal Flush's bars, which glow from
+// within the stone.
 export function onyxMaterial() {
   const W = 1024, H = 512;
   const c = document.createElement('canvas');

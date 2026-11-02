@@ -30,11 +30,11 @@ export const FORMATS = {
 // table. Online, a table that starts short pays in proportion. Every buy-in
 // in both formats.
 const LADDER = [
-  { key: 'starter', name: 'Starter', tier: 1, buyIn: 10000, prizes: [100000, 25000, 10000] },
-  { key: 'classic', name: 'Classic', tier: 3, buyIn: 50000, prizes: [500000, 125000, 50000] },
-  { key: 'highroller', name: 'High Roller', tier: 4, buyIn: 100000, prizes: [1000000, 250000, 100000], featured: true },
-  { key: 'millionaire', name: 'Millionaire', tier: 5, buyIn: 250000, prizes: [2500000, 625000, 250000] },
-  { key: 'diamond', name: 'Diamond', tier: 5, buyIn: 1000000, prizes: [10000000, 2500000, 1000000] },
+  { key: 'starter', name: 'Penny Ante', tier: 1, buyIn: 10000, prizes: [100000, 25000, 10000] },
+  { key: 'classic', name: 'Pocket Aces', tier: 3, buyIn: 50000, prizes: [500000, 125000, 50000] },
+  { key: 'highroller', name: 'All In', tier: 4, buyIn: 100000, prizes: [1000000, 250000, 100000], featured: true },
+  { key: 'millionaire', name: 'Jackpot', tier: 5, buyIn: 250000, prizes: [2500000, 625000, 250000] },
+  { key: 'diamond', name: 'Four Aces', tier: 5, buyIn: 1000000, prizes: [10000000, 2500000, 1000000] },
 ];
 export const BJ_TOURNAMENTS = ['quick', 'elimination'].flatMap((format) => LADDER.map(({ key, ...d }) => ({
   ...d, id: `bj${FORMATS[format].hands}-${key}`, format, hands: FORMATS[format].hands, cuts: FORMATS[format].cuts,

@@ -87,9 +87,9 @@ function playOut(def, games) {
   ok(!broken, broken || `${def.id}: ${games} tournaments to the end (${minHands}–${maxHands} hands; ${early} ended early), places and prizes right`);
 }
 const def = T.bjTournamentById('bj5-highroller');
-ok(def && def.buyIn === 100000 && def.prizes[0] === 1000000 && def.hands === 5 && def.format === 'quick', 'Quick High Roller: 5 hands, 100K buy-in, 1M to the winner');
+ok(def && def.buyIn === 100000 && def.prizes[0] === 1000000 && def.hands === 5 && def.format === 'quick', 'Quick All In: 5 hands, 100K buy-in, 1M to the winner');
 const elim = T.bjTournamentById('bj9-highroller');
-ok(elim && elim.hands === 9 && elim.cuts.join() === '3,5,7' && elim.prizes[0] === 1000000, 'Elimination High Roller: 9 hands, cuts after 3, 5 and 7');
+ok(elim && elim.hands === 9 && elim.cuts.join() === '3,5,7' && elim.prizes[0] === 1000000, 'Elimination All In: 9 hands, cuts after 3, 5 and 7');
 ok(T.BJ_TOURNAMENTS.length === 10, 'five buy-ins in each format');
 playOut(def, 200);
 playOut(elim, 200);

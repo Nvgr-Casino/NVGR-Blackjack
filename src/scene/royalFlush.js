@@ -5,7 +5,7 @@ import { createBrandSign } from './luxury.js';
 import { walkway, facing, barCorner, staffPosts } from './layout.js';
 import { onyxMaterial } from './onyx.js';
 
-// The Penthouse: above the clouds.
+// The Royal Flush: above the clouds — the top room of all.
 //
 // A round pavilion of glass at the top of the world, open to the night on
 // every side and overhead. Below, a sea of cloud lit by the moon, drifting.
@@ -327,7 +327,7 @@ function orrery(room, apexY) {
 }
 
 // ---------- the room ----------
-export const PENTHOUSE = {
+export const ROYAL_FLUSH = {
   tableGlow: 0xb8c8ff,
   half: 31,
   ceilingY: 11.0,

@@ -14,11 +14,11 @@ import * as R from './rules.js';
 // The prize for first is ten buy-ins, second two and a half, third one —
 // for a full table. Online, a table that starts short pays in proportion.
 export const TOURNAMENTS = [
-  { id: 'starter', name: 'Starter', tier: 1, buyIn: 10000, prizes: [100000, 25000, 10000] },
-  { id: 'classic', name: 'Classic', tier: 3, buyIn: 50000, prizes: [500000, 125000, 50000] },
-  { id: 'highroller', name: 'High Roller', tier: 4, buyIn: 100000, prizes: [1000000, 250000, 100000], featured: true },
-  { id: 'millionaire', name: 'Millionaire', tier: 5, buyIn: 250000, prizes: [2500000, 625000, 250000] },
-  { id: 'diamond', name: 'Diamond', tier: 5, buyIn: 1000000, prizes: [10000000, 2500000, 1000000] },
+  { id: 'starter', name: 'Penny Ante', tier: 1, buyIn: 10000, prizes: [100000, 25000, 10000] },
+  { id: 'classic', name: 'Pocket Aces', tier: 3, buyIn: 50000, prizes: [500000, 125000, 50000] },
+  { id: 'highroller', name: 'All In', tier: 4, buyIn: 100000, prizes: [1000000, 250000, 100000], featured: true },
+  { id: 'millionaire', name: 'Jackpot', tier: 5, buyIn: 250000, prizes: [2500000, 625000, 250000] },
+  { id: 'diamond', name: 'Four Aces', tier: 5, buyIn: 1000000, prizes: [10000000, 2500000, 1000000] },
 ];
 export const tournamentById = (id) => TOURNAMENTS.find((d) => d.id === id) || null;
 

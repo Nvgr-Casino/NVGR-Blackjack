@@ -19,6 +19,7 @@ export const DENOMINATIONS = [
 ];
 
 function labelText(value) {
+  if (value >= 1e6) return `${+(value / 1e6).toFixed(2)}M`;
   return value >= 1000 ? `${value / 1000}K` : `${value}`;
 }
 

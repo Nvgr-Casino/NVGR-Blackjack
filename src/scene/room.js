@@ -432,7 +432,7 @@ export function createRoom(tier = 3) {
   room.userData.theme = theme;
   room.userData.dims = d;
 
-  // A round room (the Penthouse's pavilion) has a round floor.
+  // A round room (the Royal Flush's pavilion) has a round floor.
   const floor = new THREE.Mesh(
     theme.floorRadius ? new THREE.CircleGeometry(theme.floorRadius, 96) : new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE),
     new THREE.MeshLambertMaterial({ map: createCarpetTexture(theme) })

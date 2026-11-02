@@ -392,6 +392,8 @@ input:focus { outline: none; border-color: var(--accent); }
 .tour-tile.tier-4, .sheet-band.tier-4 { --t1: #8c6524; --t2: #261905; }
 .tour-tile.tier-5, .sheet-band.tier-5 { --t1: #352a5c; --t2: #0a0816; }
 .tour-tile.tier-5, .sheet-band.tier-5 { background: linear-gradient(180deg, rgba(10, 8, 20, 0.2), rgba(10, 8, 20, 0.85)), var(--sky, none) center 65% / cover, #0a0816; }
+/* The Royal Flush: the northern lights over the night. */
+.tour-tile.tier-6, .sheet-band.tier-6 { --t1: #1d6b5c; --t2: #070a1c; background: radial-gradient(120% 90% at 30% 0%, rgba(40, 200, 140, 0.45), transparent 60%), radial-gradient(90% 80% at 80% 10%, rgba(140, 80, 220, 0.4), transparent 65%), linear-gradient(180deg, #0b1430, #05060f); }
 .tour-tile {
   position: relative; overflow: hidden;
   display: flex; flex-direction: column; gap: 6px; text-align: left; cursor: pointer; color: #fbf6ec;

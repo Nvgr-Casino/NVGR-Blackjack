@@ -35,7 +35,7 @@ let shownGame = null;
 let sceneHandles = null;
 
 // Behind the sign-in page and the lobby the scene is the backdrop: the
-// Penthouse, its dealer, and the table of the game the lobby is showing.
+// Royal Flush, its dealer, and the table of the game the lobby is showing.
 const BACKDROP_SCREENS = new Set(['auth', 'home']);
 
 function render() {
@@ -69,7 +69,7 @@ function render() {
   lastScreen = session.screen;
   if (sceneHandles) {
     const poker = session.screen === 'home' && (lobbyGame === 'holdem' || lobbyGame === 'tournaments');
-    sceneHandles.setBackdrop(backdrop, { tier: 5, show: poker ? 'holdem' : 'blackjack', dealerKey: dealerKeyFor(5, 'male') });
+    sceneHandles.setBackdrop(backdrop, { tier: 6, show: poker ? 'holdem' : 'blackjack', dealerKey: dealerKeyFor(6, 'male') });
   }
 
   if (session.screen === 'loading') {

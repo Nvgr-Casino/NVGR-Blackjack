@@ -32,17 +32,19 @@ export const DEALER_MODELS = {
   f4: { file: 'rb_dealer_f4.glb', clip: IDLE_F },  // black waistcoat
   m5: { file: 'rb_dealer_m5.glb', clip: IDLE_M, bowTie: 0x111114 },  // burgundy waistcoat
   f5: { file: 'rb_dealer_f5.glb', clip: IDLE_F },  // black dress
+  m6: { file: 'rb_dealer_m4.glb', clip: IDLE_M, bowTie: 0x111114 },  // black waistcoat, bow tie
+  f6: { file: 'rb_dealer_f5.glb', clip: IDLE_F },  // black dress
 };
 export const DEALER_KEYS = ['male', 'female'];
 
 /**
- * The dealer for a table: its stakes tier (1–5) picks the wardrobe, and
+ * The dealer for a table: its stakes tier (1–6) picks the wardrobe, and
  * the room's `dealerType` which of the tier's two. Tables opened before
  * dealers had tiers say only 'male' or 'female', which this reads as is.
  */
 export function dealerKeyFor(tier, dealerType) {
   const sex = dealerType === 'female' ? 'f' : 'm';
-  const t = Math.max(1, Math.min(5, tier || 1));
+  const t = Math.max(1, Math.min(6, tier || 1));
   return sex + t;
 }
 

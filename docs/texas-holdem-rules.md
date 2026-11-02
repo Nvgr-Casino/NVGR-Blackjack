@@ -8,11 +8,12 @@ No-Limit Texas Hold'em, six-seat cash tables, following the Poker TDA rules
 
 | Room | Blinds | Buy-in (40–100 big blinds) |
 |---|---|---|
-| The Lounge | 50 / 100 | 4,000 – 10,000 |
-| The Parlour | 100 / 200 | 8,000 – 20,000 |
-| The Library | 250 / 500 | 20,000 – 50,000 |
-| The Gold Room | 500 / 1,000 | 40,000 – 100,000 |
-| The Penthouse | 2,500 / 5,000 | 200,000 – 500,000 |
+| Lucky Sevens | 50 / 100 | 4,000 – 10,000 |
+| The Wild Card | 100 / 200 | 8,000 – 20,000 |
+| The Full House | 250 / 500 | 20,000 – 50,000 |
+| The Golden Ace | 500 / 1,000 | 40,000 – 100,000 |
+| The High Roller | 2,500 / 5,000 | 200,000 – 500,000 |
+| The Royal Flush | 10,000 / 20,000 | 800,000 – 2,000,000 |
 
 - Six seats, numbered clockwise from the dealer's left.
 - The lobby always has one public table at each stakes; anyone can open a
@@ -97,13 +98,13 @@ tournament chips; the blinds start at 25/50 and go up every 5 hands. A player
 out of chips is out; two out in the same hand are placed by the chips they
 started it with. The top three are paid.
 
-| Tournament  | Room          | Buy-in    | 1st        | 2nd       | 3rd       |
-|-------------|---------------|-----------|------------|-----------|-----------|
-| Starter     | The Lounge    | 10,000    | 100,000    | 25,000    | 10,000    |
-| Classic     | The Library   | 50,000    | 500,000    | 125,000   | 50,000    |
-| High Roller | The Gold Room | 100,000   | 1,000,000  | 250,000   | 100,000   |
-| Millionaire | The Penthouse | 250,000   | 2,500,000  | 625,000   | 250,000   |
-| Diamond     | The Penthouse | 1,000,000 | 10,000,000 | 2,500,000 | 1,000,000 |
+| Tournament  | Room            | Buy-in    | 1st        | 2nd       | 3rd       |
+|-------------|-----------------|-----------|------------|-----------|-----------|
+| Penny Ante  | Lucky Sevens    | 10,000    | 100,000    | 25,000    | 10,000    |
+| Pocket Aces | The Full House  | 50,000    | 500,000    | 125,000   | 50,000    |
+| All In      | The Golden Ace  | 100,000   | 1,000,000  | 250,000   | 100,000   |
+| Jackpot     | The High Roller | 250,000   | 2,500,000  | 625,000   | 250,000   |
+| Four Aces   | The High Roller | 1,000,000 | 10,000,000 | 2,500,000 | 1,000,000 |
 
 - **Online.** Each tournament always has a table taking registrations. It
   starts when six have registered, or 90 seconds after the second. A short

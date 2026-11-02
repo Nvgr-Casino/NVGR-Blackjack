@@ -531,6 +531,7 @@ export const TABLE_STAKES = [
   { min: 1000, max: 25000 },
   { min: 5000, max: 100000 },
   { min: 25000, max: 500000 },
+  { min: 100000, max: 2000000 },
 ];
 
 // Tables created before stakes existed have no limits stored, so they read
@@ -542,10 +543,11 @@ export function stakesFor(room) {
 }
 
 // Each tier's table stands in a room of its own (src/scene/rooms.js).
-export const ROOM_NAMES = ['The Lounge', 'The Parlour', 'The Library', 'The Gold Room', 'The Penthouse'];
+// Each room is named for a hand or a turn of the game, rising with the stakes.
+export const ROOM_NAMES = ['Lucky Sevens', 'The Wild Card', 'The Full House', 'The Golden Ace', 'The High Roller', 'The Royal Flush'];
 export function roomName(room) { return ROOM_NAMES[stakesTier(room) - 1]; }
 
-// Which of the five tiers a table is, 1 (lowest) to 5 — what its room and
+// Which of the six tiers a table is, 1 (lowest) to 6 — what its room and
 // its dealer are dressed for. A private table at stakes of its own counts
 // as the tier whose minimum it reaches.
 export function stakesTier(room) {
@@ -558,7 +560,7 @@ export function stakesTier(room) {
 }
 
 export function stakesLabel(min, max) {
-  const short = (n) => (n >= 1000 ? (n % 1000 ? (n / 1000).toFixed(1) : n / 1000) + 'K' : String(n));
+  const short = (n) => (n >= 1e6 ? +(n / 1e6).toFixed(2) + 'M' : n >= 1000 ? (n % 1000 ? (n / 1000).toFixed(1) : n / 1000) + 'K' : String(n));
   return short(min) + ' / ' + short(max);
 }
 

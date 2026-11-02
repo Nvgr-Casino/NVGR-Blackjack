@@ -80,8 +80,8 @@ from 100 to 5,000, in two formats:
 In either, a player who can no longer cover the minimum bet is out at once.
 Level stacks at the end share a place and split its prizes. The top three
 are paid, the same buy-ins and prizes in both formats and as the Hold'em
-tournaments (Starter 10K to 100K, Classic 50K to 500K, High Roller 100K to
-1M, Millionaire 250K to 2.5M, Diamond 1M to 10M). Hold'em keeps its own
+tournaments (Penny Ante 10K to 100K, Pocket Aces 50K to 500K, All In 100K
+to 1M, Jackpot 250K to 2.5M, Four Aces 1M to 10M). Hold'em keeps its own
 format, blinds rising until one player is left: a slower game.
 
 - **Online:** each tournament always has a table taking registrations. It

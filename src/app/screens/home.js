@@ -159,8 +159,8 @@ function homePage() {
     <section class="marquee">
       <div class="marquee-text">
         <span class="marquee-greet">${greet}, ${esc(S.session.name.split(' ')[0])}</span>
-        <h1 class="marquee-title">Tonight at <span class="gold-num">the Penthouse</span></h1>
-        <p class="marquee-line">Two games, five rooms, and tournaments up to ${short(T.TOURNAMENTS[T.TOURNAMENTS.length - 1].prizes[0])} — pull up a chair.</p>
+        <h1 class="marquee-title">Tonight at <span class="gold-num">the Royal Flush</span></h1>
+        <p class="marquee-line">Two games, six rooms, and tournaments up to ${short(T.TOURNAMENTS[T.TOURNAMENTS.length - 1].prizes[0])} — pull up a chair.</p>
       </div>
       <div class="marquee-me">
         <img class="welcome-avatar" src="${portrait(S.session.character, '', 128)}" alt="">

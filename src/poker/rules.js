@@ -44,6 +44,7 @@ export const POKER_STAKES = [
   { sb: 250, bb: 500 },
   { sb: 500, bb: 1000 },
   { sb: 2500, bb: 5000 },
+  { sb: 10000, bb: 20000 },
 ];
 // Buy in for 40 to 100 big blinds, the usual online range.
 export const BUY_IN_MIN_BB = 40;

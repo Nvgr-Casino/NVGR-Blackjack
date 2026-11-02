@@ -50,7 +50,7 @@ const stacks = (room) => Object.values(room.players).reduce((s, p) => s + p.stac
 
 // ----- full tournaments
 const def = T.tournamentById('highroller');
-ok(def && def.buyIn === 100000 && def.prizes[0] === 1000000, 'High Roller: 100K buy-in, 1M to the winner');
+ok(def && def.buyIn === 100000 && def.prizes[0] === 1000000, 'All In: 100K buy-in, 1M to the winner');
 let longest = 0;
 let maxLevel = 0;
 for (let game = 0; game < 25; game++) {

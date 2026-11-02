@@ -196,7 +196,7 @@ function maybePreAct(room, myKey) {
 
 // ---------- the HUD ----------
 
-const short = (n) => (n >= 1000 ? (n % 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') : n / 1000) + 'K' : String(n));
+const short = (n) => (n >= 1e6 ? +(n / 1e6).toFixed(2) + 'M' : n >= 1000 ? (n % 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') : n / 1000) + 'K' : String(n));
 const cardImg = (c) => `<img class="rc" src="${cardFaceUrl(...c.split('-'))}" alt="${esc(c)}">`;
 const backImg = () => '<span class="rc rc-back" aria-hidden="true"></span>';
 

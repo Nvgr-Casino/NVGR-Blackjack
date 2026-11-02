@@ -5,25 +5,26 @@ import { createRug, createDrape, createBrandSign } from './luxury.js';
 import { lounge, pilaster, walkway, barCorner, brandSign, staffPosts, sconce } from './layout.js';
 import { drawCasinoCrest } from './crest.js';
 
-// The four rooms below the Penthouse, each built round an idea of its own
+// The four rooms below the High Roller, each built round an idea of its own
 // rather than one salon in four colours:
 //
-//   The Lounge   — a terrace on a cliff over the sea at sunset: a white
-//                  colonnade and balustrade open on three sides, a pergola
-//                  strung with lights, palms, and the sun going down
-//                  behind the dealer.
-//   The Parlour  — an Art Deco ballroom: peacock lacquer and gold, a giant
-//                  gold sunburst behind the dealer, a starburst inlaid in
-//                  the floor round the table, a stepped ceiling ringed
-//                  with light, fluted black columns.
-//   The Library  — a two-storey library: books floor to ceiling, a gallery
-//                  with a brass rail all round, a ladder, a glass dome of
-//                  stars over the table, green banker's lamps.
-//   The Gold Room — a hall of mirrors: arched gilt mirrors down every wall,
-//                  a sky painted on the ceiling, crystal chandeliers in a
-//                  row, a marble fireplace with a fire in it, red velvet.
+//   Lucky Sevens   — a terrace on a cliff over the sea at sunset: a white
+//                    colonnade and balustrade open on three sides, a
+//                    pergola strung with lights, palms, and the sun going
+//                    down behind the dealer.
+//   The Wild Card  — an Art Deco ballroom: peacock lacquer and gold, a
+//                    giant gold sunburst behind the dealer, a starburst
+//                    inlaid in the floor round the table, a stepped ceiling
+//                    ringed with light, fluted black columns.
+//   The Full House — a two-storey library: books floor to ceiling, a
+//                    gallery with a brass rail all round, a ladder, a glass
+//                    dome of stars over the table, green banker's lamps.
+//   The Golden Ace — a hall of mirrors: arched gilt mirrors down every
+//                    wall, a sky painted on the ceiling, crystal
+//                    chandeliers, a marble fireplace with a fire in it,
+//                    red velvet.
 //
-// Each still has what every room has (rooms.js's salon): the house sign
+// Each still has what every room has (common, below): the house sign
 // over the dealer, the bar in the back-left corner with its bartender, a
 // lounge on each side, the rug under the table, the waiters' loop and
 // posts. Most of the richness is painted (canvas textures) or instanced,

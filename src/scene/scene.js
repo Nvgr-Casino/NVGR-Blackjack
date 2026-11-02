@@ -29,7 +29,7 @@ export function initScene(canvas) {
     54,
     window.innerWidth / window.innerHeight,
     0.1,
-    // Far enough for the Penthouse's city, round the largest room.
+    // Far enough for the High Roller's city, round the largest room.
     160
   );
   // Wide enough, and pulled back far enough (see cameraPositionForSeat), to
@@ -173,8 +173,8 @@ export function initScene(canvas) {
     scene.fog.near = l.fogNear ?? 18;
     scene.fog.far = l.fogFar ?? 44;
   }
-  // The Penthouse first: it is what the lobby shows behind it (setBackdrop).
-  setRoomTheme(5);
+  // The Royal Flush first: it is what the lobby shows behind it (setBackdrop).
+  setRoomTheme(6);
 
   // Two tables, one shown at a time (setGame): the blackjack table with its
   // shoe, rack, discard holder, circles and five chairs, and the Hold'em
