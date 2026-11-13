@@ -10,6 +10,7 @@ import { BOARD_W, BOARD_H, AREA_BETS, LINE_BETS, areaRect, spotOf, numberFill, F
 import { SEAT_CHIP_COLORS } from '../scene/rouletteTable.js';
 import { chipButtonDataURL } from '../scene/chip.js';
 import { rouletteSpinSound, winChime, croupierSay, isSoundOn, setSoundOn } from '../scene/sfx.js';
+import { spinPlan, seedFor } from '../roulette/spinPlan.js';
 import { characterPortraitDataURL, defaultCharacterFor } from '../scene/character.js';
 import { dealerKeyFor } from '../scene/dealer.js';
 import { safeKey, roomName, stakesTier, stakesFor, stakesLabel, chipLadderForTable } from './roomLogic.js';
@@ -43,13 +44,12 @@ function moments(room, me) {
   if (heard.table !== room.code) {
     // Just sat down: nothing already over is announced.
     heard = { table: room.code, spinAt: room.spinAt, resultsAt: room.resultsAt, round: room.round };
-    if (room.phase === 'spinning' && now - room.spinAt < R.SPIN_MS * 0.6) heard.spinAt = null;
+    if (room.phase === 'spinning' && now - room.spinAt < R.SPIN_MS * 0.8) heard.spinAt = null;
     else return;
   }
   if (room.phase === 'spinning' && room.spinAt && heard.spinAt !== room.spinAt) {
     heard.spinAt = room.spinAt;
-    const T = R.SPIN_MS * 0.94;
-    rouletteSpinSound(T, T * 0.82, now - room.spinAt);
+    rouletteSpinSound(spinPlan(seedFor(room.spinAt, room.result.number)), now - room.spinAt);
     if (now - room.spinAt < 1500) croupierSay('No more bets');
   }
   if (room.phase === 'results' && room.result && heard.resultsAt !== room.resultsAt) {
@@ -120,7 +120,7 @@ export function syncRouletteToScene(room, myKey) {
   frameWheel(room);
   moments(room, me);
   if (room.phase === 'spinning' && room.result) {
-    driver.spinTo(room.result.number, room.spinAt, R.SPIN_MS * 0.94);
+    driver.spinTo(room.result.number, room.spinAt);
     driver.showDolly(null);
   } else if (room.phase === 'results' && room.result) {
     driver.rest(room.result.number);

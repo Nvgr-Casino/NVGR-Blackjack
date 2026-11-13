@@ -26,7 +26,10 @@ export const colorOf = (n) => (n === 0 ? 'green' : REDS.has(n) ? 'red' : 'black'
 
 export const ROULETTE_SEATS = 6;
 export const BETTING_MS = 25000;
-export const SPIN_MS = 8000;        // the wheel's spin, the ball's run and its fall
+// The ball's run, as at a real wheel: twenty-odd laps on the rim, the fall,
+// the bounces and the settle take up to about sixteen seconds
+// (src/roulette/spinPlan.js); the number is shown once it is still.
+export const SPIN_MS = 18000;
 export const RESULTS_MS = 6000;     // the number on the table before bets reopen
 export const MAX_IDLE_SPINS = 5;    // windows in a row without a bet before a seat is given up
 export const HISTORY = 16;

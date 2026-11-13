@@ -182,6 +182,8 @@ export function startPractice(tierIndex = 0) {
   publishPractice();
   practiceTimer = setInterval(() => {
     if (!practice) return;
+    // Signed out, or gone from the table some other way: the practice ends.
+    if (!S.session.uid || S.session.code !== practice.code) { stopPractice(); return; }
     // Nobody is given up at practice for watching a few spins.
     const me = practice.players[mine()];
     if (me) me.idle = 0;

@@ -105,33 +105,24 @@ export function createRouletteDriver({ scene, camera, controls, set, table }) {
     const look = ROULETTE_LOOK.clone().lerp(new THREE.Vector3(seat ? seat.position.x : 0, 0, 0), v.lean);
     return { position, look };
   }
-  // The spin as a film: the camera starts low beside the wheel, on the
-  // players' side, and circles slowly round as the ball loses its pace,
-  // rising and closing in as it falls, to end looking down into the pocket
-  // it has come to rest in. Placed every frame, timed by the spin, and
-  // eased into, so it never jumps.
+  // The spin, watched from one steady place: above the wheel on the
+  // players' side, looking down into it, the camera drawing slowly nearer
+  // as the ball slows and falls — never circling, never swinging after the
+  // ball. Eased into from wherever the camera was, so it never jumps.
   const posePos = new THREE.Vector3();
   const poseLook = new THREE.Vector3();
   const lookNow = new THREE.Vector3();
-  const ballAt = new THREE.Vector3();
   function wheelPose(now) {
     const p = wheel.progress(now);
     const k = p === null ? 1 : Math.min(1, p);
     const e = k * k * (3 - 2 * k);
     const tall = isTallScreen();
-    const far = tall ? 3.1 : 2.4, close = tall ? 1.6 : 1.0;
+    const far = tall ? 2.6 : 1.75, close = tall ? 2.05 : 1.3;
     const r = WHEEL_RADIUS * (far + (close - far) * e);
-    const az = Math.PI / 2 - 0.5 + 0.95 * e;
-    const h = r * (0.5 + 1.05 * e);
-    posePos.set(WHEEL_CENTER.x + Math.cos(az) * r, WHEEL_CENTER.y + h, WHEEL_CENTER.z + Math.sin(az) * r);
+    // From the players' side, a little toward the layout.
+    const dir = new THREE.Vector3(0.28, 0, 1).normalize();
+    posePos.set(WHEEL_CENTER.x + dir.x * r * 0.62, WHEEL_CENTER.y + r * 1.05, WHEEL_CENTER.z + dir.z * r * 0.62);
     poseLook.copy(WHEEL_CENTER);
-    // As the ball falls, the eye goes to it.
-    const toBall = Math.max(0, (k - 0.7) / 0.3) * 0.75;
-    if (toBall > 0) {
-      wheel.ballWorld(ballAt);
-      root.worldToLocal(ballAt);
-      poseLook.lerp(ballAt, toBall);
-    }
   }
   let lastFrame = 0;
   function filmWheel(now) {

@@ -9,6 +9,8 @@
 // phones above all, won't play sound before one. The player's Sound switch
 // (on by default, remembered) turns all of it, voices included, on or off.
 
+import { ballRun } from '../roulette/spinPlan.js';
+
 let context = null;
 let master = null;     // everything
 let effects = null;    // the table's own sounds, under master
@@ -34,7 +36,7 @@ export function audio() {
     // The room's own echo: a short, soft tail made from decaying noise, so
     // a chip or the ball has the space of a casino round it, not a booth.
     try {
-      const len = Math.round(context.sampleRate * 2.2);
+      const len = Math.round(context.sampleRate * 1.8);
       const ir = context.createBuffer(2, len, context.sampleRate);
       for (let ch = 0; ch < 2; ch++) {
         const d = ir.getChannelData(ch);
@@ -226,101 +228,117 @@ function knock(c, at, { ring = 3600, gain = 0.05, decay = 0.04, pan = 0 }) {
   ping(c, at, { freq: ring * (0.5 + Math.random() * 0.1), gain: gain * 0.35, decay: decay * 0.8, type: 'triangle' });
 }
 
+// The wooden bowl's voice: the resonances a ball rolling in it sets
+// ringing — what makes a real wheel sound like a wheel and not like hiss.
+const BOWL_MODES = [[240, 14, 1], [470, 14, 0.7], [790, 13, 0.45], [1180, 12, 0.25]];
+function bowl(c, at, dur, panned = true) {
+  const src = c.createBufferSource();
+  src.buffer = noise;
+  src.loop = true;
+  const drive = c.createGain();
+  drive.gain.value = 0;
+  const sum = c.createGain();
+  sum.gain.value = 1;
+  BOWL_MODES.forEach(([f, q, level]) => {
+    const bp = c.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = f;
+    bp.Q.value = q;
+    const g = c.createGain();
+    g.gain.value = level;
+    drive.connect(bp).connect(g).connect(sum);
+  });
+  const pan = panned && c.createStereoPanner ? c.createStereoPanner() : null;
+  src.connect(drive);
+  if (pan) sum.connect(pan).connect(effects); else sum.connect(effects);
+  src.start(at);
+  src.stop(at + dur + 0.1);
+  return { drive, pan };
+}
+
 /**
- * The wheel spun and the ball sent round, as heard at the table: the
- * croupier's flick; the ball's run round the black lacquer track — a
- * bright whirr over a soft rumble, circling from one ear to the other once
- * a lap, slowing lap by lap; its fall — a clack off a diamond, then bounces
- * across the gold frets, each sooner and softer than the last — and the
- * rattle of it settling, while the wheel turns on under it. Timed from the
- * spin's start, so a player arriving mid-spin hears only what is left.
+ * A spin, heard as at a real table, following the spin's own plan
+ * (src/roulette/spinPlan.js) so every sound lands on what is seen: the
+ * croupier's flick; the ball rolling round the wooden bowl — its
+ * resonances rumbling under it, swelling and fading once
+ * a lap as it passes, slowing lap by lap for its twenty-odd laps; the
+ * rotor's low turning under it; the chatter as it runs down the track, the
+ * clink off a brass diamond; then a clack for every bounce, sized to the
+ * hop, quicker and softer each time; and its little roll in the pocket.
+ * Timed from the spin's start, so a player arriving mid-spin hears only
+ * what is left of it.
  */
-export function rouletteSpinSound(totalMs, landMs, elapsedMs = 0) {
+export function rouletteSpinSound(plan, elapsedMs = 0) {
   const c = ready();
-  if (!c || elapsedMs >= landMs + 600) return;
+  if (!c || elapsedMs / 1000 >= plan.T3 + 0.5) return;
   const now = c.currentTime;
   const t0 = now - elapsedMs / 1000;
-  const drop = t0 + (landMs * 0.72) / 1000;
-  const land = t0 + landMs / 1000;
-  const end = t0 + totalMs / 1000;
+  const at = (s) => t0 + s;
   const from = Math.max(now, t0);
-  // The flick that sends the ball.
-  if (t0 >= now - 0.05) {
-    const flick = loopNoise(c, t0, 0.35, { type: 'bandpass', freq: 900, q: 1.5 });
-    flick.f.frequency.setValueAtTime(900, t0);
-    flick.f.frequency.exponentialRampToValueAtTime(4200, t0 + 0.25);
-    flick.g.gain.setValueAtTime(0, t0);
-    flick.g.gain.linearRampToValueAtTime(0.05, t0 + 0.05);
-    flick.g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.32);
-    knock(c, t0 + 0.02, { ring: 2400, gain: 0.04, decay: 0.05 });
-  }
-  // The rotor turning, low and steady, fading as it slows.
-  const rotor = loopNoise(c, from, end - from + 0.5, { type: 'lowpass', freq: 220, q: 0.7 });
+  const end = at(plan.T3 + 1.5);
+  // The ball let go: a soft tick from the croupier's fingers.
+  if (t0 >= now - 0.05) knock(c, t0 + 0.03, { ring: 2200, gain: 0.025, decay: 0.05 });
+  // The rotor, turning low under it all.
+  const rotor = loopNoise(c, from, end - from, { type: 'lowpass', freq: 170, q: 0.8 });
   rotor.g.gain.setValueAtTime(0, from);
-  rotor.g.gain.linearRampToValueAtTime(0.045, from + 0.5);
-  rotor.g.gain.linearRampToValueAtTime(0.012, end);
-  rotor.g.gain.linearRampToValueAtTime(0.0001, end + 0.5);
-  // The ball's run: a whirr and a rumble, panned round once a lap — the
-  // laps slowing from about three a second to one.
-  if (from < drop) {
-    const whirr = loopNoise(c, from, drop - from + 0.3, { type: 'bandpass', freq: 5200, q: 3.5 });
-    whirr.f.frequency.setValueAtTime(5200, t0);
-    whirr.f.frequency.exponentialRampToValueAtTime(2200, drop);
-    whirr.g.gain.setValueAtTime(0, from);
-    whirr.g.gain.linearRampToValueAtTime(0.05, from + 0.2);
-    whirr.g.gain.exponentialRampToValueAtTime(0.012, drop);
-    whirr.g.gain.linearRampToValueAtTime(0.0001, drop + 0.2);
-    const rumble = loopNoise(c, from, drop - from + 0.3, { type: 'lowpass', freq: 700, q: 1.2 });
-    rumble.f.frequency.setValueAtTime(700, t0);
-    rumble.f.frequency.exponentialRampToValueAtTime(320, drop);
-    rumble.g.gain.setValueAtTime(0, from);
-    rumble.g.gain.linearRampToValueAtTime(0.07, from + 0.3);
-    rumble.g.gain.exponentialRampToValueAtTime(0.02, drop);
-    rumble.g.gain.linearRampToValueAtTime(0.0001, drop + 0.25);
-    if (whirr.pan) {
-      const lfo = c.createOscillator();
-      lfo.frequency.setValueAtTime(3, t0);
-      lfo.frequency.exponentialRampToValueAtTime(0.9, drop);
-      const depth = c.createGain();
-      depth.gain.value = 0.7;
-      lfo.connect(depth);
-      depth.connect(whirr.pan.pan);
-      depth.connect(rumble.pan.pan);
-      lfo.start(from);
-      lfo.stop(drop + 0.3);
+  rotor.g.gain.linearRampToValueAtTime(0.05, from + 0.6);
+  rotor.g.gain.linearRampToValueAtTime(0.03, end - 1);
+  rotor.g.gain.linearRampToValueAtTime(0.0001, end);
+  // The roll: the wooden bowl rumbling under the ball, swelling and
+  // fading once a lap as it passes, panned round with it, slowing.
+  const rollEnd = at(plan.T2);
+  if (from < rollEnd) {
+    const wood = bowl(c, from, rollEnd - from + 0.3);
+    const lfo = c.createOscillator();
+    const lapDepth = c.createGain();
+    lapDepth.gain.value = 0.3;
+    const panDepth = c.createGain();
+    panDepth.gain.value = 0.55;
+    lfo.connect(lapDepth);
+    lfo.connect(panDepth);
+    lapDepth.connect(wood.drive.gain);
+    if (wood.pan) panDepth.connect(wood.pan.pan);
+    for (let s = Math.max(0, elapsedMs / 1000); s <= plan.T2 + 0.001; s += 0.25) {
+      const { speed } = ballRun(plan, s);
+      const k = Math.max(0, speed / plan.w0);
+      const when = Math.max(from, at(s));
+      const onTrack = s > plan.T1 ? Math.max(0.35, 1 - (s - plan.T1) / plan.spiral) : 1;
+      wood.drive.gain.linearRampToValueAtTime(0.2 * Math.pow(k, 0.7) * onTrack + 0.04, when);
+      lfo.frequency.linearRampToValueAtTime(speed / (Math.PI * 2), when);
     }
-    // Now and then the ball skips on the track.
-    for (let t = Math.max(from, t0 + 0.8); t < drop - 0.3; t += 0.5 + Math.random() * 0.9) {
-      knock(c, t, { ring: 5200 + Math.random() * 1500, gain: 0.01, decay: 0.02, pan: Math.random() * 1.2 - 0.6 });
-    }
+    wood.drive.gain.linearRampToValueAtTime(0.0001, rollEnd + 0.2);
+    lfo.start(from);
+    lfo.stop(rollEnd + 0.3);
   }
-  // The fall: off a diamond, then across the frets.
-  let t = drop;
-  let gap = 0.2;
-  let loud = 1;
-  if (t >= now) knock(c, t, { ring: 1900, gain: 0.08, decay: 0.09, pan: -0.2 });
-  t += 0.12;
-  while (t < land) {
-    if (t >= now) {
-      const pan = Math.random() * 0.8 - 0.4;
-      knock(c, t, { ring: 3400 + Math.random() * 1600, gain: 0.06 * loud, decay: 0.045, pan });
-      // A little rattle after each bounce.
-      for (let r = 1; r <= 2; r++) knock(c, t + r * 0.022, { ring: 4800 + Math.random() * 1500, gain: 0.015 * loud, decay: 0.02, pan });
-    }
-    t += gap;
-    gap *= 0.78;
-    loud *= 0.86;
-    if (gap < 0.035) break;
+  // Down the track: a chatter of small knocks thickening, then the diamond.
+  for (let s = plan.T1 + 0.1; s < plan.TD; s += 0.07 + Math.random() * 0.09) {
+    if (at(s) >= now) knock(c, at(s), { ring: 3800 + Math.random() * 2000, gain: 0.006 + 0.01 * ((s - plan.T1) / plan.spiral), decay: 0.018, pan: Math.random() * 0.8 - 0.4 });
   }
-  // Settling, the ball rolling a little in its pocket.
-  [0.04, 0.1, 0.17, 0.26].forEach((d, i) => {
-    const at = land + d;
-    if (at >= now) knock(c, at, { ring: 4200 + i * 250, gain: 0.018 / (i + 1), decay: 0.025 });
+  if (at(plan.TD) >= now) {
+    knock(c, at(plan.TD), { ring: 3150, gain: 0.07, decay: 0.2, pan: -0.15 });
+    knock(c, at(plan.TD) + 0.002, { ring: 5900, gain: 0.03, decay: 0.12, pan: -0.15 });
+    burst(c, at(plan.TD), { freq: 380, q: 1, gain: 0.05, decay: 0.07, type: 'lowpass' });
+  }
+  // The bounces: a clack where the ball comes down, the size of the hop it
+  // came down from, a skitter after it.
+  plan.hops.forEach((hop, i) => {
+    const t = at(hop.t0);
+    if (t < now) return;
+    const fall = i === 0 ? 0.035 : plan.hops[i - 1].h;
+    const loud = Math.min(1, fall / 0.03);
+    const pan = Math.random() * 0.7 - 0.35;
+    knock(c, t, { ring: 4100 + Math.random() * 1300, gain: 0.075 * loud + 0.012, decay: 0.05, pan });
+    knock(c, t + 0.001, { ring: 1350 + Math.random() * 300, gain: 0.03 * loud + 0.006, decay: 0.07, pan });
+    const skitter = i < 2 ? 2 : 1;
+    for (let k = 1; k <= skitter; k++) knock(c, t + k * (0.028 + Math.random() * 0.02), { ring: 5200 + Math.random() * 1500, gain: 0.014 * loud, decay: 0.02, pan });
   });
-  const roll = loopNoise(c, Math.max(now, land), 0.6, { type: 'bandpass', freq: 2600, q: 2 });
-  roll.g.gain.setValueAtTime(0, Math.max(now, land));
-  roll.g.gain.linearRampToValueAtTime(0.012, Math.max(now, land) + 0.05);
-  roll.g.gain.exponentialRampToValueAtTime(0.0001, Math.max(now, land) + 0.55);
+  // Settled: a short roll in the pocket, two last small clicks.
+  const settle = Math.max(now, at(plan.T3));
+  const roll = bowl(c, settle, 0.8, false);
+  roll.drive.gain.setValueAtTime(0.0001, settle);
+  roll.drive.gain.linearRampToValueAtTime(0.05, settle + 0.04);
+  roll.drive.gain.exponentialRampToValueAtTime(0.0001, settle + 0.7);
+  [0.08, 0.2].forEach((d, i) => { if (at(plan.T3 + d) >= now) knock(c, at(plan.T3 + d), { ring: 4600, gain: 0.012 / (i + 1), decay: 0.025 }); });
 }
 
 // A bell, struck: a sine carrier rung by a modulator whose depth dies
@@ -381,54 +399,54 @@ export function croupierSay(text) {
 }
 
 // ---------- music ----------
-// Quiet lounge jazz under the room, made as it plays: an electric piano
-// comping four-bar changes, a walking bass, brushes on the snare and a
-// whisper of ride, a soft pad beneath. Never the same twice — the voicings
-// lean, the bass walks its own way, the comping shifts — and kept low,
-// under the table's own sounds. Its own switch (on by default,
+// Quiet lounge jazz under the room: an electric piano comping two eight-bar
+// sets of changes, a walking bass, brushes on the snare and a whisper of
+// ride, a soft pad beneath. Played live, note by note, it broke up
+// whenever the page was busy drawing the room, so it is rendered once, in
+// the background (an OfflineAudioContext), into a loop of a little under a
+// minute whose tail is folded back into its head, and played from that:
+// seamless, and costing next to nothing. Its own switch (on by default,
 // remembered), and the Sound switch silences it with everything else.
 let musicOn = (() => { try { return localStorage.getItem('nvgr-music') !== 'off'; } catch { return true; } })();
 let musicBus = null;
-let musicTimer = null;
-let nextBeat = 0;
-let beatIndex = 0;
-const MUSIC_LEVEL = 0.32;
+let musicBuffer = null;
+let musicBuilding = null;
+let musicSource = null;
+const MUSIC_LEVEL = 0.3;
 const BPM = 72;
 const BEAT = 60 / BPM;
+const BARS = 16;
 const midi = (n) => 440 * Math.pow(2, (n - 69) / 12);
 // Two progressions in F, eight bars each: ii–V–I–vi, then IV–iii–ii–V.
 const CHANGES = [
   [{ bass: 43, notes: [58, 62, 65, 69] }, { bass: 48, notes: [58, 64, 69, 74] }, { bass: 41, notes: [57, 60, 64, 67] }, { bass: 50, notes: [53, 57, 60, 64] }],
   [{ bass: 46, notes: [57, 62, 65, 69] }, { bass: 45, notes: [55, 60, 64, 67] }, { bass: 43, notes: [58, 62, 65, 69] }, { bass: 48, notes: [58, 64, 67, 72] }],
 ];
-function chordAt(bar) {
-  const prog = CHANGES[Math.floor(bar / 8) % CHANGES.length];
-  return prog[Math.floor((bar % 8) / 2)];
-}
-// An electric piano's note: a bell-like tine over a warm body.
-function epiano(c, at, n, gain) {
+const chordAt = (bar) => CHANGES[Math.floor(bar / 8) % CHANGES.length][Math.floor((bar % 8) / 2)];
+
+function epiano(c, bus, at, n, gain) {
   const f = midi(n);
   const car = c.createOscillator();
   car.frequency.value = f;
   const mod = c.createOscillator();
   mod.frequency.value = f;
   const depth = c.createGain();
-  depth.gain.setValueAtTime(f * 1.4, at);
-  depth.gain.exponentialRampToValueAtTime(f * 0.05, at + 0.5);
+  depth.gain.setValueAtTime(f * 1.3, at);
+  depth.gain.exponentialRampToValueAtTime(f * 0.04, at + 0.5);
   mod.connect(depth).connect(car.frequency);
   const lp = c.createBiquadFilter();
   lp.type = 'lowpass';
-  lp.frequency.value = 2400;
+  lp.frequency.value = 2300;
   const g = c.createGain();
   g.gain.setValueAtTime(0, at);
   g.gain.linearRampToValueAtTime(gain, at + 0.008);
   g.gain.exponentialRampToValueAtTime(gain * 0.35, at + 0.6);
   g.gain.exponentialRampToValueAtTime(0.0001, at + 2.4);
-  car.connect(lp).connect(g).connect(musicBus);
+  car.connect(lp).connect(g).connect(bus);
   car.start(at); mod.start(at);
   car.stop(at + 2.5); mod.stop(at + 2.5);
 }
-function bassNote(c, at, n, gain = 0.16) {
+function bassNote(c, bus, at, n, gain) {
   const o = c.createOscillator();
   o.type = 'triangle';
   o.frequency.value = midi(n);
@@ -440,13 +458,13 @@ function bassNote(c, at, n, gain = 0.16) {
   g.gain.linearRampToValueAtTime(gain, at + 0.02);
   g.gain.exponentialRampToValueAtTime(gain * 0.4, at + 0.25);
   g.gain.exponentialRampToValueAtTime(0.0001, at + BEAT * 0.95);
-  o.connect(lp).connect(g).connect(musicBus);
+  o.connect(lp).connect(g).connect(bus);
   o.start(at);
   o.stop(at + BEAT);
 }
-function brush(c, at, gain, long) {
+function brush(c, bus, buf, at, gain, long, rand) {
   const src = c.createBufferSource();
-  src.buffer = noise;
+  src.buffer = buf;
   const f = c.createBiquadFilter();
   f.type = long ? 'bandpass' : 'highpass';
   f.frequency.value = long ? 3800 : 7500;
@@ -455,10 +473,10 @@ function brush(c, at, gain, long) {
   g.gain.setValueAtTime(0, at);
   g.gain.linearRampToValueAtTime(gain, at + (long ? 0.05 : 0.004));
   g.gain.exponentialRampToValueAtTime(0.0001, at + (long ? 0.28 : 0.07));
-  src.connect(f).connect(g).connect(musicBus);
-  src.start(at, Math.random() * 0.5, 0.35);
+  src.connect(f).connect(g).connect(bus);
+  src.start(at, rand() * 0.5, 0.35);
 }
-function pad(c, at, notes, dur) {
+function pad(c, bus, at, notes, dur) {
   notes.forEach((n) => {
     [-6, 6].forEach((cents) => {
       const o = c.createOscillator();
@@ -472,70 +490,97 @@ function pad(c, at, notes, dur) {
       g.gain.setValueAtTime(0, at);
       g.gain.linearRampToValueAtTime(0.006, at + dur * 0.4);
       g.gain.linearRampToValueAtTime(0.0001, at + dur);
-      o.connect(lp).connect(g).connect(musicBus);
+      o.connect(lp).connect(g).connect(bus);
       o.start(at);
       o.stop(at + dur + 0.05);
     });
   });
 }
-// One beat of the band, at `at`.
-function playBeat(c, at, i) {
+function playBeat(c, bus, buf, at, i, rand) {
   const bar = Math.floor(i / 4), beat = i % 4;
   const chord = chordAt(bar);
   const next = chordAt(bar + 1);
   const swing = BEAT * 0.66;
-  // The bass walks: root, a chord tone, another, and a step into the next.
-  const walk = [chord.bass, chord.bass + (Math.random() < 0.5 ? 7 : 4), chord.bass + (Math.random() < 0.5 ? 12 : 10), next.bass + (Math.random() < 0.5 ? -1 : 1)];
-  bassNote(c, at, walk[beat], beat === 0 ? 0.17 : 0.13);
-  // Brushes on two and four; the ride ticking the swung eighths.
-  if (beat === 1 || beat === 3) brush(c, at, 0.016, true);
-  brush(c, at, 0.006, false);
-  if (Math.random() < 0.6) brush(c, at + swing, 0.004, false);
-  // The piano comps: on the first beat of each chord, and pushes the
-  // and-of-two now and then; the voicing rolled a little.
+  const walk = [chord.bass, chord.bass + (rand() < 0.5 ? 7 : 4), chord.bass + (rand() < 0.5 ? 12 : 10), next.bass + (rand() < 0.5 ? -1 : 1)];
+  bassNote(c, bus, at, walk[beat], beat === 0 ? 0.17 : 0.13);
+  if (beat === 1 || beat === 3) brush(c, bus, buf, at, 0.016, true, rand);
+  brush(c, bus, buf, at, 0.006, false, rand);
+  if (rand() < 0.6) brush(c, bus, buf, at + swing, 0.004, false, rand);
   const onChord = bar % 2 === 0 && beat === 0;
-  const push = beat === 1 && Math.random() < 0.45;
+  const push = beat === 1 && rand() < 0.45;
   if (onChord || push) {
-    const notes = chord.notes.map((n) => n + (Math.random() < 0.2 ? 12 : 0));
+    const notes = chord.notes.map((n) => n + (rand() < 0.2 ? 12 : 0));
     const when = push ? at + swing : at;
-    notes.forEach((n, k) => epiano(c, when + k * 0.012, n, push ? 0.022 : 0.03));
+    notes.forEach((n, k) => epiano(c, bus, when + k * 0.012, n, push ? 0.022 : 0.03));
   }
-  if (bar % 2 === 0 && beat === 0) pad(c, at, chord.notes, BEAT * 8);
+  if (bar % 2 === 0 && beat === 0) pad(c, bus, at, chord.notes, BEAT * 8);
 }
-function scheduleMusic() {
-  const c = audio();
-  if (!c || c.state !== 'running') return;
-  if (nextBeat < c.currentTime) nextBeat = c.currentTime + 0.1;
-  while (nextBeat < c.currentTime + 0.4) {
-    playBeat(c, nextBeat, beatIndex++);
-    nextBeat += BEAT;
-  }
+// Renders the loop once; the same promise for anyone who asks again.
+function buildMusic() {
+  if (musicBuilding) return musicBuilding;
+  const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  if (!Offline) return Promise.resolve(null);
+  const sr = 44100;
+  const dur = BARS * 4 * BEAT;
+  const tail = 3;
+  const oc = new Offline(2, Math.ceil((dur + tail) * sr), sr);
+  const buf = oc.createBuffer(1, sr, sr);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  // A little room, baked in.
+  const len = Math.round(sr * 1.6);
+  const ir = oc.createBuffer(2, len, sr);
+  for (let ch = 0; ch < 2; ch++) { const x = ir.getChannelData(ch); for (let i = 0; i < len; i++) x[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
+  const conv = oc.createConvolver();
+  conv.buffer = ir;
+  const wet = oc.createGain();
+  wet.gain.value = 0.3;
+  const bus = oc.createGain();
+  bus.connect(oc.destination);
+  bus.connect(conv).connect(wet).connect(oc.destination);
+  let seed = 7;
+  const rand = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  for (let i = 0; i < BARS * 4; i++) playBeat(oc, bus, buf, i * BEAT, i, rand);
+  musicBuilding = oc.startRendering().then((rendered) => {
+    // The tail, rung on past the loop's end, laid back over its start, so
+    // the join cannot be heard.
+    const n = Math.ceil(dur * sr);
+    const out = new AudioBuffer({ numberOfChannels: 2, length: n, sampleRate: sr });
+    for (let ch = 0; ch < 2; ch++) {
+      const src = rendered.getChannelData(ch), dst = out.getChannelData(ch);
+      for (let i = 0; i < n; i++) dst[i] = src[i] + (i + n < src.length ? src[i + n] : 0);
+    }
+    musicBuffer = out;
+    return out;
+  }).catch(() => null);
+  return musicBuilding;
 }
-function startMusic() {
+async function startMusic() {
   const c = audio();
-  if (!c || musicTimer || !musicOn || document.hidden) return;
+  if (!c || musicSource || !musicOn || document.hidden || c.state !== 'running') return;
+  const buffer = musicBuffer || await buildMusic();
+  if (!buffer || musicSource || !musicOn || document.hidden) return;
   if (!musicBus) {
     musicBus = c.createGain();
     musicBus.connect(master);
-    if (reverbIn) {
-      const send = c.createGain();
-      send.gain.value = 0.5;
-      musicBus.connect(send).connect(reverbIn);
-    }
   }
+  const src = c.createBufferSource();
+  src.buffer = buffer;
+  src.loop = true;
+  src.connect(musicBus);
   musicBus.gain.cancelScheduledValues(c.currentTime);
   musicBus.gain.setValueAtTime(0, c.currentTime);
   musicBus.gain.linearRampToValueAtTime(MUSIC_LEVEL, c.currentTime + 3);
-  nextBeat = c.currentTime + 0.2;
-  musicTimer = setInterval(scheduleMusic, 100);
+  src.start();
+  musicSource = src;
 }
 function stopMusic() {
-  if (musicTimer) clearInterval(musicTimer);
-  musicTimer = null;
-  if (musicBus && context) {
-    musicBus.gain.cancelScheduledValues(context.currentTime);
-    musicBus.gain.setTargetAtTime(0, context.currentTime, 0.3);
-  }
+  const src = musicSource;
+  musicSource = null;
+  if (!src || !context) return;
+  musicBus.gain.cancelScheduledValues(context.currentTime);
+  musicBus.gain.setTargetAtTime(0, context.currentTime, 0.25);
+  src.stop(context.currentTime + 1.2);
 }
 export const isMusicOn = () => musicOn;
 export function setMusicOn(on) {
@@ -545,5 +590,5 @@ export function setMusicOn(on) {
 }
 // It starts with the first tap, as the sound does, and rests while the
 // tab is out of sight.
-['pointerdown', 'keydown', 'touchend'].forEach((e) => window.addEventListener(e, () => { if (musicOn && !musicTimer) setTimeout(startMusic, 50); }, { passive: true }));
+['pointerdown', 'keydown', 'touchend'].forEach((e) => window.addEventListener(e, () => { if (musicOn && !musicSource) setTimeout(startMusic, 80); }, { passive: true }));
 document.addEventListener('visibilitychange', () => { if (document.hidden) stopMusic(); else if (musicOn) startMusic(); });

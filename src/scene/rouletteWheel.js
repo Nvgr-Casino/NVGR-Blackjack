@@ -3,6 +3,7 @@ import { m } from './scale.js';
 import { canvasTex, grain } from './casinoKit.js';
 import { WHEEL_ORDER } from '../roulette/rules.js';
 import { numberFill } from '../roulette/layout.js';
+import { spinPlan, ballRun, seedFor } from '../roulette/spinPlan.js';
 
 // The roulette wheel, built grand: a drum of figured wood ringed in heavy
 // gold, gilt rosettes on its head; a ball track of black piano lacquer, so
@@ -14,8 +15,10 @@ import { numberFill } from '../roulette/layout.js';
 // Everything is in the wheel's own frame, its centre at the origin on the
 // table's top; the table places and scales it. It turns slowly always;
 // spun, it turns faster and slows, and the ball runs the other way round
-// the track, slows, drops, rattles and settles in the pocket of the number
-// drawn — timed from the spin's start, so every client sees the same.
+// the track for twenty-odd laps, spirals down, strikes a diamond, hops
+// from pocket to pocket and settles in the pocket of the number drawn — by
+// a plan seeded from the spin itself (src/roulette/spinPlan.js), so every
+// client sees the same run.
 
 const POCKET_STEP = (Math.PI * 2) / 37;
 // The angle, round the wheel's axis, of a pocket when the rotor is turned
@@ -265,35 +268,75 @@ export function createWheel() {
   g.add(ball);
 
   // ---------- the spin ----------
-  const SLOW = 0.45;                  // the wheel's own idle turn, radians a second
-  const RT = m(0.43), RP = m(0.3);    // the ball's track, and its pocket's radius
-  const YT = m(0.098), YP = m(0.058);
-  let base = 0;
+  // The rotor turns anticlockwise seen from above; the croupier gives it a
+  // push with each spin, and it slows back to an idle turn over a minute.
+  // The ball runs clockwise, by the spin's plan (src/roulette/spinPlan.js).
+  const IDLE = 0.55;                  // rad/s, between spins
+  const PUSH = 2.9;                   // rad/s, just after the croupier's push
+  const TAU = 28;                     // s, how long the push takes to fade
+  const RT = m(0.43), RD = m(0.405), RE = m(0.355);  // the ball's track, the diamonds' ring, the rotor's edge
+  const RP = m(0.3);
+  const YT = m(0.098), YP = m(0.058), YE = m(0.064);
+  const STEP = POCKET_STEP;
+  let base = 0;                       // the rotor's angle at `baseAt`, before any push
   let baseAt = 0;
-  let spin = null;                    // { start, T, land, number, boost, laps }
+  let pushAt = null;                  // when the last push was given (ms)
+  let spin = null;                    // { start, T, number, plan, rel }
   let resting = null;
-  const rotorAt = (now) => {
-    let a = base + SLOW * (now - baseAt) / 1000;
-    if (spin) {
-      const t = Math.min(1, (now - spin.start) / spin.T);
-      a += spin.boost * (1 - (1 - t) * (1 - t));
-    }
-    return a;
+  const pushed = (now) => {
+    if (pushAt === null) return 0;
+    const s = Math.max(0, (now - pushAt) / 1000);
+    return (PUSH - IDLE) * TAU * (1 - Math.exp(-s / TAU));
   };
+  const rotorAt = (now) => base + IDLE * (now - baseAt) / 1000 + pushed(now);
   function placeBall(angle, r, y) { ball.position.set(Math.cos(angle) * r, y, Math.sin(angle) * r); }
+
+  // The bounces: from where the ball lands on the rotor to the pocket it
+  // settles in, measured round the rotor itself; most of the way covered
+  // in the first, biggest hops, a pocket or so of jitter between.
+  function bounceWaypoints(plan, number, start) {
+    const t2 = start + plan.T2 * 1000;
+    const enter = ballRun(plan, plan.T2).angle + rotorAt(t2);
+    let target = pocketAngle(number, 0);
+    const lo = enter + plan.turns * Math.PI * 0.8;
+    target += Math.ceil((lo - target) / (Math.PI * 2)) * Math.PI * 2;
+    const n = plan.hops.length;
+    const pts = [enter];
+    for (let i = 1; i < n; i++) {
+      const f = 1 - Math.pow(1 - i / n, 1.7);
+      pts.push(enter + (target - enter) * f + plan.hops[i].jitter * STEP);
+    }
+    pts.push(target);
+    return pts;
+  }
+
   function update(now) {
     const a = rotorAt(now);
     rotor.rotation.y = a;
     if (spin) {
-      const t = now - spin.start;
-      if (t < spin.land) {
-        const k = Math.max(0, t) / spin.land;
-        const landAngle = pocketAngle(spin.number, rotorAt(spin.start + spin.land));
-        const angle = landAngle - spin.laps * (1 - k) * (1 - k);
-        const drop = Math.max(0, (k - 0.72) / 0.28);
-        const ease = drop * drop * (3 - 2 * drop);
-        const bounce = drop > 0 ? Math.abs(Math.sin(drop * Math.PI * 4)) * (1 - drop) * m(0.028) : 0;
-        placeBall(angle, RT + (RP - RT) * ease, YT + (YP - YT) * ease + bounce);
+      const { plan, rel } = spin;
+      const t = (now - spin.start) / 1000;
+      if (t < plan.T1) {
+        // On the rim, a hair's wobble in it.
+        const { angle } = ballRun(plan, Math.max(0, t));
+        placeBall(angle, RT + Math.sin(t * 7) * m(0.002), YT);
+      } else if (t < plan.T2) {
+        // Down the track, a jolt off the diamond near the end.
+        const { angle } = ballRun(plan, t);
+        const s = (t - plan.T1) / plan.spiral;
+        const e = s * s * (3 - 2 * s);
+        let r = RT + (RE - RT) * e, y = YT + (YE - YT) * e;
+        const k = (t - plan.TD) / 0.28;
+        if (k > 0 && k < 1) { y += Math.sin(k * Math.PI) * m(0.03); r += Math.sin(k * Math.PI) * m(0.012); }
+        placeBall(angle, r, y);
+      } else if (t < plan.T3) {
+        // Hopping from pocket to pocket, round with the rotor under it.
+        const i = plan.hops.findIndex((h) => t < h.t0 + h.dur);
+        const hop = plan.hops[i];
+        const s = (t - hop.t0) / hop.dur;
+        const relAngle = rel[i] + (rel[i + 1] - rel[i]) * s;
+        const r0 = i === 0 ? RE : plan.hops[i - 1].r * m(1), r1 = hop.r * m(1);
+        placeBall(relAngle - a, r0 + (r1 - r0) * s, YP + 4 * s * (1 - s) * m(hop.h));
       } else {
         placeBall(pocketAngle(spin.number, a), RP, YP);
       }
@@ -303,32 +346,33 @@ export function createWheel() {
       placeBall(Math.PI * 0.25, RT, YT);
     }
   }
-  function spinTo(number, start, ms) {
+  // Spins to `number`, the spin having begun at `start` (a Date.now() time,
+  // the same for every client).
+  function spinTo(number, start) {
     if (spin && spin.start === start && spin.number === number) return;
     const now = Date.now();
-    base = rotorAt(now);
-    if (spin) base -= spin.boost;
-    base -= SLOW * (now - start) / 1000;
+    // The croupier's push, given at `start`.
+    const angleThen = rotorAt(Math.min(now, start));
+    base = angleThen;
     baseAt = start;
-    base = ((base % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-    spin = { start, T: ms, land: ms * 0.82, number, boost: Math.PI * 5, laps: Math.PI * 14 };
+    pushAt = start;
+    const plan = spinPlan(seedFor(start, number));
+    spin = { start, number, plan, rel: null, T: (plan.T3 + 0.4) * 1000 };
+    spin.rel = bounceWaypoints(plan, number, start);
     resting = null;
   }
   function rest(number) {
     if (spin) {
-      const now = Date.now();
-      if (now - spin.start < spin.T) return;
-      base = rotorAt(now);
-      baseAt = now;
+      if (Date.now() - spin.start < spin.T) return;
       spin = null;
     }
     resting = number === undefined ? null : number;
   }
-  // Where the spin is: 0 at its start, 1 when the ball lands; null when
+  // Where the spin is: 0 at its start, 1 when the ball settles; null when
   // the wheel is not spinning.
   function progress(now = Date.now()) {
     if (!spin) return null;
-    return Math.max(0, (now - spin.start) / spin.land);
+    return Math.max(0, (now - spin.start) / (spin.plan.T3 * 1000));
   }
   const ballWorld = (out) => ball.getWorldPosition(out);
 
