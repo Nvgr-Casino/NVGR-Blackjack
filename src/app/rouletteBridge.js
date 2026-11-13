@@ -77,7 +77,7 @@ function frameWheel(room) {
   // The board covers the lower part of the screen while bets are open.
   const seated = !!(room.players && room.players[safeKey(S.session.uid)]);
   const betting = seated && room.phase === 'betting';
-  driver.setLift(betting ? (window.innerWidth < window.innerHeight ? 0.04 : 0.24) : 0);
+  driver.setLift(betting ? (window.innerWidth < window.innerHeight ? 0.04 : 0.18) : 0);
   clearTimeout(backTimer);
   if (resting) backTimer = setTimeout(() => { if (S.session.room && S.session.room.code === room.code) syncRouletteToScene(S.session.room, safeKey(S.session.uid)); }, room.resultsAt + WHEEL_AFTER_MS - now + 50);
 }
@@ -118,7 +118,7 @@ export function syncRouletteToScene(room, myKey) {
   // on the table's plaque and tower.
   driver.setStacks(Object.fromEntries(keys.map((k) => [room.players[k].seat, room.players[k].chips])), room.minBet || 100);
   driver.setLimits(room.minBet || 100, room.maxBet || 2000);
-  driver.setHistory((room.history || []).slice(0, 13), room.minBet || 100, room.maxBet || 2000);
+  driver.setHistory((room.history || []).slice(0, 16), room.minBet || 100, room.maxBet || 2000);
   frameWheel(room);
   moments(room, me);
   if (room.phase === 'spinning' && room.result) {
@@ -198,12 +198,6 @@ function boardSvg(r, myKey, open) {
   return `<svg class="rl-board ${open ? '' : 'locked'}" viewBox="0 0 ${BOARD_W} ${BOARD_H}" role="group" aria-label="Roulette layout: tap a number or a line to bet">${parts.join('')}</svg>`;
 }
 
-function historyHtml(r) {
-  const h = (r.history || []).slice(0, 12);
-  if (!h.length) return '';
-  return `<div class="rl-history" aria-label="Last numbers">${h.map((n, i) => `<span class="rl-num ${R.colorOf(n)} ${i === 0 ? 'last' : ''}">${n}</span>`).join('')}</div>`;
-}
-
 function statusFor(r, p) {
   const bet = R.totalBet(p);
   if (r.phase === 'results') {
@@ -228,7 +222,6 @@ export function renderRouletteScreen() {
   const statusHtml = `
     <div class="hud-status">
       ${countdown ? `<div class="status-pill ${r.phase === 'results' && r.result ? 'rl-pill ' + r.result.color : ''}" id="countdownText">${countdown}</div>` : ''}
-      ${historyHtml(r)}
       ${lastLog && r.phase !== 'results' ? `<div class="status-log">${lastLog}</div>` : ''}
     </div>`;
 

@@ -151,10 +151,10 @@ function roundedRect(w, d, r) {
   return s;
 }
 
-// The results tower's screen: the house's name, the last number large, a
-// column of the ones before it, red to the left and black to the right as
-// the casinos show them; the table's limits under.
-function paintTower(ctx, w, h, history, min, max) {
+// The results board's screen: the house's name, the last number large in
+// its colour, the fifteen before it in rows, how the colours have fallen,
+// and the table's limits.
+function paintBoard(ctx, w, h, history, min, max) {
   const bg = ctx.createLinearGradient(0, 0, 0, h);
   bg.addColorStop(0, '#0c0a10');
   bg.addColorStop(1, '#16121c');
@@ -163,43 +163,51 @@ function paintTower(ctx, w, h, history, min, max) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#d8b46a';
-  ctx.font = "700 38px 'Cinzel', Georgia, serif";
-  ctx.fillText('NVGR', w / 2, 44);
-  ctx.font = "600 20px 'Cinzel', Georgia, serif";
-  ctx.fillText('ROULETTE', w / 2, 76);
+  ctx.font = "700 40px 'Cinzel', Georgia, serif";
+  ctx.fillText('NVGR ROULETTE', w / 2, 44);
   ctx.fillStyle = 'rgba(216,180,106,0.5)';
-  ctx.fillRect(30, 96, w - 60, 2);
-  const fill = (n) => (colorOf(n) === 'red' ? '#d0203a' : colorOf(n) === 'black' ? '#e8e8ea' : '#2ac06a');
-  const last = history[0];
-  if (last !== undefined) {
-    ctx.fillStyle = colorOf(last) === 'red' ? '#b3122e' : colorOf(last) === 'black' ? '#202024' : '#0f7a3c';
+  ctx.fillRect(30, 80, w - 60, 2);
+  const disc = (n) => (colorOf(n) === 'red' ? '#b3122e' : colorOf(n) === 'black' ? '#202024' : '#0f7a3c');
+  const ball = (n, x, y, r, size) => {
+    ctx.fillStyle = disc(n);
     ctx.beginPath();
-    ctx.arc(w / 2, 180, 66, 0, Math.PI * 2);
+    ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = '#d8b46a';
-    ctx.lineWidth = 5;
+    ctx.strokeStyle = 'rgba(216,180,106,0.85)';
+    ctx.lineWidth = Math.max(2, r * 0.07);
     ctx.stroke();
     ctx.fillStyle = '#ffffff';
-    ctx.font = '800 76px Georgia, serif';
-    ctx.fillText(String(last), w / 2, 184);
-  } else {
-    ctx.fillStyle = '#8a8070';
-    ctx.font = '600 24px Georgia, serif';
-    ctx.fillText('Place your bets', w / 2, 180);
-  }
-  history.slice(1, 13).forEach((n, i) => {
-    const y = 282 + i * 46;
-    const x = colorOf(n) === 'red' ? w * 0.3 : colorOf(n) === 'black' ? w * 0.7 : w / 2;
-    ctx.fillStyle = fill(n);
-    ctx.font = '700 36px Georgia, serif';
-    ctx.fillText(String(n), x, y);
+    ctx.font = `800 ${size}px Georgia, serif`;
+    ctx.fillText(String(n), x, y + size * 0.05);
+  };
+  // The last number, large, at the left.
+  const last = history[0];
+  ctx.fillStyle = '#8a8070';
+  ctx.font = "600 20px 'Cinzel', Georgia, serif";
+  ctx.fillText('LAST', 165, 116);
+  if (last !== undefined) ball(last, 165, 258, 112, 110);
+  else { ctx.fillStyle = '#8a8070'; ctx.font = '600 26px Georgia, serif'; ctx.fillText('Place your bets', 165, 258); }
+  ctx.fillStyle = 'rgba(216,180,106,0.35)';
+  ctx.fillRect(320, 104, 2, 300);
+  // The fifteen before it, newest first, in three rows of five.
+  history.slice(1, 16).forEach((n, k) => {
+    const col = k % 5, row = Math.floor(k / 5);
+    ball(n, 400 + col * 132, 152 + row * 104, 42, 40);
   });
+  // How the colours have fallen over the numbers shown.
   ctx.fillStyle = 'rgba(216,180,106,0.5)';
-  ctx.fillRect(30, h - 92, w - 60, 2);
-  const short = (n) => (n >= 1e6 ? n / 1e6 + 'M' : n >= 1000 ? n / 1000 + 'K' : String(n));
+  ctx.fillRect(30, 430, w - 60, 2);
+  const n = history.length || 1;
+  const pct = (c) => Math.round((history.filter((x) => colorOf(x) === c).length / n) * 100);
+  ctx.font = '700 28px Georgia, serif';
+  [['RED', 'red', '#ff5a6e'], ['GREEN', 'green', '#3ad07c'], ['BLACK', 'black', '#e8e8ea']].forEach(([label, c, col], k) => {
+    ctx.fillStyle = col;
+    ctx.fillText(`${label} ${history.length ? pct(c) + '%' : '–'}`, w * (0.12 + k * 0.19), 482);
+  });
+  const short = (v) => (v >= 1e6 ? v / 1e6 + 'M' : v >= 1000 ? v / 1000 + 'K' : String(v));
   ctx.fillStyle = '#e8dcc0';
   ctx.font = '600 26px Georgia, serif';
-  ctx.fillText(`MIN ${short(min)}  ·  MAX ${short(max)}`, w / 2, h - 50);
+  ctx.fillText(`MIN ${short(min)}  ·  MAX ${short(max)}`, w * 0.8, 482);
 }
 
 export function createRouletteTable() {
@@ -371,38 +379,50 @@ export function createRouletteTable() {
     plaqueTex.needsUpdate = true;
   }
   setLimits(100, 2000);
-  // The results tower at the wheel's end: a screen on a pillar of chrome.
+  // The results board beside the croupier, behind the wheel end of the
+  // table: one wide screen on two chrome legs, painted at a high
+  // resolution and shown unlit so its numbers read sharp from every seat.
+  const BOARD_PW = 1000, BOARD_PH = 540, BOARD_SCALE = 2.2;
   const towerCanvas = document.createElement('canvas');
-  towerCanvas.width = 384;
-  towerCanvas.height = 920;
+  towerCanvas.width = Math.round(BOARD_PW * BOARD_SCALE);
+  towerCanvas.height = Math.round(BOARD_PH * BOARD_SCALE);
   const towerTex = new THREE.CanvasTexture(towerCanvas);
   towerTex.colorSpace = THREE.SRGBColorSpace;
-  towerTex.anisotropy = 8;
+  towerTex.anisotropy = 16;
+  const SW = m(1.45), SH = SW * (BOARD_PH / BOARD_PW);
+  const SCREEN_Y = TOP + m(0.02) + SH / 2;
   const tower = new THREE.Group();
-  tower.position.set(-L / 2 - m(0.28), 0, -W / 2 + m(0.05));
-  tower.rotation.y = 0.55;
+  tower.position.set(WHEEL_X + m(0.05), 0, -W / 2 - m(0.5));
+  tower.rotation.y = 0.18;
   g.add(tower);
-  const pillar = new THREE.Mesh(new THREE.CylinderGeometry(m(0.035), m(0.045), m(1.25), 16), CHROME);
-  pillar.position.y = FLOOR_Y + m(0.625);
-  tower.add(pillar);
-  const towerFoot = new THREE.Mesh(new THREE.CylinderGeometry(m(0.18), m(0.22), m(0.04), 32), CHROME);
-  towerFoot.position.y = FLOOR_Y + m(0.02);
-  tower.add(towerFoot);
-  const housing = new THREE.Mesh(new THREE.BoxGeometry(m(0.38), m(0.86), m(0.06)), new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 0.2, metalness: 0.5 }));
-  housing.position.y = FLOOR_Y + m(1.66);
+  [-1, 1].forEach((leg) => {
+    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(m(0.03), m(0.04), SCREEN_Y - FLOOR_Y, 16), CHROME);
+    pillar.position.set(leg * SW * 0.32, (SCREEN_Y + FLOOR_Y) / 2, -m(0.05));
+    tower.add(pillar);
+    const foot = new THREE.Mesh(new THREE.CylinderGeometry(m(0.12), m(0.15), m(0.035), 32), CHROME);
+    foot.position.set(leg * SW * 0.32, FLOOR_Y + m(0.018), -m(0.05));
+    tower.add(foot);
+  });
+  const housing = new THREE.Mesh(new THREE.BoxGeometry(SW + m(0.06), SH + m(0.06), m(0.07)), new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 0.2, metalness: 0.5 }));
+  housing.position.set(0, SCREEN_Y, -m(0.035));
+  housing.castShadow = true;
   tower.add(housing);
-  const screen = new THREE.Mesh(new THREE.PlaneGeometry(m(0.34), m(0.81)), new THREE.MeshBasicMaterial({ map: towerTex, toneMapped: false }));
-  screen.position.set(0, FLOOR_Y + m(1.66), m(0.031));
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(SW, SH), new THREE.MeshBasicMaterial({ map: towerTex, toneMapped: false }));
+  screen.position.set(0, SCREEN_Y, m(0.002));
   tower.add(screen);
-  const crown = new THREE.Mesh(new THREE.BoxGeometry(m(0.4), m(0.03), m(0.07)), GOLD);
-  crown.position.y = FLOOR_Y + m(2.1);
-  tower.add(crown);
+  [1, -1].forEach((end) => {
+    const trim = new THREE.Mesh(new THREE.BoxGeometry(SW + m(0.09), m(0.025), m(0.08)), GOLD);
+    trim.position.set(0, SCREEN_Y + end * (SH / 2 + m(0.04)), -m(0.035));
+    tower.add(trim);
+  });
   let towerKey = '';
   function setHistory(history, min, max) {
     const key = JSON.stringify([history, min, max]);
     if (key === towerKey) return;
     towerKey = key;
-    paintTower(towerCanvas.getContext('2d'), towerCanvas.width, towerCanvas.height, history || [], min, max);
+    const ctx = towerCanvas.getContext('2d');
+    ctx.setTransform(BOARD_SCALE, 0, 0, BOARD_SCALE, 0, 0);
+    paintBoard(ctx, BOARD_PW, BOARD_PH, history || [], min, max);
     towerTex.needsUpdate = true;
   }
   setHistory([], 100, 2000);
