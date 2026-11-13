@@ -5,12 +5,17 @@ import { WHEEL_ORDER } from '../roulette/rules.js';
 import { numberFill } from '../roulette/layout.js';
 import { spinPlan, ballRun, seedFor } from '../roulette/spinPlan.js';
 
-// The roulette wheel, built grand: a drum of figured wood ringed in heavy
-// gold, gilt rosettes on its head; a ball track of black piano lacquer, so
-// the ivory ball shows against it every inch of its run; gilt diamonds on
-// the track; the rotor with its numbers in gold on red and black lacquer,
-// raised gold frets between the pockets, a broad gold rim, a cone of
-// walnut inlaid with a gold star, and a gold turret crowned at its top.
+// The roulette wheel, built as the grandest real ones are (the Monte Carlo
+// wheels of the early 1900s, and the bespoke wheels made after them): a
+// head of ebony veneer, a starburst of tulipwood marquetry let into it
+// between lines of brass stringing, the house's name engraved round it in
+// gold, gilt rosettes; a ball track of black piano lacquer, so the ivory
+// ball shows against it every inch of its run; gilt diamonds on the
+// track; the rotor's numbers in gold on red and black lacquer, a band of
+// tulipwood round them, domed gold frets between the pockets with a bead
+// at each inner end; a cone hand-painted in gold leaf — scrolls, fleurs, a
+// laurel wreath round a crown; and a French turret, fluted gold, its four
+// arms curling out in an S to acorn finials, a pearl-tipped crown on top.
 //
 // Everything is in the wheel's own frame, its centre at the origin on the
 // table's top; the table places and scales it. It turns slowly always;
@@ -25,45 +30,75 @@ const POCKET_STEP = (Math.PI * 2) / 37;
 // by `rotor`. Pocket i is centred at i·step − 90° on the rotor's face.
 const pocketAngle = (number, rotor) => WHEEL_ORDER.indexOf(number) * POCKET_STEP - Math.PI / 2 - rotor;
 
-// Figured wood for the drum's head: leaves of two woods, gold between.
+// The head, in the manner of the great Monte Carlo wheels: ebony veneer,
+// a starburst of tulipwood marquetry let into it between lines of brass
+// stringing, and the house's name engraved in gold round its outer band.
 function paintMarquetry(ctx, S) {
   const c = S / 2;
-  const leaves = 36;
-  for (let i = 0; i < leaves; i++) {
-    const a0 = (i / leaves) * Math.PI * 2, a1 = ((i + 1) / leaves) * Math.PI * 2;
-    const g = ctx.createRadialGradient(c, c, c * 0.4, c, c, c);
-    g.addColorStop(0, i % 2 ? '#6a2a12' : '#9a5a2a');
-    g.addColorStop(1, i % 2 ? '#3a1206' : '#6a3414');
-    ctx.fillStyle = g;
+  // Ebony: near black, a fine dark grain.
+  ctx.fillStyle = '#120a06';
+  ctx.fillRect(0, 0, S, S);
+  for (let k = 0; k < 700; k++) {
+    const a = Math.random() * Math.PI * 2, r0 = c * (0.84 + Math.random() * 0.15);
+    ctx.strokeStyle = `rgba(70,40,24,${0.08 + Math.random() * 0.18})`;
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(c, c);
-    ctx.arc(c, c, c, a0, a1);
-    ctx.closePath();
-    ctx.fill();
-    for (let k = 0; k < 8; k++) {
-      const a = a0 + (a1 - a0) * Math.random();
-      ctx.strokeStyle = `rgba(20,6,2,${0.1 + Math.random() * 0.2})`;
-      ctx.lineWidth = 1 + Math.random() * 2;
-      ctx.beginPath();
-      ctx.moveTo(c + Math.cos(a) * c * 0.4, c + Math.sin(a) * c * 0.4);
-      ctx.lineTo(c + Math.cos(a + 0.012) * c, c + Math.sin(a + 0.012) * c);
-      ctx.stroke();
-    }
-    ctx.strokeStyle = 'rgba(232,200,120,0.75)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(c + Math.cos(a0) * c * 0.86, c + Math.sin(a0) * c * 0.86);
-    ctx.lineTo(c + Math.cos(a0) * c, c + Math.sin(a0) * c);
+    ctx.arc(c, c, r0, a, a + 0.05 + Math.random() * 0.2);
     ctx.stroke();
   }
-  [[0.985, 12], [0.95, 3], [0.88, 8], [0.865, 2]].forEach(([r, w]) => {
+  // Tulipwood leaves, pink-gold and striped, in a starburst.
+  const leaves = 24;
+  for (let i = 0; i < leaves; i++) {
+    const a = (i / leaves) * Math.PI * 2;
+    const w = (Math.PI * 2) / leaves * 0.36;
+    const g = ctx.createLinearGradient(c + Math.cos(a) * c * 0.86, c + Math.sin(a) * c * 0.86, c + Math.cos(a) * c * 0.99, c + Math.sin(a) * c * 0.99);
+    g.addColorStop(0, '#c8826a');
+    g.addColorStop(0.5, '#e8b090');
+    g.addColorStop(1, '#a86450');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(c + Math.cos(a - w) * c * 0.885, c + Math.sin(a - w) * c * 0.885);
+    ctx.lineTo(c + Math.cos(a) * c * 0.955, c + Math.sin(a) * c * 0.955);
+    ctx.lineTo(c + Math.cos(a + w) * c * 0.885, c + Math.sin(a + w) * c * 0.885);
+    ctx.lineTo(c + Math.cos(a) * c * 0.865, c + Math.sin(a) * c * 0.865);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(80,30,16,0.35)';
+    ctx.lineWidth = 1;
+    for (let k = -2; k <= 2; k++) {
+      ctx.beginPath();
+      ctx.moveTo(c + Math.cos(a + k * w * 0.3) * c * 0.875, c + Math.sin(a + k * w * 0.3) * c * 0.875);
+      ctx.lineTo(c + Math.cos(a) * c * 0.95, c + Math.sin(a) * c * 0.95);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = '#d8b46a';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+  // Brass stringing.
+  [[0.995, 10], [0.975, 2], [0.86, 3], [0.845, 1.5]].forEach(([r, w]) => {
     ctx.strokeStyle = '#e2c27a';
     ctx.lineWidth = w;
     ctx.beginPath();
     ctx.arc(c, c, c * r, 0, Math.PI * 2);
     ctx.stroke();
   });
-  grain(ctx, S, S, 8);
+  // The engraving, round the band inside the starburst.
+  const text = 'NVGR · CASINO · ROULETTE · ';
+  ctx.fillStyle = '#e8c87a';
+  ctx.font = `600 ${S * 0.016}px 'Cinzel', Georgia, serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const chars = (text + text + text).split('');
+  chars.forEach((ch, i) => {
+    const a = (i / chars.length) * Math.PI * 2;
+    ctx.save();
+    ctx.translate(c + Math.cos(a) * c * 0.9, c + Math.sin(a) * c * 0.9);
+    ctx.rotate(a + Math.PI / 2);
+    ctx.fillText(ch, 0, 0);
+    ctx.restore();
+  });
+  grain(ctx, S, S, 6);
 }
 
 // The rotor's face: thirty-seven pockets of red and black lacquer (the
@@ -101,13 +136,22 @@ function paintRotor(ctx, S) {
     gold.addColorStop(0, '#fff0b8');
     gold.addColorStop(1, '#c8963c');
     ctx.fillStyle = gold;
-    ctx.font = `800 ${S * 0.052}px Georgia, serif`;
+    ctx.font = `800 ${S * 0.048}px Georgia, serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(String(n), 0, -c * 0.875);
+    ctx.fillText(String(n), 0, -c * 0.85);
     ctx.restore();
   });
-  [[0.995, 0.008], [0.76, 0.006], [0.6, 0.008]].forEach(([r, lw]) => {
+  // The number arcs' rim: a band of tulipwood, striped, between brass.
+  for (let k = 0; k < 220; k++) {
+    const a = (k / 220) * Math.PI * 2;
+    ctx.strokeStyle = k % 2 ? '#c8826a' : '#e0a888';
+    ctx.lineWidth = S * 0.012;
+    ctx.beginPath();
+    ctx.arc(c, c, c * 0.968, a, a + (Math.PI * 2) / 220 + 0.002);
+    ctx.stroke();
+  }
+  [[0.995, 0.008], [0.94, 0.005], [0.76, 0.006], [0.6, 0.008]].forEach(([r, lw]) => {
     ctx.strokeStyle = '#e2c27a';
     ctx.lineWidth = S * lw;
     ctx.beginPath();
@@ -116,37 +160,98 @@ function paintRotor(ctx, S) {
   });
 }
 
-// The cone: walnut, a star of gold let into it.
+// The cone, hand-painted as the bespoke wheels' are: ebony lacquer, gold
+// leaf scrolling out from a laurel wreath and a crown at its heart, a ring
+// of fleurs between, rays of gold to the edge.
 function paintCone(ctx, S) {
   const c = S / 2;
   const g = ctx.createRadialGradient(c, c, 0, c, c, c);
-  g.addColorStop(0, '#9a6232');
-  g.addColorStop(1, '#3a1a08');
+  g.addColorStop(0, '#2a1608');
+  g.addColorStop(0.7, '#160c06');
+  g.addColorStop(1, '#0c0604');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, S, S);
-  for (let k = 0; k < 90; k++) {
-    const a = Math.random() * Math.PI * 2;
-    ctx.strokeStyle = `rgba(30,10,2,${0.08 + Math.random() * 0.12})`;
+  const gold = (y0, y1) => { const gg = ctx.createLinearGradient(0, y0, 0, y1); gg.addColorStop(0, '#fff0b8'); gg.addColorStop(0.5, '#d4a84a'); gg.addColorStop(1, '#8a6220'); return gg; };
+  ctx.lineCap = 'round';
+  // Rays to the edge, long and short.
+  for (let i = 0; i < 32; i++) {
+    const a = (i / 32) * Math.PI * 2;
+    ctx.strokeStyle = 'rgba(226,194,122,0.85)';
+    ctx.lineWidth = i % 2 ? S * 0.003 : S * 0.006;
     ctx.beginPath();
-    ctx.moveTo(c + Math.cos(a) * c * 0.1, c + Math.sin(a) * c * 0.1);
-    ctx.lineTo(c + Math.cos(a) * c, c + Math.sin(a) * c);
+    ctx.moveTo(c + Math.cos(a) * c * 0.62, c + Math.sin(a) * c * 0.62);
+    ctx.lineTo(c + Math.cos(a) * c * (i % 2 ? 0.86 : 0.97), c + Math.sin(a) * c * (i % 2 ? 0.86 : 0.97));
     ctx.stroke();
   }
-  ctx.fillStyle = '#e2c27a';
-  ctx.beginPath();
-  for (let i = 0; i < 16; i++) {
-    const a = (i / 16) * Math.PI * 2;
-    const r = i % 2 ? c * 0.34 : c * 0.95;
-    ctx.lineTo(c + Math.cos(a) * r, c + Math.sin(a) * r);
+  // Scrolls: a pair of curls between each long ray.
+  ctx.strokeStyle = '#d8b25e';
+  ctx.lineWidth = S * 0.005;
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+    [-1, 1].forEach((side) => {
+      ctx.beginPath();
+      for (let t = 0; t <= 1.001; t += 0.05) {
+        const r = c * (0.42 + 0.16 * t);
+        const ang = a + side * (0.05 + 0.32 * t) + side * Math.sin(t * Math.PI * 2) * 0.05;
+        const x = c + Math.cos(ang) * r, y = c + Math.sin(ang) * r;
+        if (t === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      const end = a + side * 0.37;
+      ctx.beginPath();
+      ctx.arc(c + Math.cos(end) * c * 0.58, c + Math.sin(end) * c * 0.58, S * 0.012, 0, Math.PI * 2);
+      ctx.stroke();
+    });
+    // A fleur at the ray's foot.
+    ctx.save();
+    ctx.translate(c + Math.cos(a) * c * 0.66, c + Math.sin(a) * c * 0.66);
+    ctx.rotate(a + Math.PI / 2);
+    ctx.fillStyle = gold(-S * 0.03, S * 0.03);
+    ctx.beginPath();
+    ctx.moveTo(0, -S * 0.035);
+    ctx.quadraticCurveTo(S * 0.016, -S * 0.012, 0, S * 0.012);
+    ctx.quadraticCurveTo(-S * 0.016, -S * 0.012, 0, -S * 0.035);
+    ctx.fill();
+    ctx.restore();
   }
+  // The laurel wreath.
+  [-1, 1].forEach((side) => {
+    for (let k = 0; k < 9; k++) {
+      const a = Math.PI / 2 + side * (0.35 + k * 0.28);
+      ctx.save();
+      ctx.translate(c + Math.cos(a) * c * 0.3, c + Math.sin(a) * c * 0.3);
+      ctx.rotate(a + side * 0.9);
+      ctx.fillStyle = gold(-S * 0.02, S * 0.02);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, S * 0.022, S * 0.008, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  });
+  // The crown within it.
+  ctx.fillStyle = gold(c - S * 0.06, c + S * 0.04);
+  const w = S * 0.16, h = S * 0.1, y = c + S * 0.02;
+  ctx.beginPath();
+  ctx.moveTo(c - w / 2, y);
+  ctx.lineTo(c - w / 2, y - h * 0.55);
+  ctx.lineTo(c - w / 4, y - h * 0.25);
+  ctx.lineTo(c, y - h);
+  ctx.lineTo(c + w / 4, y - h * 0.25);
+  ctx.lineTo(c + w / 2, y - h * 0.55);
+  ctx.lineTo(c + w / 2, y);
   ctx.closePath();
-  ctx.globalAlpha = 0.85;
   ctx.fill();
-  ctx.globalAlpha = 1;
-  ctx.strokeStyle = '#7a5418';
-  ctx.lineWidth = 3;
-  ctx.stroke();
-  grain(ctx, S, S, 8);
+  ctx.fillRect(c - w / 2, y + S * 0.008, w, S * 0.018);
+  [[-0.5, -0.55], [0, -1], [0.5, -0.55]].forEach(([dx, dy]) => { ctx.beginPath(); ctx.arc(c + dx * w, y + dy * h - S * 0.008, S * 0.01, 0, Math.PI * 2); ctx.fill(); });
+  // Rings of gold, inner and outer.
+  [[0.98, 0.008], [0.62, 0.004], [0.4, 0.004]].forEach(([r, lw]) => {
+    ctx.strokeStyle = '#e2c27a';
+    ctx.lineWidth = S * lw;
+    ctx.beginPath();
+    ctx.arc(c, c, c * r, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+  grain(ctx, S, S, 5);
 }
 
 export function createWheel() {
@@ -210,15 +315,28 @@ export function createWheel() {
   const face = new THREE.Mesh(new THREE.CircleGeometry(m(0.355), 96), new THREE.MeshPhysicalMaterial({ map: canvasTex(1536, 1536, paintRotor), roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.08 }));
   face.rotation.x = -Math.PI / 2;
   rotor.add(face);
-  const frets = new THREE.InstancedMesh(new THREE.BoxGeometry(m(0.06), m(0.02), m(0.004)), GOLD, 37);
+  // The frets: rounded bars of gold, scalloped high at the rim and low at
+  // the hub, a bead at the inner end of each.
+  const fretGeo = new THREE.CapsuleGeometry(m(0.0035), m(0.056), 4, 8);
+  fretGeo.rotateZ(Math.PI / 2);
+  const frets = new THREE.InstancedMesh(fretGeo, GOLD, 37);
+  const beads = new THREE.InstancedMesh(new THREE.SphereGeometry(m(0.006), 12, 8), GOLD, 37);
   const fm = new THREE.Matrix4();
+  const fq = new THREE.Quaternion(), fs = new THREE.Vector3(1, 1, 1), fp = new THREE.Vector3();
+  const tilt = new THREE.Quaternion();
   for (let i = 0; i < 37; i++) {
     const a = i * POCKET_STEP - Math.PI / 2 + POCKET_STEP / 2;
-    fm.makeRotationY(-a);
-    fm.setPosition(Math.cos(a) * m(0.24), m(0.01), Math.sin(a) * m(0.24));
+    fq.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a);
+    tilt.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -0.18);
+    fq.multiply(tilt);
+    fp.set(Math.cos(a) * m(0.242), m(0.012), Math.sin(a) * m(0.242));
+    fm.compose(fp, fq, fs);
     frets.setMatrixAt(i, fm);
+    fm.makeTranslation(Math.cos(a) * m(0.214), m(0.008), Math.sin(a) * m(0.214));
+    beads.setMatrixAt(i, fm);
   }
   rotor.add(frets);
+  rotor.add(beads);
   // A gilt ring between the numbers and the pockets, the frets meeting it.
   [[m(0.355), m(0.012), m(0.006)], [m(0.27), m(0.006), m(0.02)], [m(0.212), m(0.007), m(0.016)]].forEach(([r, t, y]) => {
     const ring = new THREE.Mesh(new THREE.TorusGeometry(r, t, 10, 128), GOLD);
@@ -238,31 +356,58 @@ export function createWheel() {
     uv.needsUpdate = true;
   }
   rotor.add(cone);
-  // The turret: gold, turned, four arms to gold balls, a crown at its top.
-  const turret = new THREE.Mesh(new THREE.LatheGeometry([[0, 0.2], [0.012, 0.19], [0.016, 0.175], [0.01, 0.16], [0.022, 0.135], [0.013, 0.115], [0.03, 0.09], [0.046, 0.07], [0.062, 0.06], [0.07, 0.052], [0, 0.052]].map(([r, h]) => new THREE.Vector2(m(r), m(h))), 48), GOLD);
-  rotor.add(turret);
+  // The turret, French and sculpted: a fluted column of gold on a stepped
+  // base, four arms curling out in an S to acorn finials, a crown above.
+  const turretBase = new THREE.Mesh(new THREE.LatheGeometry([[0, 0.052], [0.072, 0.052], [0.068, 0.058], [0.05, 0.064], [0.046, 0.072], [0.032, 0.08], [0, 0.08]].map(([r, h]) => new THREE.Vector2(m(r), m(h))), 64), GOLD);
+  rotor.add(turretBase);
+  const column = new THREE.Mesh(new THREE.CylinderGeometry(m(0.011), m(0.016), m(0.11), 16), GOLD);
+  column.position.y = m(0.135);
+  rotor.add(column);
+  // Flutes down the column.
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2;
+    const flute = new THREE.Mesh(new THREE.CylinderGeometry(m(0.0022), m(0.0028), m(0.1), 6), DARK_GOLD);
+    flute.position.set(Math.cos(a) * m(0.0135), m(0.135), Math.sin(a) * m(0.0135));
+    rotor.add(flute);
+  }
+  const knop = new THREE.Mesh(new THREE.LatheGeometry([[0, 0.17], [0.012, 0.17], [0.026, 0.182], [0.022, 0.196], [0.01, 0.204], [0, 0.206]].map(([r, h]) => new THREE.Vector2(m(r), m(h))), 32), GOLD);
+  rotor.add(knop);
   for (let k = 0; k < 4; k++) {
     const a = (k / 4) * Math.PI * 2;
-    const arm = new THREE.Mesh(new THREE.CylinderGeometry(m(0.006), m(0.01), m(0.13), 12), GOLD);
-    arm.rotation.set(0, -a, Math.PI / 2);
-    arm.position.set(Math.cos(a) * m(0.07), m(0.125), Math.sin(a) * m(0.07));
-    rotor.add(arm);
-    const knob = new THREE.Mesh(new THREE.SphereGeometry(m(0.016), 18, 12), GOLD);
-    knob.position.set(Math.cos(a) * m(0.135), m(0.125), Math.sin(a) * m(0.135));
-    rotor.add(knob);
+    const dir = new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
+    const pts = [
+      new THREE.Vector3(0, m(0.15), 0).addScaledVector(dir, m(0.012)),
+      new THREE.Vector3(0, m(0.168), 0).addScaledVector(dir, m(0.05)),
+      new THREE.Vector3(0, m(0.15), 0).addScaledVector(dir, m(0.095)),
+      new THREE.Vector3(0, m(0.158), 0).addScaledVector(dir, m(0.13)),
+    ];
+    rotor.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, m(0.0055), 8, false), GOLD));
+    const acorn = new THREE.Mesh(new THREE.SphereGeometry(m(0.014), 16, 12), GOLD);
+    acorn.scale.y = 1.3;
+    acorn.position.copy(pts[3]).add(new THREE.Vector3(0, m(0.006), 0)).addScaledVector(dir, m(0.008));
+    rotor.add(acorn);
+    const cup = new THREE.Mesh(new THREE.SphereGeometry(m(0.0145), 16, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), DARK_GOLD);
+    cup.position.copy(acorn.position);
+    rotor.add(cup);
   }
   const crown = new THREE.Group();
-  crown.position.y = m(0.2);
+  crown.position.y = m(0.206);
   rotor.add(crown);
-  const band = new THREE.Mesh(new THREE.CylinderGeometry(m(0.018), m(0.016), m(0.014), 16, 1, true), GOLD);
-  band.material = GOLD;
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(m(0.02), m(0.017), m(0.016), 20, 1, true), GOLD);
+  band.material = new THREE.MeshPhysicalMaterial({ color: 0xe0b85e, roughness: 0.18, metalness: 1, side: THREE.DoubleSide });
   crown.add(band);
-  for (let k = 0; k < 5; k++) {
-    const a = (k / 5) * Math.PI * 2;
-    const tip = new THREE.Mesh(new THREE.ConeGeometry(m(0.005), m(0.016), 6), GOLD);
-    tip.position.set(Math.cos(a) * m(0.017), m(0.014), Math.sin(a) * m(0.017));
+  for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * Math.PI * 2;
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(m(0.0055), m(0.02), 6), GOLD);
+    tip.position.set(Math.cos(a) * m(0.019), m(0.017), Math.sin(a) * m(0.019));
     crown.add(tip);
+    const pearl = new THREE.Mesh(new THREE.SphereGeometry(m(0.0035), 10, 8), new THREE.MeshStandardMaterial({ color: 0xf6f0e6, roughness: 0.25 }));
+    pearl.position.set(Math.cos(a) * m(0.019), m(0.028), Math.sin(a) * m(0.019));
+    crown.add(pearl);
   }
+  const orb = new THREE.Mesh(new THREE.SphereGeometry(m(0.008), 14, 10), GOLD);
+  orb.position.y = m(0.024);
+  crown.add(orb);
   const ball = new THREE.Mesh(new THREE.SphereGeometry(m(0.012), 20, 14), new THREE.MeshPhysicalMaterial({ color: 0xfffcf4, roughness: 0.1, clearcoat: 1, emissive: 0x222018 }));
   ball.castShadow = true;
   g.add(ball);
