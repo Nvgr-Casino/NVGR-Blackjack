@@ -112,9 +112,11 @@ function paintRotor(ctx, S) {
     const a0 = i * POCKET_STEP - Math.PI / 2 - POCKET_STEP / 2, a1 = a0 + POCKET_STEP;
     // The number's tile, lacquered, a highlight across it.
     const g = ctx.createRadialGradient(c, c, c * 0.72, c, c, c);
-    const base = numberFill(n);
+    // A deep, saturated lacquer red: it reads as red, not pink, under the
+    // wheel's own light.
+    const base = n === 0 ? numberFill(0) : numberFill(n) === '#141414' ? '#141414' : '#9c0016';
     g.addColorStop(0, base);
-    g.addColorStop(0.55, n === 0 ? '#1aa050' : base === '#141414' ? '#2c2c30' : '#d8203c');
+    g.addColorStop(0.55, n === 0 ? '#14a04a' : base === '#141414' ? '#26262a' : '#b8001a');
     g.addColorStop(1, base);
     ctx.fillStyle = g;
     ctx.beginPath();
@@ -123,7 +125,7 @@ function paintRotor(ctx, S) {
     ctx.closePath();
     ctx.fill();
     // The pocket below it, deeper and darker.
-    ctx.fillStyle = n === 0 ? '#0a4a26' : base === '#141414' ? '#0a0a0c' : '#6a0816';
+    ctx.fillStyle = n === 0 ? '#08542a' : base === '#141414' ? '#0a0a0c' : '#8a0010';
     ctx.beginPath();
     ctx.arc(c, c, c * 0.76, a0, a1);
     ctx.arc(c, c, c * 0.6, a1, a0, true);
@@ -312,7 +314,10 @@ export function createWheel() {
   const rotor = new THREE.Group();
   rotor.position.y = m(0.045);
   g.add(rotor);
-  const face = new THREE.Mesh(new THREE.CircleGeometry(m(0.355), 96), new THREE.MeshPhysicalMaterial({ map: canvasTex(1536, 1536, paintRotor), roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.08 }));
+  // A softer gloss than the wood's, so the light does not wash the reds
+  // out toward pink.
+  const rotorTex = canvasTex(1536, 1536, paintRotor);
+  const face = new THREE.Mesh(new THREE.CircleGeometry(m(0.355), 96), new THREE.MeshPhysicalMaterial({ map: rotorTex, roughness: 0.4, clearcoat: 0.3, clearcoatRoughness: 0.3 }));
   face.rotation.x = -Math.PI / 2;
   rotor.add(face);
   // The frets: rounded bars of gold, scalloped high at the rim and low at

@@ -413,7 +413,7 @@ export function createRouletteTable() {
   g.add(wheelGroup);
   const api = wheelGroup.userData.api;
   // A light of its own over the wheel, so the gold and the ball shine.
-  const wheelLight = new THREE.SpotLight(0xfff0d8, 22, m(3.2), 0.5, 0.6, 1.6);
+  const wheelLight = new THREE.SpotLight(0xfff0d8, 11, m(3.2), 0.5, 0.6, 1.6);
   wheelLight.position.set(WHEEL_X, TOP + m(2.0), m(0.3));
   wheelLight.target.position.set(WHEEL_X, TOP, 0);
   g.add(wheelLight);
