@@ -82,4 +82,7 @@ export function areaRect(id) {
 }
 
 export const POCKET_COLORS = { red: '#b3122e', black: '#141414', green: '#0f7a3c' };
+// The cloth: deep emerald, its markings in gold.
+export const FELT_COLOR = '#0a4a34';
+export const LINE_COLOR = '#e3c47e';
 export const numberFill = (n) => POCKET_COLORS[colorOf(n)];

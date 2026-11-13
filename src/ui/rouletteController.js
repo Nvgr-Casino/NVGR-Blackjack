@@ -6,7 +6,7 @@ import { animate, easeInOutCubic, easeOutCubic } from '../scene/animator.js';
 import { isTallScreen } from '../scene/seats.js';
 import { m, FLOOR_Y, SEAT_TOP_Y } from '../scene/scale.js';
 import { canvasTex } from '../scene/casinoKit.js';
-import { ROULETTE_SEATS_3D as SEATS, ROULETTE_LOOK, WHEEL_CENTER, SEAT_CHIP_COLORS, spotWorld } from '../scene/rouletteTable.js';
+import { ROULETTE_SEATS_3D as SEATS, ROULETTE_LOOK, WHEEL_CENTER, WHEEL_RADIUS, SEAT_CHIP_COLORS, spotWorld } from '../scene/rouletteTable.js';
 
 // The roulette table's 3D driver: who sits where, the chips on the layout
 // and before each seat, the camera, and the wheel. src/app/rouletteBridge.js
@@ -71,6 +71,8 @@ export function createRouletteDriver({ scene, camera, controls, set, table }) {
     if (set.visible) {
       if (Math.abs(liftTarget - lift) > 0.001) { lift += (liftTarget - lift) * 0.12; applyOffset(); }
       wheel.update(Date.now());
+      if (wheelFocus) filmWheel(Date.now());
+      else lastFrame = 0;
       figures.forEach(({ group }, seatIndex) => {
         const model = group.children[0];
         if (!model) return;
@@ -103,12 +105,46 @@ export function createRouletteDriver({ scene, camera, controls, set, table }) {
     const look = ROULETTE_LOOK.clone().lerp(new THREE.Vector3(seat ? seat.position.x : 0, 0, 0), v.lean);
     return { position, look };
   }
-  // Over the wheel, from the players' side, close enough to follow the
-  // ball; farther back on a tall screen, whose view is narrower.
-  function wheelView() {
-    const d = isTallScreen() ? m(0.95) : m(0.62);
-    const position = WHEEL_CENTER.clone().add(new THREE.Vector3(0.25, 0, 1).normalize().multiplyScalar(d)).setY(WHEEL_CENTER.y + d * 1.35);
-    return { position, look: WHEEL_CENTER.clone() };
+  // The spin as a film: the camera starts low beside the wheel, on the
+  // players' side, and circles slowly round as the ball loses its pace,
+  // rising and closing in as it falls, to end looking down into the pocket
+  // it has come to rest in. Placed every frame, timed by the spin, and
+  // eased into, so it never jumps.
+  const posePos = new THREE.Vector3();
+  const poseLook = new THREE.Vector3();
+  const lookNow = new THREE.Vector3();
+  const ballAt = new THREE.Vector3();
+  function wheelPose(now) {
+    const p = wheel.progress(now);
+    const k = p === null ? 1 : Math.min(1, p);
+    const e = k * k * (3 - 2 * k);
+    const tall = isTallScreen();
+    const far = tall ? 3.1 : 2.4, close = tall ? 1.6 : 1.0;
+    const r = WHEEL_RADIUS * (far + (close - far) * e);
+    const az = Math.PI / 2 - 0.5 + 0.95 * e;
+    const h = r * (0.5 + 1.05 * e);
+    posePos.set(WHEEL_CENTER.x + Math.cos(az) * r, WHEEL_CENTER.y + h, WHEEL_CENTER.z + Math.sin(az) * r);
+    poseLook.copy(WHEEL_CENTER);
+    // As the ball falls, the eye goes to it.
+    const toBall = Math.max(0, (k - 0.7) / 0.3) * 0.75;
+    if (toBall > 0) {
+      wheel.ballWorld(ballAt);
+      root.worldToLocal(ballAt);
+      poseLook.lerp(ballAt, toBall);
+    }
+  }
+  let lastFrame = 0;
+  function filmWheel(now) {
+    const t = performance.now();
+    const dt = Math.min(0.1, (t - (lastFrame || t)) / 1000);
+    lastFrame = t;
+    wheelPose(now);
+    // The table's frame is the room's (the set stands at the origin).
+    const ease = 1 - Math.exp(-dt * 3.2);
+    camera.position.lerp(posePos, ease);
+    lookNow.lerp(poseLook, ease);
+    camera.lookAt(lookNow);
+    controls.target.copy(lookNow);
   }
   let flight = 0;
   function flyTo({ position, look }, animated, ms = 650) {
@@ -149,13 +185,22 @@ export function createRouletteDriver({ scene, camera, controls, set, table }) {
   }
   function focusWheel(on) {
     if (on === wheelFocus) return;
+    if (on && !shown) return;
     wheelFocus = on;
-    if (!shown) return;
-    flyTo(on ? wheelView() : seatView(viewSeat), true, on ? 1100 : 900);
+    if (on) {
+      // Any flight under way gives way to the film; the eye starts where
+      // the camera was looking.
+      flight++;
+      cameraOverride.active = true;
+      lookNow.copy(controls.target);
+      lastFrame = 0;
+    } else {
+      flyTo(seatView(viewSeat), true, 1000);
+    }
   }
   window.addEventListener('resize', () => {
-    if (!set.visible || !shown) return;
-    flyTo(wheelFocus ? wheelView() : seatView(viewSeat), false);
+    if (!set.visible || !shown || wheelFocus) return;
+    flyTo(seatView(viewSeat), false);
   });
 
   // ---------- chips ----------
@@ -296,7 +341,7 @@ export function createRouletteDriver({ scene, camera, controls, set, table }) {
     setBets({}, 1);
     setStacks({}, 1);
     wheel.showDolly(null);
-    if (wheelFocus) { wheelFocus = false; }
+    if (wheelFocus) { wheelFocus = false; cameraOverride.active = false; }
     shown = false;
   }
   function setVisible(v) { set.visible = v; }

@@ -28,7 +28,7 @@ import { safeKey } from './roomLogic.js';
 import { seatOfKey } from './service.js';
 import { SEATS } from '../scene/seats.js';
 import { POKER_SEATS_3D } from '../scene/pokerTable.js';
-import { audio, masterOut, isSoundOn, setSoundOn } from '../scene/sfx.js';
+import { audio, masterOut, isSoundOn, setSoundOn, isMusicOn, setMusicOn } from '../scene/sfx.js';
 import * as Social from './social.js';
 import * as S from './session.js';
 
@@ -424,9 +424,21 @@ const ICON_SOUND_OFF = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 
 const ICON_MIC = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
 const ICON_MIC_OFF = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor" opacity=".55"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4M4 4l16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
 
-/** The Sound switch, and the Mic button where there's anyone to talk to. */
+const ICON_MUSIC = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17V5l11-2v12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="6.5" cy="17.5" r="2.5" fill="currentColor"/><circle cx="17.5" cy="15.5" r="2.5" fill="currentColor"/></svg>';
+const ICON_MUSIC_OFF = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17V5l11-2v12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" opacity=".5"/><circle cx="6.5" cy="17.5" r="2.5" fill="currentColor" opacity=".5"/><circle cx="17.5" cy="15.5" r="2.5" fill="currentColor" opacity=".5"/><path d="M3 3l18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+/** The Music switch: the lounge band under the room, on or off. */
+export function musicButton() {
+  const on = isMusicOn();
+  return `<button class="hud-btn hud-icon ${on ? '' : 'off'}" id="musicToggleBtn" title="${on ? 'Music on — tap to turn off' : 'Music off — tap to turn on'}" aria-label="Music ${on ? 'on' : 'off'}" aria-pressed="${on}">${on ? ICON_MUSIC : ICON_MUSIC_OFF}</button>`;
+}
+export function attachMusicButton() {
+  const btn = document.getElementById('musicToggleBtn');
+  if (btn) btn.onclick = () => { setMusicOn(!isMusicOn()); S.refresh(); };
+}
+
+/** The Sound and Music switches, and the Mic button where there's anyone to talk to. */
 export function voiceButtons(r) {
-  const sound = `<button class="hud-btn hud-icon ${isSoundOn() ? '' : 'off'}" id="soundToggleBtn" title="${isSoundOn() ? 'Sound on — tap to turn off' : 'Sound off — tap to turn on'}" aria-label="Sound ${isSoundOn() ? 'on' : 'off'}">${isSoundOn() ? ICON_SOUND : ICON_SOUND_OFF}</button>`;
+  const sound = musicButton() + `<button class="hud-btn hud-icon ${isSoundOn() ? '' : 'off'}" id="soundToggleBtn" title="${isSoundOn() ? 'Sound on — tap to turn off' : 'Sound off — tap to turn on'}" aria-label="Sound ${isSoundOn() ? 'on' : 'off'}">${isSoundOn() ? ICON_SOUND : ICON_SOUND_OFF}</button>`;
   if (!voiceAvailable(r)) return `<span class="hud-voice">${sound}</span>`;
   const on = micState === 'on';
   const title = micState === 'denied' ? 'The mic is blocked for this site — allow it in the browser settings, then tap to try again'
@@ -446,6 +458,7 @@ export function voiceBadge(k) {
 }
 
 export function attachVoice() {
+  attachMusicButton();
   const sound = document.getElementById('soundToggleBtn');
   if (sound) sound.onclick = () => { setSoundOn(!isSoundOn()); peers.forEach((p) => { if (!p.gain && p.el) p.el.muted = !isSoundOn() || muted.has(p.key); }); S.refresh(); };
   const micBtn = document.getElementById('micToggleBtn');

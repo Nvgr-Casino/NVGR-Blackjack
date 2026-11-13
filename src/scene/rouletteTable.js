@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import { FLOOR_Y, m } from './scale.js';
 import { canvasTex, grain, gold, chrome, wood } from './casinoKit.js';
 import { addTableGlow } from './tableLux.js';
-import { WHEEL_ORDER, ROULETTE_SEATS, colorOf } from '../roulette/rules.js';
+import { createWheel } from './rouletteWheel.js';
+import { ROULETTE_SEATS, colorOf } from '../roulette/rules.js';
 import {
   BOARD_W, BOARD_H, MARGIN, ZERO_W, COLUMN_W, ROW_H, BAND_H, CELL_W, GRID_X, GRID_BOTTOM,
-  EVEN_CHANCES, spotOf, cellX, cellY, numberFill,
+  EVEN_CHANCES, spotOf, cellX, cellY, numberFill, FELT_COLOR, LINE_COLOR,
 } from '../roulette/layout.js';
 
 // The roulette table the game is played at: a mahogany cabinet on turned
@@ -18,12 +19,14 @@ import {
 // rattles and settles in the pocket of the number drawn — timed from the
 // spin's start, so every client sees the same ball land in the same place.
 
-export const ROULETTE_L = m(3.3);
+export const ROULETTE_L = m(3.5);
 export const ROULETTE_W = m(1.5);
 const L = ROULETTE_L, W = ROULETTE_W;
 const TOP = 0;
-export const WHEEL_X = -L / 2 + m(0.62);
-const LAYOUT_W = L - m(1.42);
+export const WHEEL_X = -L / 2 + m(0.72);
+// The wheel is built a little larger than life, to be the table's jewel.
+const WHEEL_SCALE = 1.12;
+const LAYOUT_W = L - m(1.62);
 const LAYOUT_D = (LAYOUT_W * BOARD_H) / BOARD_W;
 const LAYOUT_X = L / 2 - m(0.1) - LAYOUT_W / 2;
 const LAYOUT_Z = m(0.06);
@@ -49,9 +52,10 @@ export const ROULETTE_SEATS_3D = Array.from({ length: ROULETTE_SEATS }, (_, inde
   };
 });
 export const ROULETTE_DEALER = {
-  position: new THREE.Vector3(WHEEL_X + m(0.78), 0, -W / 2 - m(0.34)),
+  position: new THREE.Vector3(WHEEL_X + m(0.95), 0, -W / 2 - m(0.34)),
 };
-export const WHEEL_CENTER = new THREE.Vector3(WHEEL_X, TOP + m(0.06), 0);
+export const WHEEL_CENTER = new THREE.Vector3(WHEEL_X, TOP + m(0.07) * WHEEL_SCALE, 0);
+export const WHEEL_RADIUS = m(0.56) * WHEEL_SCALE;
 // Where the camera looks: between the wheel and the layout.
 export const ROULETTE_LOOK = new THREE.Vector3(m(0.1), 0, 0);
 
@@ -61,14 +65,14 @@ export const SEAT_CHIP_COLORS = ['#f2c230', '#2e8cff', '#f4f1ea', '#a65ce8', '#f
 
 // ---------- the felt ----------
 function paintLayout(ctx) {
-  ctx.fillStyle = '#0d5a31';
+  ctx.fillStyle = FELT_COLOR;
   ctx.fillRect(0, 0, BOARD_W, BOARD_H);
   grain(ctx, BOARD_W, BOARD_H, 12);
-  ctx.strokeStyle = '#f2efe6';
+  ctx.strokeStyle = LINE_COLOR;
   ctx.lineWidth = 5;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  const label = (t, x, y, size, color = '#f2efe6', rot = 0) => {
+  const label = (t, x, y, size, color = LINE_COLOR, rot = 0) => {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(rot);
@@ -103,7 +107,7 @@ function paintLayout(ctx) {
   for (let k = 1; k <= 3; k++) {
     const y = MARGIN + (3 - k) * ROW_H;
     ctx.strokeRect(BOARD_W - MARGIN - COLUMN_W, y, COLUMN_W, ROW_H);
-    label('2 to 1', BOARD_W - MARGIN - COLUMN_W / 2, y + ROW_H / 2, 44, '#f2efe6', -Math.PI / 2);
+    label('2 to 1', BOARD_W - MARGIN - COLUMN_W / 2, y + ROW_H / 2, 44, LINE_COLOR, -Math.PI / 2);
   }
   // The dozens and the even chances.
   ['1st 12', '2nd 12', '3rd 12'].forEach((t, i) => {
@@ -132,64 +136,6 @@ function paintLayout(ctx) {
   label('NVGR CASINO · ROULETTE', BOARD_W / 2, MARGIN / 2 + 2, 30, '#d8b46a');
 }
 
-// The wheel's face: the pockets numbered round the rim, frets between,
-// the cone inside. Pocket i is centred at angle i·step − 90° on the canvas.
-function paintWheel(ctx, S) {
-  const c = S / 2;
-  const cone = ctx.createRadialGradient(c, c, 0, c, c, c * 0.72);
-  cone.addColorStop(0, '#9a6a34');
-  cone.addColorStop(1, '#3a1a0a');
-  ctx.fillStyle = cone;
-  ctx.fillRect(0, 0, S, S);
-  const step = (Math.PI * 2) / 37;
-  WHEEL_ORDER.forEach((n, i) => {
-    const a0 = i * step - Math.PI / 2 - step / 2, a1 = a0 + step;
-    ctx.fillStyle = numberFill(n);
-    ctx.beginPath();
-    ctx.arc(c, c, c * 0.98, a0, a1);
-    ctx.arc(c, c, c * 0.72, a1, a0, true);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = 'rgba(0,0,0,0.32)';
-    ctx.beginPath();
-    ctx.arc(c, c, c * 0.84, a0, a1);
-    ctx.arc(c, c, c * 0.72, a1, a0, true);
-    ctx.closePath();
-    ctx.fill();
-    ctx.save();
-    ctx.translate(c, c);
-    ctx.rotate(a0 + step / 2 + Math.PI / 2);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `700 ${S * 0.034}px Georgia, serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(String(n), 0, -c * 0.91);
-    ctx.restore();
-    ctx.strokeStyle = '#e2e6ea';
-    ctx.lineWidth = S * 0.004;
-    ctx.beginPath();
-    ctx.moveTo(c + Math.cos(a0) * c * 0.72, c + Math.sin(a0) * c * 0.72);
-    ctx.lineTo(c + Math.cos(a0) * c * 0.98, c + Math.sin(a0) * c * 0.98);
-    ctx.stroke();
-  });
-  [[0.98, 0.006], [0.84, 0.003], [0.72, 0.006]].forEach(([r, lw]) => {
-    ctx.strokeStyle = '#e2e6ea';
-    ctx.lineWidth = S * lw;
-    ctx.beginPath();
-    ctx.arc(c, c, c * r, 0, Math.PI * 2);
-    ctx.stroke();
-  });
-  ctx.strokeStyle = '#d4af62';
-  ctx.lineWidth = S * 0.01;
-  for (let k = 0; k < 4; k++) {
-    const a = (k / 4) * Math.PI * 2;
-    ctx.beginPath();
-    ctx.moveTo(c + Math.cos(a) * c * 0.12, c + Math.sin(a) * c * 0.12);
-    ctx.lineTo(c + Math.cos(a) * c * 0.66, c + Math.sin(a) * c * 0.66);
-    ctx.stroke();
-  }
-}
-
 function roundedRect(w, d, r) {
   const s = new THREE.Shape();
   s.moveTo(-w / 2 + r, -d / 2);
@@ -202,48 +148,6 @@ function roundedRect(w, d, r) {
   s.lineTo(-w / 2, -d / 2 + r);
   s.quadraticCurveTo(-w / 2, -d / 2, -w / 2 + r, -d / 2);
   return s;
-}
-
-const POCKET_STEP = (Math.PI * 2) / 37;
-// The angle, round the wheel's axis in the table's x–z plane, of a pocket
-// on the rotor when the rotor itself is turned by `rotor`.
-const pocketAngle = (number, rotor) => WHEEL_ORDER.indexOf(number) * POCKET_STEP - Math.PI / 2 - rotor;
-
-// A veneer for the wheel's head: radial leaves of two woods, book-matched,
-// rings of gold inlay between.
-function paintVeneer(ctx, S) {
-  const c = S / 2;
-  const leaves = 32;
-  for (let i = 0; i < leaves; i++) {
-    const a0 = (i / leaves) * Math.PI * 2, a1 = ((i + 1) / leaves) * Math.PI * 2;
-    const g = ctx.createRadialGradient(c, c, c * 0.3, c, c, c);
-    g.addColorStop(0, i % 2 ? '#5a2410' : '#7a3a1a');
-    g.addColorStop(1, i % 2 ? '#3a1408' : '#5a2a12');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.moveTo(c, c);
-    ctx.arc(c, c, c, a0, a1);
-    ctx.closePath();
-    ctx.fill();
-    // The grain, running out along the leaf.
-    for (let k = 0; k < 10; k++) {
-      const a = a0 + (a1 - a0) * Math.random();
-      ctx.strokeStyle = `rgba(20,6,2,${0.1 + Math.random() * 0.15})`;
-      ctx.lineWidth = 1 + Math.random() * 2;
-      ctx.beginPath();
-      ctx.moveTo(c + Math.cos(a) * c * 0.35, c + Math.sin(a) * c * 0.35);
-      ctx.lineTo(c + Math.cos(a + 0.01) * c, c + Math.sin(a + 0.01) * c);
-      ctx.stroke();
-    }
-  }
-  [[0.98, 10], [0.9, 4], [0.62, 6]].forEach(([r, w]) => {
-    ctx.strokeStyle = '#d8b46a';
-    ctx.lineWidth = w;
-    ctx.beginPath();
-    ctx.arc(c, c, c * r, 0, Math.PI * 2);
-    ctx.stroke();
-  });
-  grain(ctx, S, S, 8);
 }
 
 // The results tower's screen: the house's name, the last number large, a
@@ -305,7 +209,7 @@ export function createRouletteTable() {
   const MAHOGANY = new THREE.MeshPhysicalMaterial({ map: wood('#4a1a0e', '#1a0604').map, roughness: 0.38, clearcoat: 1, clearcoatRoughness: 0.12 });
   const ROSEWOOD = new THREE.MeshPhysicalMaterial({ map: wood('#6a2c14', '#2a0c04', { across: true }).map, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.08 });
   const LEATHER = new THREE.MeshStandardMaterial({ color: 0x3a0c10, roughness: 0.42 });
-  const FELT = new THREE.MeshStandardMaterial({ map: canvasTex(512, 512, (ctx) => { ctx.fillStyle = '#0d5a31'; ctx.fillRect(0, 0, 512, 512); grain(ctx, 512, 512, 14); }, { repeat: true }), roughness: 0.95 });
+  const FELT = new THREE.MeshStandardMaterial({ map: canvasTex(512, 512, (ctx) => { ctx.fillStyle = FELT_COLOR; ctx.fillRect(0, 0, 512, 512); grain(ctx, 512, 512, 14); }, { repeat: true }), roughness: 0.92, sheen: 0 });
   FELT.map.repeat.set(6, 3);
 
   // ---------- the cabinet ----------
@@ -409,7 +313,7 @@ export function createRouletteTable() {
 
   // ---------- the croupier's side ----------
   // The float: a tray let into the felt, columns of chips in every colour.
-  const floatX = WHEEL_X + m(0.98), floatZ = -W / 2 + m(0.24);
+  const floatX = WHEEL_X + m(1.12), floatZ = -W / 2 + m(0.24);
   const tray = new THREE.Mesh(new THREE.BoxGeometry(m(0.62), m(0.02), m(0.13)), new THREE.MeshStandardMaterial({ color: 0x120c08, roughness: 0.7 }));
   tray.position.set(floatX, TOP + m(0.004), floatZ);
   g.add(tray);
@@ -503,85 +407,17 @@ export function createRouletteTable() {
   setHistory([], 100, 2000);
 
   // ---------- the wheel ----------
-  // The head: a drum of veneered wood, gilt at the rim.
-  const head = new THREE.Mesh(new THREE.CylinderGeometry(m(0.53), m(0.5), m(0.06), 72, 1, true), MAHOGANY);
-  head.position.set(WHEEL_X, TOP + m(0.07), 0);
-  g.add(head);
-  const headTop = new THREE.Mesh(new THREE.RingGeometry(m(0.47), m(0.53), 72), new THREE.MeshPhysicalMaterial({ map: canvasTex(1024, 1024, paintVeneer), roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.08 }));
-  headTop.rotation.x = -Math.PI / 2;
-  headTop.position.set(WHEEL_X, TOP + m(0.1), 0);
-  g.add(headTop);
-  [[m(0.53), TOP + m(0.1), m(0.012)], [m(0.47), TOP + m(0.1), m(0.008)], [m(0.505), TOP + m(0.04), m(0.01)]].forEach(([r, y, t]) => {
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(r, t, 8, 96), GOLD);
-    ring.rotation.x = Math.PI / 2;
-    ring.position.set(WHEEL_X, y, 0);
-    g.add(ring);
-  });
-  // The ball track, polished, sloping in to the rotor.
-  const trackMat = new THREE.MeshPhysicalMaterial({ map: canvasTex(1024, 1024, paintVeneer), color: 0xd0a080, roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.04, side: THREE.DoubleSide });
-  const bowl = new THREE.Mesh(new THREE.LatheGeometry([[0.47, 0.12], [0.455, 0.108], [0.42, 0.092], [0.38, 0.072], [0.36, 0.064]].map(([r, h]) => new THREE.Vector2(m(r), m(h))), 96), trackMat);
-  bowl.position.set(WHEEL_X, TOP - m(0.02), 0);
-  g.add(bowl);
-  // Diamonds on the track, upright and lying in turn, that knock the ball about.
-  for (let k = 0; k < 8; k++) {
-    const a = (k / 8) * Math.PI * 2 + Math.PI / 8;
-    const d = new THREE.Mesh(new THREE.OctahedronGeometry(m(0.016)), CHROME);
-    d.scale.set(k % 2 ? 0.6 : 1, k % 2 ? 1.1 : 0.5, 2);
-    d.position.set(WHEEL_X + Math.cos(a) * m(0.405), TOP + m(0.066), Math.sin(a) * m(0.405));
-    d.rotation.y = -a;
-    g.add(d);
-  }
-  // The rotor: the pocket ring with its frets, a gilt rim, the cone, the
-  // turret.
-  const rotor = new THREE.Group();
-  rotor.position.set(WHEEL_X, TOP + m(0.045), 0);
-  g.add(rotor);
-  const face = new THREE.Mesh(new THREE.CircleGeometry(m(0.35), 74), new THREE.MeshPhysicalMaterial({ map: canvasTex(1024, 1024, paintWheel), roughness: 0.3, metalness: 0.05, clearcoat: 0.8, clearcoatRoughness: 0.15 }));
-  face.rotation.x = -Math.PI / 2;
-  rotor.add(face);
-  const frets = new THREE.InstancedMesh(new THREE.BoxGeometry(m(0.066), m(0.016), m(0.0035)), CHROME, 37);
-  const fm = new THREE.Matrix4();
-  for (let i = 0; i < 37; i++) {
-    // On the boundary between pocket i and the next (pocket i is centred
-    // at i·step − 90° on the face; see pocketAngle).
-    const a = i * POCKET_STEP - Math.PI / 2 + POCKET_STEP / 2;
-    const r = m(0.3);
-    fm.makeRotationY(-a);
-    fm.setPosition(Math.cos(a) * r, m(0.008), Math.sin(a) * r);
-    frets.setMatrixAt(i, fm);
-  }
-  rotor.add(frets);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(m(0.348), m(0.008), 8, 96), GOLD);
-  rim.rotation.x = Math.PI / 2;
-  rim.position.y = m(0.004);
-  rotor.add(rim);
-  const pocketRim = new THREE.Mesh(new THREE.TorusGeometry(m(0.266), m(0.006), 8, 96), CHROME);
-  pocketRim.rotation.x = Math.PI / 2;
-  pocketRim.position.y = m(0.012);
-  rotor.add(pocketRim);
-  const cone = new THREE.Mesh(new THREE.LatheGeometry([[0.26, 0.012], [0.22, 0.02], [0.16, 0.03], [0.1, 0.04], [0.06, 0.05], [0, 0.052]].map(([r, h]) => new THREE.Vector2(m(r), m(h))), 64), ROSEWOOD);
-  rotor.add(cone);
-  [m(0.2), m(0.12)].forEach((r, i) => {
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(r, m(0.004), 6, 64), GOLD);
-    ring.rotation.x = Math.PI / 2;
-    ring.position.y = i ? m(0.039) : m(0.026);
-    rotor.add(ring);
-  });
-  const turret = new THREE.Mesh(new THREE.LatheGeometry([[0, 0.17], [0.014, 0.165], [0.016, 0.15], [0.009, 0.13], [0.02, 0.105], [0.012, 0.09], [0.03, 0.07], [0.05, 0.055], [0.06, 0.048], [0, 0.048]].map(([r, h]) => new THREE.Vector2(m(r), m(h))), 32), CHROME);
-  rotor.add(turret);
-  for (let k = 0; k < 4; k++) {
-    const a = (k / 4) * Math.PI * 2;
-    const arm = new THREE.Mesh(new THREE.CylinderGeometry(m(0.006), m(0.009), m(0.12), 10), CHROME);
-    arm.rotation.set(0, -a, Math.PI / 2);
-    arm.position.set(Math.cos(a) * m(0.065), m(0.1), Math.sin(a) * m(0.065));
-    rotor.add(arm);
-    const knob = new THREE.Mesh(new THREE.SphereGeometry(m(0.014), 14, 10), CHROME);
-    knob.position.set(Math.cos(a) * m(0.125), m(0.1), Math.sin(a) * m(0.125));
-    rotor.add(knob);
-  }
-  const ball = new THREE.Mesh(new THREE.SphereGeometry(m(0.011), 16, 12), new THREE.MeshPhysicalMaterial({ color: 0xfbf8f2, roughness: 0.12, clearcoat: 1 }));
-  ball.castShadow = true;
-  g.add(ball);
+  const wheelGroup = createWheel();
+  wheelGroup.position.set(WHEEL_X, TOP, 0);
+  wheelGroup.scale.setScalar(WHEEL_SCALE);
+  g.add(wheelGroup);
+  const api = wheelGroup.userData.api;
+  // A light of its own over the wheel, so the gold and the ball shine.
+  const wheelLight = new THREE.SpotLight(0xfff0d8, 22, m(3.2), 0.5, 0.6, 1.6);
+  wheelLight.position.set(WHEEL_X, TOP + m(2.0), m(0.3));
+  wheelLight.target.position.set(WHEEL_X, TOP, 0);
+  g.add(wheelLight);
+  g.add(wheelLight.target);
 
   // The dolly: set on the winning number while the bets are paid.
   const dolly = new THREE.Group();
@@ -604,76 +440,6 @@ export function createRouletteTable() {
     edge: { outer: roundedRect(L - m(0.1), W - m(0.1), m(0.14)), inner: roundedRect(L - m(0.16), W - m(0.16), m(0.12)), y: TOP - m(0.3) },
   });
 
-  // ---------- the spin ----------
-  const SLOW = 0.45;                 // the wheel's own idle turn, radians a second
-  const RT = m(0.43), RP = m(0.3);   // the ball's track, and its pocket's radius
-  const YT = TOP + m(0.09), YP = TOP + m(0.057);
-  let base = 0;                      // the rotor's angle at `baseAt`
-  let baseAt = 0;
-  let spin = null;                   // { start, T, land, number, boost, laps }
-  let resting = null;                // the number the ball sits in
-  const rotorAt = (now) => {
-    let a = base + SLOW * (now - baseAt) / 1000;
-    if (spin) {
-      const t = Math.min(1, (now - spin.start) / spin.T);
-      a += spin.boost * (1 - (1 - t) * (1 - t));
-    }
-    return a;
-  };
-  function placeBall(angle, r, y) {
-    ball.position.set(WHEEL_X + Math.cos(angle) * r, y, Math.sin(angle) * r);
-  }
-  function update(now) {
-    const a = rotorAt(now);
-    rotor.rotation.y = a;
-    if (spin) {
-      const t = now - spin.start;
-      if (t < spin.land) {
-        // The ball's run: fast, slowing to meet the pocket it will fall in.
-        const k = Math.max(0, t) / spin.land;
-        const landAngle = pocketAngle(spin.number, rotorAt(spin.start + spin.land));
-        const angle = landAngle - spin.laps * (1 - k) * (1 - k);
-        // On the track until it loses its pace, then down the cone.
-        const drop = Math.max(0, (k - 0.72) / 0.28);
-        const ease = drop * drop * (3 - 2 * drop);
-        const bounce = drop > 0 ? Math.abs(Math.sin(drop * Math.PI * 4)) * (1 - drop) * m(0.025) : 0;
-        placeBall(angle, RT + (RP - RT) * ease, YT + (YP - YT) * ease + bounce);
-      } else {
-        // In its pocket, riding round with the wheel.
-        placeBall(pocketAngle(spin.number, a), RP, YP);
-      }
-    } else if (resting !== null) {
-      placeBall(pocketAngle(resting, a), RP, YP);
-    } else {
-      placeBall(Math.PI * 0.25, RT, YT);
-    }
-  }
-  // Spins to `number`, the spin having begun at `start` (a Date.now() time,
-  // the same for every client) and running `ms`.
-  function spinTo(number, start, ms) {
-    if (spin && spin.start === start && spin.number === number) return;
-    const now = Date.now();
-    base = rotorAt(now);
-    baseAt = now;
-    if (spin) { base -= spin.boost; }
-    // Re-anchored so the boost starts from nothing at `start`.
-    base -= SLOW * (now - start) / 1000;
-    baseAt = start;
-    base = ((base % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-    spin = { start, T: ms, land: ms * 0.82, number, boost: Math.PI * 5, laps: Math.PI * 14 };
-    resting = null;
-  }
-  // The ball left where it is, in a pocket, or on the track.
-  function rest(number) {
-    if (spin) {
-      const now = Date.now();
-      if (now - spin.start < spin.T) return;
-      base = rotorAt(now);
-      baseAt = now;
-      spin = null;
-    }
-    resting = number === undefined ? null : number;
-  }
   function showDolly(number) {
     if (number === null || number === undefined) { dolly.visible = false; return; }
     const at = spotWorld('n:' + number);
@@ -681,7 +447,10 @@ export function createRouletteTable() {
     dolly.visible = true;
   }
 
-  g.userData.wheel = { update, spinTo, rest, showDolly, get spinning() { return !!spin && Date.now() - spin.start < spin.T; } };
+  g.userData.wheel = {
+    update: api.update, spinTo: api.spinTo, rest: api.rest, progress: api.progress, ballWorld: api.ballWorld, showDolly,
+    get spinning() { return api.spinning; },
+  };
   g.userData.setLimits = setLimits;
   g.userData.setHistory = setHistory;
   return g;

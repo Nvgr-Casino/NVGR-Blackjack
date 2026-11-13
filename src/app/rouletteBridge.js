@@ -6,7 +6,7 @@
 
 import { createRouletteDriver } from '../ui/rouletteController.js';
 import * as R from '../roulette/rules.js';
-import { BOARD_W, BOARD_H, AREA_BETS, LINE_BETS, areaRect, spotOf, numberFill } from '../roulette/layout.js';
+import { BOARD_W, BOARD_H, AREA_BETS, LINE_BETS, areaRect, spotOf, numberFill, FELT_COLOR, LINE_COLOR } from '../roulette/layout.js';
 import { SEAT_CHIP_COLORS } from '../scene/rouletteTable.js';
 import { chipButtonDataURL } from '../scene/chip.js';
 import { rouletteSpinSound, winChime, croupierSay, isSoundOn, setSoundOn } from '../scene/sfx.js';
@@ -17,6 +17,7 @@ import { esc, HUD_ICONS } from './uiHelpers.js';
 import { playerCardAttrs, playerCardSheet, attachPlayerCard } from './playerCard.js';
 import * as S from './session.js';
 import * as Roulette from './rouletteSession.js';
+import { musicButton, attachMusicButton } from './voice.js';
 
 let driver = null;
 let scene = null;
@@ -146,8 +147,8 @@ let chipTable = null;      // …at this table
 function boardSvg(r, myKey, open) {
   const me = r.players[myKey];
   const result = r.phase === 'results' && r.result ? r.result.number : null;
-  const label = (t, x, y, size, color = '#f2efe6') => `<text x="${x}" y="${y}" font-size="${size}" fill="${color}" text-anchor="middle" dominant-baseline="central" font-family="Georgia, serif" font-weight="700">${t}</text>`;
-  const parts = [`<rect x="0" y="0" width="${BOARD_W}" height="${BOARD_H}" rx="26" fill="#0d5a31"/>`];
+  const label = (t, x, y, size, color = LINE_COLOR) => `<text x="${x}" y="${y}" font-size="${size}" fill="${color}" text-anchor="middle" dominant-baseline="central" font-family="Georgia, serif" font-weight="700">${t}</text>`;
+  const parts = [`<rect x="0" y="0" width="${BOARD_W}" height="${BOARD_H}" rx="26" fill="${FELT_COLOR}"/>`];
   // The numbers and the outside bets, each a place to tap.
   AREA_BETS.forEach((id) => {
     const a = areaRect(id);
@@ -162,11 +163,11 @@ function boardSvg(r, myKey, open) {
     else if (kind === 'col') text = label('2 to 1', a.x + a.w / 2, a.y + a.h / 2, 44);
     else if (id === 'red' || id === 'black') {
       const cx = a.x + a.w / 2, cy = a.y + a.h / 2;
-      text = `<path d="M${cx} ${cy - 54}L${cx + 96} ${cy}L${cx} ${cy + 54}L${cx - 96} ${cy}Z" fill="${id === 'red' ? '#b3122e' : '#141414'}" stroke="#f2efe6" stroke-width="5"/>`;
+      text = `<path d="M${cx} ${cy - 54}L${cx + 96} ${cy}L${cx} ${cy + 54}L${cx - 96} ${cy}Z" fill="${id === 'red' ? '#b3122e' : '#141414'}" stroke="${LINE_COLOR}" stroke-width="5"/>`;
     } else text = label({ low: '1 to 18', high: '19 to 36', even: 'EVEN', odd: 'ODD' }[id], a.x + a.w / 2, a.y + a.h / 2, 54);
     const inset = kind === 'n' && arg !== '0' ? 10 : 0;
     parts.push(`<g class="rl-area ${win ? 'win' : ''}" data-bet="${id}">
-      <rect x="${a.x}" y="${a.y}" width="${a.w}" height="${a.h}" fill="transparent" stroke="#f2efe6" stroke-width="5"/>
+      <rect x="${a.x}" y="${a.y}" width="${a.w}" height="${a.h}" fill="transparent" stroke="${LINE_COLOR}" stroke-width="5"/>
       ${kind === 'n' ? `<rect x="${a.x + inset}" y="${a.y + inset}" width="${a.w - 2 * inset}" height="${a.h - 2 * inset}" rx="${arg === '0' ? 60 : 10}" fill="${fill}"/>` : ''}
       ${text}
     </g>`);
@@ -325,6 +326,7 @@ export function renderRouletteScreen() {
       <div class="hud-right">
         ${!r.isPublic ? `<button class="hud-btn" id="rlInviteBtn" data-invite="${esc(inviteUrl)}">Invite</button>` : ''}
         ${chatBtn}
+        ${musicButton()}
         <button class="hud-btn hud-icon ${isSoundOn() ? '' : 'off'}" id="rlSoundBtn" title="${isSoundOn() ? 'Sound on — tap to turn off' : 'Sound off — tap to turn on'}" aria-label="Sound ${isSoundOn() ? 'on' : 'off'}">${isSoundOn() ? SOUND_ON : SOUND_OFF}</button>
       </div>
     </div>
@@ -341,6 +343,7 @@ const SOUND_OFF = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5
 
 export function attachRouletteScreen() {
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+  attachMusicButton();
   on('rlSoundBtn', () => { setSoundOn(!isSoundOn()); if (!isSoundOn() && window.speechSynthesis) window.speechSynthesis.cancel(); S.refresh(); });
   on('leaveBtn', S.leaveTable);
   on('rlUndoBtn', Roulette.undo);
