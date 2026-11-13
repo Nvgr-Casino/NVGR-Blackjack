@@ -151,5 +151,7 @@ export function createService({ scene, blackjackSet, pokerSet, blackjackTable, p
     tip,
     setRoom: (room, tier) => waiters.setRoom(room, tier),
     update: (dt) => waiters.update(dt),
+    /** Shows or hides the waiters (the lobby's carousel keeps the floor clear). */
+    setWaitersVisible: (v) => waiters.setVisible(v),
   };
 }

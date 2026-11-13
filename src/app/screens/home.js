@@ -89,23 +89,7 @@ const trophy = (cx, top, s = 1) => `
     <g clip-path="url(#cup${s})"><rect class="shine" x="-6" y="-4" width="9" height="50" fill="#fffdf4"/></g>
   </g>`;
 const ART = {
-  blackjack: `<svg viewBox="0 0 160 120" aria-hidden="true"><g class="fan fan-l">${card(34, 22, -16, 'A', '♠', false, 46)}</g><g class="fan fan-r">${card(70, 16, 10, 'K', '♥', true, 46)}</g><g class="hop">${chipStack(132, 104, 3, ['#1f6b47', '#c8a46a', '#1f6b47'])}</g></svg>`,
-  holdem: `<svg viewBox="0 0 160 120" aria-hidden="true"><g class="fan fan-l">${card(22, 22, -12, 'A', '♦', true, 44)}</g><g class="fan fan-r">${card(52, 18, 6, 'A', '♣', false, 44)}</g><g class="hop">${chipStack(126, 104, 5, ['#7c1f24', '#1f3d6b', '#f1ece2', '#7c1f24', '#c8a46a'])}</g></svg>`,
   tournaments: `<svg viewBox="0 0 160 120" aria-hidden="true">${trophy(80, 22, 1.25)}</svg>`,
-  baccarat: `<svg viewBox="0 0 160 120" aria-hidden="true"><g class="fan fan-l">${card(26, 20, -10, '9', '♥', true, 44)}</g><g class="fan fan-r">${card(58, 20, 8, 'K', '♠', false, 44)}</g><g class="hop">${chipStack(132, 104, 4, ['#1c2f5e', '#c8a46a', '#f1ece2', '#1c2f5e'])}</g></svg>`,
-  roulette: (() => {
-    const cx = 74, cy = 60, R = 44;
-    const p = (a, r) => `${(cx + Math.cos(a) * r).toFixed(1)} ${(cy + Math.sin(a) * r).toFixed(1)}`;
-    const pockets = Array.from({ length: 37 }, (_, i) => {
-      const a0 = (i / 37) * Math.PI * 2, a1 = ((i + 1) / 37) * Math.PI * 2;
-      return `<path d="M${p(a0, R * 0.62)}L${p(a0, R)}A${R} ${R} 0 0 1 ${p(a1, R)}L${p(a1, R * 0.62)}Z" fill="${i === 0 ? '#0f7a3c' : i % 2 ? '#b3122e' : '#141414'}"/>`;
-    }).join('');
-    return `<svg viewBox="0 0 160 120" aria-hidden="true"><g class="spin-slow">
-      <circle cx="${cx}" cy="${cy}" r="${R + 6}" fill="#3a1a0a" stroke="#c8a46a" stroke-width="2"/>${pockets}
-      <circle cx="${cx}" cy="${cy}" r="${R * 0.6}" fill="#6a4020"/><circle cx="${cx}" cy="${cy}" r="6" fill="#d8dce2"/></g>
-      <circle cx="${cx + 32}" cy="${cy - 22}" r="4.5" fill="#f6f2ea"/>
-      <g class="hop">${chipStack(136, 104, 4, ['#b3122e', '#f1ece2', '#141414', '#c8a46a'])}</g></svg>`;
-  })(),
 };
 
 // ---------- the top bar and the parts shared by every page ----------
@@ -161,68 +145,207 @@ function listHead(title) {
     </div>`;
 }
 
-// ---------- 1. home ----------
+// ---------- 1. home: the carousel ----------
+// The home page is the casino floor itself: every game's table on an arc
+// in the room (scene.js's carousel), the one you are looking at in the
+// middle under its name, its neighbours named at either side. A swipe, an
+// arrow key or a neighbour's name glides the arc round; Play now seats you
+// at the game in the middle, Tables opens its page.
+const FLOOR = [
+  { id: 'blackjack', kicker: 'Table game · five seats', name: 'Blackjack', line: 'Beat the dealer to 21 · blackjack pays 3 to 2' },
+  { id: 'holdem', kicker: 'Poker · six seats', name: "Texas Hold'em", line: 'No-limit cash games, practice and tournaments' },
+  { id: 'roulette', kicker: 'Table game · six seats', name: 'Roulette', line: 'European wheel, one zero · straight up pays 35 to 1' },
+  { id: 'baccarat', kicker: 'Table game · seven seats', name: 'Baccarat', line: 'Punto Banco · Banker pays 19 to 20, Tie 8 to 1' },
+];
+const wrapIndex = (i) => ((i % FLOOR.length) + FLOOR.length) % FLOOR.length;
+// Where the carousel is headed: a whole number that runs past the ends, so
+// it always takes the short way round.
+let carouselTarget = 0;
+let lobbyScene = null;
+export function setLobbyScene(handles) { lobbyScene = handles; }
+export const carouselIndex = () => wrapIndex(carouselTarget);
+
+const ICON = {
+  trophy: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v4a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7M9.5 17h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  crown: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8l4 4 4-6 4 6 4-4-1.5 10h-13zM6 20h12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  friends: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5M15.5 5.6a3 3 0 0 1 0 5.8M17.5 14.4c1.6.6 2.7 2.2 3 4.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  person: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 20c.8-3.8 3.6-6 7-6s6.2 2.2 7 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  exit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h4a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-4M10 8l-4 4 4 4M6 12h9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  left: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  right: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+};
 
 function homePage() {
   const uid = S.session.uid;
   const rank = Leaderboard.rankOf(uid, 'chips');
-  const hour = new Date().getHours();
-  const greet = hour < 5 ? 'Good evening' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   const featured = T.TOURNAMENTS.find((d) => d.featured);
-  const posters = [
-    ['blackjack', 'Table game', 'Blackjack', 'Beat the dealer to 21'],
-    ['holdem', 'Poker', "Texas Hold'em", 'No-limit cash games and practice'],
-    ['roulette', 'Table game', 'Roulette', 'Single zero · straight up pays 35 to 1'],
-    ['baccarat', 'Table game', 'Baccarat', 'Player or Banker · closest to nine wins'],
-    ['tournaments', 'Blackjack & Hold\'em', 'Tournaments', `Win up to ${short(T.TOURNAMENTS[T.TOURNAMENTS.length - 1].prizes[0])}`],
-  ];
-  const top = Leaderboard.ranked('chips').slice(0, 3);
+  const g = FLOOR[carouselIndex()];
+  const prev = FLOOR[wrapIndex(carouselTarget - 1)], next = FLOOR[wrapIndex(carouselTarget + 1)];
+  const friendCount = Social.badgeCount();
   return `
-    <section class="marquee">
-      <div class="marquee-text">
-        <span class="marquee-greet">${greet}, ${esc(S.session.name.split(' ')[0])}</span>
-        <h1 class="marquee-title">Tonight at <span class="gold-num">the Royal Flush</span></h1>
-        <p class="marquee-line">Four games, six rooms, and tournaments up to ${short(T.TOURNAMENTS[T.TOURNAMENTS.length - 1].prizes[0])} — pull up a chair.</p>
-      </div>
-      <div class="marquee-me">
-        <img class="welcome-avatar" src="${portrait(S.session.character, '', 128)}" alt="">
-        <div class="stat"><span class="stat-label">Balance</span><span class="stat-value gold">${(S.session.chips || 0).toLocaleString()}</span></div>
-        <div class="stat"><span class="stat-label">Rank</span><span class="stat-value">${rank ? '#' + rank : '—'}</span></div>
-      </div>
-    </section>
-    ${S.formNotice ? '<p class="notice-text lobby-error">' + esc(S.formNotice) + '</p>' : ''}
+    <div class="stage" id="stage">
+      <header class="stage-top">
+        <button class="stage-brand" data-go="home" aria-label="NVGR Casino">${brandMark('stage-logo')}<span>NVGR Casino</span></button>
+        <div class="stage-heading" id="stageHeading">
+          <span class="stage-kicker" id="stageKicker">${esc(g.kicker)}</span>
+          <h1 class="stage-title" id="stageTitle">${esc(g.name)}</h1>
+          <span class="stage-line" id="stageLine">${esc(g.line)}</span>
+        </div>
+        <div class="stage-corner">
+          <button class="stage-chip" id="signOutBtn" title="Sign out" aria-label="Sign out">${ICON.exit}</button>
+        </div>
+      </header>
+      ${S.formNotice ? `<p class="stage-notice">${esc(S.formNotice)}</p>` : ''}
+      ${S.formError ? `<p class="stage-notice error">${esc(S.formError)}</p>` : ''}
 
-    <h2 class="home-title">Choose your game</h2>
-    <nav class="posters" aria-label="Games">
-      ${posters.map(([id, kicker, title, line]) => `
-        <button class="poster theme-${id}" data-go="${id}">
-          <span class="poster-art">${ART[id]}</span>
-          <span class="poster-body">
-            <span class="kicker">${kicker}</span>
-            <span class="poster-title">${title}</span>
-            <span class="poster-line">${line}</span>
-            <span class="poster-cta">Enter ${arrow}</span>
-          </span>
-        </button>`).join('')}
-    </nav>
+      <button class="stage-side left" id="stagePrev" aria-label="${esc(prev.name)}">${ICON.left}<span id="stagePrevName">${esc(prev.name)}</span></button>
+      <button class="stage-side right" id="stageNext" aria-label="${esc(next.name)}"><span id="stageNextName">${esc(next.name)}</span>${ICON.right}</button>
 
-    <div class="home-row">
-      ${featured ? `
-      <button class="promo theme-tournaments" data-go="tournaments" data-show-tour="${featured.id}">
-        <span class="kicker">Featured tournament</span>
-        <span class="promo-name">${esc(featured.name)}</span>
-        <span class="promo-prize" data-count="${featured.prizes[0]}">${featured.prizes[0].toLocaleString()}</span>
-        <span class="promo-line">to the winner · ${short(featured.buyIn)} buy-in · blackjack or Hold'em</span>
-        <span class="poster-cta">See it ${arrow}</span>
-      </button>` : ''}
-      <button class="promo theme-gold mini-board" data-go="leaderboard">
-        <span class="kicker">Leaderboard</span>
-        ${top.length ? `<ol class="mini-list">${top.map((e, i) => `
-          <li><span class="medal m${i + 1}">${i + 1}</span><img src="${portrait(e.character, e.key, 48)}" alt=""><span class="mini-name">${esc(e.name)}</span><span class="mini-val">${short(e.chips)}</span></li>`).join('')}</ol>`
-          : '<span class="promo-line">Loading…</span>'}
-        <span class="poster-cta">Full leaderboard ${arrow}</span>
-      </button>
+      <div class="stage-actions" id="stageActions">
+        <button class="btn btn-primary btn-lg stage-play" id="stagePlay">Play now</button>
+        <button class="btn btn-ghost stage-tables" id="stageTables">Tables</button>
+      </div>
+      <div class="stage-dots" id="stageDots">${FLOOR.map((x, i) => `<button class="stage-dot ${i === carouselIndex() ? 'on' : ''}" data-dot="${i}" aria-label="${esc(x.name)}"></button>`).join('')}</div>
+
+      <footer class="stage-bar">
+        <div class="stage-me">
+          <img class="stage-avatar" src="${portrait(S.session.character, '', 96)}" alt="">
+          <div class="stage-me-text">
+            <span class="stage-name">${esc((S.session.name || '').split(' ')[0])}</span>
+            <span class="stage-balance"><span class="chip-dot"></span>${(S.session.chips || 0).toLocaleString()}</span>
+          </div>
+          ${rank ? `<span class="stage-rank">#${rank}</span>` : ''}
+        </div>
+        <nav class="stage-icons">
+          <button class="stage-icon" data-go="tournaments">${ICON.trophy}<span>Tournaments</span></button>
+          <button class="stage-icon" data-go="leaderboard">${ICON.crown}<span>Leaderboard</span></button>
+          <button class="stage-icon" id="friendsBtn">${ICON.friends}<span>Friends</span>${friendCount ? `<i class="stage-badge">${friendCount}</i>` : ''}</button>
+          <button class="stage-icon" id="characterBtn">${ICON.person}<span>Character</span></button>
+        </nav>
+        ${featured ? `
+        <button class="stage-promo" data-go="tournaments" data-show-tour="${featured.id}">
+          <span class="stage-promo-kicker">Featured tournament</span>
+          <span class="stage-promo-name">${esc(featured.name)}</span>
+          <span class="stage-promo-prize">${short(featured.prizes[0])}<small> to the winner</small></span>
+        </button>` : ''}
+      </footer>
     </div>`;
+}
+
+// The carousel's motion, and the page following it: the name crossfades,
+// the buttons step back while the tables move.
+let watching = 0;
+function settleWatch() {
+  const stage = document.getElementById('stage');
+  if (!stage || !lobbyScene) return;
+  const my = ++watching;
+  stage.classList.add('moving');
+  const tick = () => {
+    if (my !== watching) return;
+    const st = document.getElementById('stage');
+    if (!st) return;
+    if (Math.abs(lobbyScene.carouselPos - carouselTarget) < 0.02 && !dragging) { st.classList.remove('moving'); return; }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+function showGame() {
+  const g = FLOOR[carouselIndex()];
+  const prev = FLOOR[wrapIndex(carouselTarget - 1)], next = FLOOR[wrapIndex(carouselTarget + 1)];
+  const heading = document.getElementById('stageHeading');
+  if (heading) {
+    heading.classList.add('swap');
+    setTimeout(() => {
+      const set = (id, t) => { const el = document.getElementById(id); if (el) el.textContent = t; };
+      set('stageKicker', g.kicker); set('stageTitle', g.name); set('stageLine', g.line);
+      set('stagePrevName', prev.name); set('stageNextName', next.name);
+      const h = document.getElementById('stageHeading');
+      if (h) h.classList.remove('swap');
+    }, 220);
+  }
+  document.querySelectorAll('[data-dot]').forEach((d) => d.classList.toggle('on', Number(d.dataset.dot) === carouselIndex()));
+}
+function glideTo(target) {
+  if (target === carouselTarget && lobbyScene && Math.abs(lobbyScene.carouselPos - target) < 0.01) return;
+  const changed = wrapIndex(target) !== carouselIndex();
+  carouselTarget = target;
+  if (lobbyScene) lobbyScene.carouselTo(target);
+  if (changed) showGame();
+  settleWatch();
+}
+let dragging = false;
+function attachStage() {
+  const stage = document.getElementById('stage');
+  if (!stage) return;
+  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+  on('stagePrev', () => glideTo(carouselTarget - 1));
+  on('stageNext', () => glideTo(carouselTarget + 1));
+  document.querySelectorAll('[data-dot]').forEach((d) => {
+    d.onclick = () => {
+      const want = Number(d.dataset.dot);
+      let step = want - carouselIndex();
+      if (step > FLOOR.length / 2) step -= FLOOR.length;
+      if (step < -FLOOR.length / 2) step += FLOOR.length;
+      glideTo(carouselTarget + step);
+    };
+  });
+  on('stagePlay', () => {
+    const id = FLOOR[carouselIndex()].id;
+    if (id === 'blackjack') S.playNow();
+    else if (id === 'holdem') Poker.playPokerNow();
+    else if (id === 'roulette') Roulette.playRouletteNow();
+    else Baccarat.playBaccaratNow();
+  });
+  on('stageTables', () => go(FLOOR[carouselIndex()].id));
+  // A drag anywhere on the floor turns the arc with the finger; let go and
+  // it comes to rest on the nearest table, carried on a little by a flick.
+  let startX = 0, startPos = 0, lastX = 0, lastT = 0, vel = 0, pid = null, moved = false;
+  stage.onpointerdown = (e) => {
+    if (e.button !== 0 || e.target.closest('button, a, input, select')) return;
+    if (!lobbyScene) return;
+    pid = e.pointerId; dragging = true; moved = false;
+    startX = lastX = e.clientX; lastT = performance.now(); vel = 0;
+    startPos = lobbyScene.carouselPos;
+  };
+  stage.onpointermove = (e) => {
+    if (e.pointerId !== pid || !dragging) return;
+    const dx = e.clientX - startX;
+    if (!moved && Math.abs(dx) < 6) return;
+    if (!moved) { moved = true; stage.setPointerCapture(pid); stage.classList.add('moving'); }
+    const now = performance.now();
+    const w = Math.max(320, window.innerWidth) * 0.6;
+    vel = 0.8 * vel + 0.2 * ((e.clientX - lastX) / w) / Math.max(1, now - lastT) * 1000;
+    lastX = e.clientX; lastT = now;
+    lobbyScene.carouselHold(startPos - dx / w);
+  };
+  const end = (e) => {
+    if (e.pointerId !== pid) return;
+    pid = null;
+    if (!dragging) return;
+    dragging = false;
+    if (!moved) return;
+    const pos = lobbyScene.carouselPos;
+    const target = Math.round(pos - Math.max(-1, Math.min(1, vel * 0.25)));
+    const changed = wrapIndex(target) !== carouselIndex();
+    carouselTarget = target;
+    lobbyScene.carouselTo(target);
+    if (changed) showGame();
+    settleWatch();
+  };
+  stage.onpointerup = end;
+  stage.onpointercancel = end;
+}
+let stageKeys = false;
+function bindStageKeys() {
+  if (stageKeys) return;
+  stageKeys = true;
+  document.addEventListener('keydown', (e) => {
+    if (S.session.screen !== 'home' || S.lobbyGame !== 'home' || sheet) return;
+    if (e.target && e.target.closest && e.target.closest('input, textarea, select')) return;
+    if (e.key === 'ArrowLeft') glideTo(carouselTarget - 1);
+    else if (e.key === 'ArrowRight') glideTo(carouselTarget + 1);
+    else if (e.key === 'Enter' && document.activeElement === document.body) { const b = document.getElementById('stagePlay'); if (b) b.click(); }
+  });
 }
 
 // ---------- 2a. blackjack ----------
@@ -740,7 +863,8 @@ function sheetHtml() {
 const PAGES = { home: homePage, blackjack: blackjackPage, holdem: holdemPage, roulette: roulettePage, baccarat: baccaratPage, tournaments: tournamentsPage, leaderboard: leaderboardPage };
 
 export function renderHome() {
-  const page = PAGES[S.lobbyGame] || homePage;
+  if (S.lobbyGame === 'home' || !PAGES[S.lobbyGame]) return `${homePage()}${sheetHtml()}`;
+  const page = PAGES[S.lobbyGame];
   return `
     ${nav()}
     <main class="page lobby page-${esc(S.lobbyGame)}">
@@ -779,47 +903,9 @@ function go(page) {
   window.scrollTo({ top: 0 });
 }
 
-// The featured prize counts up the first time the lobby opens — carried
-// on across the re-renders that land while it runs.
-const COUNT_MS = 1600;
-let countFrom = null;
-function countUp() {
-  if (stillMotion()) return;
-  if (countFrom === null) countFrom = performance.now();
-  const step = () => {
-    const t = Math.min(1, (performance.now() - countFrom) / COUNT_MS);
-    const ease = 1 - Math.pow(1 - t, 3);
-    document.querySelectorAll('[data-count]').forEach((el) => { el.textContent = Math.round(Number(el.dataset.count) * ease).toLocaleString(); });
-    if (t < 1) requestAnimationFrame(step);
-  };
-  if (performance.now() - countFrom < COUNT_MS) step();
-}
-const stillMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-// A poster leans toward the pointer, and the light follows it.
-function tilt(el) {
-  el.onpointermove = (e) => {
-    if (e.pointerType !== 'mouse' || stillMotion()) return;
-    const r = el.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width;
-    const y = (e.clientY - r.top) / r.height;
-    el.classList.add('tilting');
-    el.style.setProperty('--ry', ((x - 0.5) * 10).toFixed(2) + 'deg');
-    el.style.setProperty('--rx', ((0.5 - y) * 8).toFixed(2) + 'deg');
-    el.style.setProperty('--mx', (x * 100).toFixed(1) + '%');
-    el.style.setProperty('--my', (y * 100).toFixed(1) + '%');
-  };
-  el.onpointerleave = () => {
-    el.classList.remove('tilting');
-    el.style.removeProperty('--rx');
-    el.style.removeProperty('--ry');
-  };
-}
-
 export function attachHome() {
   keepCurrent();
-  if (S.lobbyGame === 'home') countUp();
-  document.querySelectorAll('.poster').forEach(tilt);
+  if (S.lobbyGame === 'home') { attachStage(); bindStageKeys(); }
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
   const all = (sel, fn) => document.querySelectorAll(sel).forEach(fn);
 

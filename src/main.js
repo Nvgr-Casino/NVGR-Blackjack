@@ -14,11 +14,12 @@ import { mountPoker3D, syncPokerToScene, renderPokerScreen, attachPokerScreen, l
 import { mountRoulette3D, syncRouletteToScene, renderRouletteScreen, attachRouletteScreen, leaveRouletteView } from './app/rouletteBridge.js';
 import { mountBaccarat3D, syncBaccaratToScene, renderBaccaratScreen, attachBaccaratScreen, leaveBaccaratView } from './app/baccaratBridge.js';
 import { renderAuth, attachAuth } from './app/screens/auth.js';
-import { renderHome, attachHome } from './app/screens/home.js';
+import { renderHome, attachHome, setLobbyScene, carouselIndex } from './app/screens/home.js';
 import { renderJoin, attachJoin } from './app/screens/join.js';
 import { renderFriends, attachFriends, renderDm, attachDm } from './app/screens/friends.js';
 import { renderCharacter, attachCharacter } from './app/screens/character.js';
 import { brandMark } from './app/uiHelpers.js';
+import { createIntro } from './app/intro.js';
 
 const canvas = document.getElementById('scene');
 const root = document.getElementById('root');
@@ -35,6 +36,8 @@ let lastScreen = null;
 // Which table the scene is showing, so switching game clears the other.
 let shownGame = null;
 let sceneHandles = null;
+// The opening (intro.js), until the first real screen is ready under it.
+let intro = createIntro();
 
 // Behind the sign-in page and the lobby the scene is the backdrop: the
 // Royal Flush, its dealer, and the table of the game the lobby is showing.
@@ -42,6 +45,11 @@ const BACKDROP_SCREENS = new Set(['auth', 'home']);
 
 function render() {
   syncRequestToast();
+  if (intro && sceneHandles && session.screen !== 'loading') {
+    if (session.uid) intro.signedIn(session.name);
+    intro.done();
+    intro = null;
+  }
   const showTable = session.screen === 'table';
   const backdrop = BACKDROP_SCREENS.has(session.screen);
   // The scene is hidden until there is something to show behind or under
@@ -75,7 +83,9 @@ function render() {
     const poker = session.screen === 'home' && (lobbyGame === 'holdem' || lobbyGame === 'tournaments');
     const roulette = session.screen === 'home' && lobbyGame === 'roulette';
     const baccarat = session.screen === 'home' && lobbyGame === 'baccarat';
-    sceneHandles.setBackdrop(backdrop, { tier: 6, show: poker ? 'holdem' : roulette ? 'roulette' : baccarat ? 'baccarat' : 'blackjack', dealerKey: dealerKeyFor(6, 'male') });
+    // The lobby's home page shows every game's table on the carousel.
+    const carousel = session.screen === 'home' && lobbyGame === 'home';
+    sceneHandles.setBackdrop(backdrop, { tier: 6, show: carousel ? 'carousel' : poker ? 'holdem' : roulette ? 'roulette' : baccarat ? 'baccarat' : 'blackjack', dealerKey: dealerKeyFor(6, 'male'), index: carouselIndex() });
   }
 
   if (session.screen === 'loading') {
@@ -176,17 +186,21 @@ function checkInviteParam() {
 async function boot() {
   // The house mark at once, while fonts and the scene load.
   render();
+  intro.progress(0.15, 'Opening the doors…');
   await Promise.all([
     document.fonts.load("700 40px 'Cinzel'"),
     // Card indices are drawn in Inter; a card painted before it loads is
     // cached with the fallback face for the rest of the session.
     document.fonts.load("700 40px 'Inter'"),
   ]);
+  intro.progress(0.4, 'Setting the tables…');
   sceneHandles = initScene(canvas);
+  intro.progress(0.75, 'Calling the dealers…');
   mountTable3D(sceneHandles);
   mountPoker3D(sceneHandles);
   mountRoulette3D(sceneHandles);
   mountBaccarat3D(sceneHandles);
+  setLobbyScene(sceneHandles);
   mountService(sceneHandles);
   setOnChange(render);
   initAuth();

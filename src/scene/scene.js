@@ -287,6 +287,7 @@ export function initScene(canvas) {
 
   let game = 'blackjack';
   function setGame(next) {
+    if (carousel.on) endCarousel();
     if (next === game) return;
     game = next;
     blackjackSet.visible = game === 'blackjack';
@@ -294,6 +295,92 @@ export function initScene(canvas) {
     rouletteSet.visible = game === 'roulette';
     baccaratSet.visible = game === 'baccarat';
     dealer.position.copy(game === 'holdem' ? POKER_DEALER.position : game === 'roulette' ? ROULETTE_DEALER.position : game === 'baccarat' ? BACCARAT_DEALER.position : DEALER.position);
+  }
+
+  // ---------- the lobby's carousel ----------
+  // On the lobby's home page the four games' tables stand on a gentle arc
+  // in the room, the one you are looking at in the middle and its
+  // neighbours either side, turned in toward it. Choosing another game
+  // glides the whole arc round past a steady camera; the dealer stands at
+  // whichever table it comes to rest on.
+  const CAROUSEL_SETS = [
+    { game: 'blackjack', set: blackjackSet, dealer: DEALER.position },
+    { game: 'holdem', set: pokerSet, dealer: POKER_DEALER.position },
+    { game: 'roulette', set: rouletteSet, dealer: ROULETTE_DEALER.position },
+    { game: 'baccarat', set: baccaratSet, dealer: BACCARAT_DEALER.position },
+  ];
+  const ARC_R = m(7.2);
+  const ARC_STEP = 0.66;   // radians between neighbours
+  const carousel = { on: false, pos: 0, target: 0, held: false, settledAt: -1 };
+  function layCarousel() {
+    const n = CAROUSEL_SETS.length;
+    let nearest = null;
+    CAROUSEL_SETS.forEach((c, i) => {
+      // The shortest way round, so the arc wraps: after Baccarat, Blackjack.
+      let o = i - carousel.pos;
+      o -= Math.round(o / n) * n;
+      const a = o * ARC_STEP;
+      c.set.visible = Math.abs(o) < 1.7;
+      c.set.position.set(Math.sin(a) * ARC_R, 0, -(1 - Math.cos(a)) * ARC_R);
+      c.set.rotation.y = -a;
+      if (Math.abs(o) < 0.5) nearest = { c, o };
+    });
+    // The dealer waits at the table in the middle, and steps away while
+    // the tables move.
+    const still = Math.abs(carousel.pos - carousel.target) < 0.004 && !carousel.held;
+    dealer.visible = !!nearest && still;
+    if (nearest && still) {
+      dealer.position.copy(nearest.c.dealer).applyAxisAngle(UP_Y, nearest.c.set.rotation.y).add(nearest.c.set.position);
+      dealer.rotation.y = nearest.c.set.rotation.y;
+    }
+  }
+  const UP_Y = new THREE.Vector3(0, 1, 0);
+  function startCarousel(index) {
+    carousel.on = true;
+    carousel.pos = carousel.target = index;
+    carousel.held = false;
+    layCarousel();
+    // The waiters' rounds pass close by the camera here; the floor is kept clear.
+    service.setWaitersVisible(false);
+  }
+  function endCarousel() {
+    carousel.on = false;
+    CAROUSEL_SETS.forEach((c) => { c.set.position.set(0, 0, 0); c.set.rotation.y = 0; });
+    dealer.visible = true;
+    dealer.rotation.y = 0;
+    service.setWaitersVisible(true);
+    // setGame decides again which one table shows.
+    const was = game;
+    game = null;
+    setGame(was || 'blackjack');
+  }
+  /** Glide to game `index` (it may run past the ends; the arc wraps). */
+  function carouselTo(index) { carousel.target = index; carousel.held = false; }
+  /** Follow a finger: `pos` is where the arc should stand right now. */
+  function carouselHold(pos) { carousel.held = true; carousel.pos = carousel.target = pos; }
+  function stepCarousel(delta) {
+    if (!carousel.held) {
+      const k = 1 - Math.exp(-delta * 5.5);
+      carousel.pos += (carousel.target - carousel.pos) * k;
+      if (Math.abs(carousel.target - carousel.pos) < 0.0005) carousel.pos = carousel.target;
+    }
+    layCarousel();
+  }
+  const carouselLook = new THREE.Vector3();
+  function placeCarouselCamera(delta) {
+    if (!stillMotion.matches) backdropT += delta;
+    pointer.ex += (pointer.x - pointer.ex) * 0.04;
+    pointer.ey += (pointer.y - pointer.ey) * 0.04;
+    const lean = stillMotion.matches ? 0 : 1;
+    const tall = camera.aspect < 1;
+    const back = tall ? m(5.4) : m(4.6), up = tall ? m(3.3) : m(2.5);
+    camera.position.set(
+      pointer.ex * m(0.25) * lean,
+      FLOOR_Y + up + Math.sin(backdropT * 0.35) * m(0.03) * lean - pointer.ey * m(0.1) * lean,
+      back,
+    );
+    carouselLook.set(0, FLOOR_Y + m(tall ? 0.2 : 0.75), tall ? m(0.3) : -m(0.35));
+    camera.lookAt(carouselLook);
   }
 
   // ---------- the lobby's backdrop ----------
@@ -312,11 +399,14 @@ export function initScene(canvas) {
     pointer.y = (e.clientY / window.innerHeight) * 2 - 1;
   }, { passive: true });
   const backdropLook = new THREE.Vector3();
-  function setBackdrop(on, { tier = 5, show = 'blackjack', dealerKey = null } = {}) {
+  function setBackdrop(on, { tier = 5, show = 'blackjack', dealerKey = null, index = 0 } = {}) {
     if (on) {
       setRoomTheme(tier);
-      setGame(show);
+      if (show === 'carousel') { if (!carousel.on) startCarousel(index); }
+      else setGame(show);
       if (dealerKey) setDealerModel(dealer, dealerKey);
+    } else if (carousel.on) {
+      endCarousel();
     }
     if (on === backdrop) return;
     backdrop = on;
@@ -438,8 +528,10 @@ export function initScene(canvas) {
       return;
     }
     if (backdrop) {
-      // About thirty frames a second is plenty for a slow drift.
-      if (now - lastBackdropDraw < 32) return;
+      // About thirty frames a second is plenty for a slow drift; the
+      // carousel, while it glides, at full rate.
+      const gliding = carousel.on && (carousel.held || Math.abs(carousel.target - carousel.pos) > 0.0005);
+      if (!gliding && now - lastBackdropDraw < 32) return;
       lastBackdropDraw = now;
       lastFrame = now;
       settleUntil = now + SETTLE_MS;
@@ -448,7 +540,8 @@ export function initScene(canvas) {
       updateDealerAnimations(d);
       service.update(d);
       if (room && room.userData.update) room.userData.update(d, now);
-      placeBackdropCamera(d);
+      if (carousel.on) { stepCarousel(d); placeCarouselCamera(d); }
+      else placeBackdropCamera(d);
       renderer.render(scene, camera);
       return;
     }
@@ -497,6 +590,8 @@ export function initScene(canvas) {
     setPokerFelt: pokerTable.userData.setFeltTheme,
     rouletteSet, rouletteTable, rouletteChairs,
     baccaratSet, baccaratTable, baccaratChairs,
+    carouselTo, carouselHold,
+    get carouselPos() { return carousel.pos; },
   };
 }
 
