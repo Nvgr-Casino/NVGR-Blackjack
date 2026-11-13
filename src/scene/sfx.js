@@ -188,157 +188,106 @@ export function riffleSound(ms = 900, delayMs = 0) {
 }
 
 // ---------- roulette ----------
-// A panned, filtered noise source running from `at` for `dur` seconds,
-// returned so its filter, gain and pan can be shaped.
-function loopNoise(c, at, dur, { type = 'bandpass', freq = 1000, q = 1 } = {}) {
-  const src = c.createBufferSource();
-  src.buffer = noise;
-  src.loop = true;
-  src.playbackRate.value = 0.9 + Math.random() * 0.2;
-  const f = c.createBiquadFilter();
-  f.type = type;
-  f.frequency.value = freq;
-  f.Q.value = q;
-  const g = c.createGain();
-  g.gain.value = 0;
-  const pan = c.createStereoPanner ? c.createStereoPanner() : null;
-  src.connect(f).connect(g);
-  if (pan) g.connect(pan).connect(effects); else g.connect(effects);
-  src.start(at);
-  src.stop(at + dur + 0.05);
-  return { f, g, pan };
-}
-// A hard little knock: a click of noise and a short resonant ring, as a
-// ball strikes metal or lacquer.
-function knock(c, at, { ring = 3600, gain = 0.05, decay = 0.04, pan = 0 }) {
-  const src = c.createBufferSource();
-  src.buffer = noise;
-  const f = c.createBiquadFilter();
-  f.type = 'bandpass';
-  f.frequency.value = ring;
-  f.Q.value = 9;
-  const g = c.createGain();
-  g.gain.setValueAtTime(0, at);
-  g.gain.linearRampToValueAtTime(gain, at + 0.001);
-  g.gain.exponentialRampToValueAtTime(0.0001, at + decay);
-  const p = c.createStereoPanner ? c.createStereoPanner() : null;
-  src.connect(f).connect(g);
-  if (p) { p.pan.value = pan; g.connect(p).connect(effects); } else g.connect(effects);
-  src.start(at, Math.random() * 0.5, decay + 0.02);
-  ping(c, at, { freq: ring * (0.5 + Math.random() * 0.1), gain: gain * 0.35, decay: decay * 0.8, type: 'triangle' });
-}
-
-// The wooden bowl's voice: the resonances a ball rolling in it sets
-// ringing — what makes a real wheel sound like a wheel and not like hiss.
-const BOWL_MODES = [[240, 14, 1], [470, 14, 0.7], [790, 13, 0.45], [1180, 12, 0.25]];
-function bowl(c, at, dur, panned = true) {
-  const src = c.createBufferSource();
-  src.buffer = noise;
-  src.loop = true;
-  const drive = c.createGain();
-  drive.gain.value = 0;
-  const sum = c.createGain();
-  sum.gain.value = 1;
-  BOWL_MODES.forEach(([f, q, level]) => {
-    const bp = c.createBiquadFilter();
-    bp.type = 'bandpass';
-    bp.frequency.value = f;
-    bp.Q.value = q;
-    const g = c.createGain();
-    g.gain.value = level;
-    drive.connect(bp).connect(g).connect(sum);
-  });
-  const pan = panned && c.createStereoPanner ? c.createStereoPanner() : null;
-  src.connect(drive);
-  if (pan) sum.connect(pan).connect(effects); else sum.connect(effects);
-  src.start(at);
-  src.stop(at + dur + 0.1);
-  return { drive, pan };
+// The spin is real recordings of a roulette wheel (Mixkit, free licence),
+// laid along the spin's own plan (src/roulette/spinPlan.js) so what is
+// heard is what is seen:
+//   roulette-spin.mp3 — a whole short spin: the ball rolling on the rim
+//     (0.15–2.85 s), its fall (3–6 s), and riding round in its pocket
+//     (6.2–9.3 s);
+//   roulette-drop.mp3 — the ball dropping off a diamond, clattering across
+//     the frets and settling (3.4 s).
+// The rolling stretch is looped through the ball's twenty-odd laps and
+// slowed with it, so its lap rhythm and its pitch fall as the ball loses
+// pace; the clatter starts as the ball strikes the diamond; the pocket's
+// ride fades out once it is still.
+let rlBuffers = null;
+let rlLoading = null;
+const ROLL_FROM = 0.15, ROLL_TO = 2.85;   // the rolling stretch of roulette-spin.mp3
+const RIDE_FROM = 6.2, RIDE_LEN = 3.1;    // the ball riding in its pocket
+/** Fetches and decodes the wheel's recordings, once. */
+export function preloadRouletteSounds() {
+  if (rlLoading) return rlLoading;
+  const c = audio();
+  if (!c) return Promise.resolve(null);
+  const base = import.meta.env.BASE_URL + 'assets/sfx/';
+  // The callback form of decodeAudioData, for older Safari.
+  const load = (f) => fetch(base + f).then((r) => r.arrayBuffer()).then((b) => new Promise((res, rej) => c.decodeAudioData(b, res, rej)));
+  rlLoading = Promise.all([load('roulette-spin.mp3'), load('roulette-drop.mp3')])
+    .then(([spin, drop]) => { rlBuffers = { spin, drop }; return rlBuffers; })
+    .catch(() => { rlLoading = null; return null; });
+  return rlLoading;
 }
 
 /**
- * A spin, heard as at a real table, following the spin's own plan
- * (src/roulette/spinPlan.js) so every sound lands on what is seen: the
- * croupier's flick; the ball rolling round the wooden bowl — its
- * resonances rumbling under it, swelling and fading once
- * a lap as it passes, slowing lap by lap for its twenty-odd laps; the
- * rotor's low turning under it; the chatter as it runs down the track, the
- * clink off a brass diamond; then a clack for every bounce, sized to the
- * hop, quicker and softer each time; and its little roll in the pocket.
- * Timed from the spin's start, so a player arriving mid-spin hears only
- * what is left of it.
+ * A spin, heard: started `elapsedMs` after the spin began (a player who
+ * arrives mid-spin hears only what is left of it).
  */
 export function rouletteSpinSound(plan, elapsedMs = 0) {
   const c = ready();
-  if (!c || elapsedMs / 1000 >= plan.T3 + 0.5) return;
+  if (!c) return;
+  if (!rlBuffers) {
+    // Not loaded yet: load, then play what is still to come.
+    const asked = performance.now();
+    preloadRouletteSounds().then((b) => { if (b) rouletteSpinSound(plan, elapsedMs + (performance.now() - asked)); });
+    return;
+  }
+  const { spin, drop } = rlBuffers;
   const now = c.currentTime;
-  const t0 = now - elapsedMs / 1000;
-  const at = (s) => t0 + s;
-  const from = Math.max(now, t0);
-  const end = at(plan.T3 + 1.5);
-  // The ball let go: a soft tick from the croupier's fingers.
-  if (t0 >= now - 0.05) knock(c, t0 + 0.03, { ring: 2200, gain: 0.025, decay: 0.05 });
-  // The rotor, turning low under it all.
-  const rotor = loopNoise(c, from, end - from, { type: 'lowpass', freq: 170, q: 0.8 });
-  rotor.g.gain.setValueAtTime(0, from);
-  rotor.g.gain.linearRampToValueAtTime(0.05, from + 0.6);
-  rotor.g.gain.linearRampToValueAtTime(0.03, end - 1);
-  rotor.g.gain.linearRampToValueAtTime(0.0001, end);
-  // The roll: the wooden bowl rumbling under the ball, swelling and
-  // fading once a lap as it passes, panned round with it, slowing.
-  const rollEnd = at(plan.T2);
-  if (from < rollEnd) {
-    const wood = bowl(c, from, rollEnd - from + 0.3);
-    const lfo = c.createOscillator();
-    const lapDepth = c.createGain();
-    lapDepth.gain.value = 0.3;
-    const panDepth = c.createGain();
-    panDepth.gain.value = 0.55;
-    lfo.connect(lapDepth);
-    lfo.connect(panDepth);
-    lapDepth.connect(wood.drive.gain);
-    if (wood.pan) panDepth.connect(wood.pan.pan);
-    for (let s = Math.max(0, elapsedMs / 1000); s <= plan.T2 + 0.001; s += 0.25) {
-      const { speed } = ballRun(plan, s);
-      const k = Math.max(0, speed / plan.w0);
-      const when = Math.max(from, at(s));
-      const onTrack = s > plan.T1 ? Math.max(0.35, 1 - (s - plan.T1) / plan.spiral) : 1;
-      wood.drive.gain.linearRampToValueAtTime(0.2 * Math.pow(k, 0.7) * onTrack + 0.04, when);
-      lfo.frequency.linearRampToValueAtTime(speed / (Math.PI * 2), when);
+  const el = elapsedMs / 1000;
+  const t0 = now - el;
+  const at = (s) => Math.max(now, t0 + s);
+  // The roll, until the ball strikes the diamond.
+  const rollEnd = plan.TD + 0.12;
+  if (el < rollEnd) {
+    const src = c.createBufferSource();
+    src.buffer = spin;
+    src.loop = true;
+    src.loopStart = ROLL_FROM;
+    src.loopEnd = ROLL_TO;
+    const g = c.createGain();
+    src.connect(g).connect(effects);
+    const from = at(0);
+    g.gain.setValueAtTime(0, from);
+    let first = true;
+    for (let s = Math.max(0, el); s <= rollEnd; s += 0.25) {
+      const { speed } = ballRun(plan, Math.min(s, plan.T2));
+      const k = Math.max(0, Math.min(1, speed / plan.w0));
+      // Slower laps, a lower and softer roll; down the track it thins.
+      const rate = 0.72 + 0.36 * k;
+      const onTrack = s > plan.T1 ? Math.max(0.4, 1 - (s - plan.T1) / plan.spiral) : 1;
+      const level = (0.55 + 0.6 * k) * onTrack;
+      const when = first ? from + 0.12 : at(s);
+      first = false;
+      src.playbackRate.linearRampToValueAtTime(rate, when);
+      g.gain.linearRampToValueAtTime(level, when);
     }
-    wood.drive.gain.linearRampToValueAtTime(0.0001, rollEnd + 0.2);
-    lfo.start(from);
-    lfo.stop(rollEnd + 0.3);
+    g.gain.linearRampToValueAtTime(0.0001, t0 + rollEnd + 0.08);
+    src.start(from, ROLL_FROM + (el % (ROLL_TO - ROLL_FROM)));
+    src.stop(t0 + rollEnd + 0.15);
   }
-  // Down the track: a chatter of small knocks thickening, then the diamond.
-  for (let s = plan.T1 + 0.1; s < plan.TD; s += 0.07 + Math.random() * 0.09) {
-    if (at(s) >= now) knock(c, at(s), { ring: 3800 + Math.random() * 2000, gain: 0.006 + 0.01 * ((s - plan.T1) / plan.spiral), decay: 0.018, pan: Math.random() * 0.8 - 0.4 });
+  // The fall: the diamond, the frets, the settle.
+  if (el < plan.TD + drop.duration) {
+    const src = c.createBufferSource();
+    src.buffer = drop;
+    const g = c.createGain();
+    g.gain.value = 1.0;
+    src.connect(g).connect(effects);
+    src.start(at(plan.TD), Math.max(0, el - plan.TD));
   }
-  if (at(plan.TD) >= now) {
-    knock(c, at(plan.TD), { ring: 3150, gain: 0.07, decay: 0.2, pan: -0.15 });
-    knock(c, at(plan.TD) + 0.002, { ring: 5900, gain: 0.03, decay: 0.12, pan: -0.15 });
-    burst(c, at(plan.TD), { freq: 380, q: 1, gain: 0.05, decay: 0.07, type: 'lowpass' });
+  // Still: the ball riding round in its pocket, fading.
+  const rideAt = plan.T3 + 0.3;
+  if (el < rideAt + RIDE_LEN) {
+    const src = c.createBufferSource();
+    src.buffer = spin;
+    const g = c.createGain();
+    const from = at(rideAt);
+    const into = Math.max(0, el - rideAt);
+    g.gain.setValueAtTime(0, from);
+    g.gain.linearRampToValueAtTime(0.7, from + 0.3);
+    g.gain.linearRampToValueAtTime(0.0001, from + RIDE_LEN - into);
+    src.connect(g).connect(effects);
+    src.start(from, RIDE_FROM + into, RIDE_LEN - into);
   }
-  // The bounces: a clack where the ball comes down, the size of the hop it
-  // came down from, a skitter after it.
-  plan.hops.forEach((hop, i) => {
-    const t = at(hop.t0);
-    if (t < now) return;
-    const fall = i === 0 ? 0.035 : plan.hops[i - 1].h;
-    const loud = Math.min(1, fall / 0.03);
-    const pan = Math.random() * 0.7 - 0.35;
-    knock(c, t, { ring: 4100 + Math.random() * 1300, gain: 0.075 * loud + 0.012, decay: 0.05, pan });
-    knock(c, t + 0.001, { ring: 1350 + Math.random() * 300, gain: 0.03 * loud + 0.006, decay: 0.07, pan });
-    const skitter = i < 2 ? 2 : 1;
-    for (let k = 1; k <= skitter; k++) knock(c, t + k * (0.028 + Math.random() * 0.02), { ring: 5200 + Math.random() * 1500, gain: 0.014 * loud, decay: 0.02, pan });
-  });
-  // Settled: a short roll in the pocket, two last small clicks.
-  const settle = Math.max(now, at(plan.T3));
-  const roll = bowl(c, settle, 0.8, false);
-  roll.drive.gain.setValueAtTime(0.0001, settle);
-  roll.drive.gain.linearRampToValueAtTime(0.05, settle + 0.04);
-  roll.drive.gain.exponentialRampToValueAtTime(0.0001, settle + 0.7);
-  [0.08, 0.2].forEach((d, i) => { if (at(plan.T3 + d) >= now) knock(c, at(plan.T3 + d), { ring: 4600, gain: 0.012 / (i + 1), decay: 0.025 }); });
 }
 
 // A bell, struck: a sine carrier rung by a modulator whose depth dies

@@ -275,7 +275,9 @@ export function createWheel() {
   const PUSH = 2.9;                   // rad/s, just after the croupier's push
   const TAU = 28;                     // s, how long the push takes to fade
   const RT = m(0.43), RD = m(0.405), RE = m(0.355);  // the ball's track, the diamonds' ring, the rotor's edge
-  const RP = m(0.3);
+  // The pockets' ring, inside the numbers' (the face's 0.6–0.76 of its
+  // radius, between the gold frets): where the ball comes to rest.
+  const RP = m(0.241);
   const YT = m(0.098), YP = m(0.058), YE = m(0.064);
   const STEP = POCKET_STEP;
   let base = 0;                       // the rotor's angle at `baseAt`, before any push

@@ -24,6 +24,9 @@ function rng(seed) {
 }
 export const seedFor = (start, number) => ((Math.floor(start) % 2147483647) ^ Math.imul(number + 1, 2654435761)) >>> 0;
 
+// The radius, in metres from the wheel's centre, of the pockets the ball
+// settles in (inside the ring of numbers).
+export const POCKET_R = 0.241;
 export const LEAVE_SPEED = 5.6;   // rad/s: the ball's pace as it leaves the rim (under a lap a second)
 
 // Times are seconds from the spin's start.
@@ -41,7 +44,11 @@ export function spinPlan(seed) {
   const n = 5 + Math.floor(r() * 3);
   for (let i = 0; i < n; i++) {
     const dur = d * (0.85 + r() * 0.3);
-    hops.push({ t0: t, dur, h: 0.03 * Math.pow(0.68, i) * (0.8 + r() * 0.4), jitter: (r() * 2 - 1) * (1 - i / n), r: 0.3 + r() * 0.035 });
+    // Where each hop comes down, from the wheel's centre (metres): the first
+    // skip over the numbers' ring, the last few drop into the pockets'
+    // ring inside it, the very last into the pocket itself.
+    const land = i === n - 1 ? POCKET_R : i >= n - 3 ? 0.232 + r() * 0.02 : 0.262 + r() * 0.07;
+    hops.push({ t0: t, dur, h: 0.03 * Math.pow(0.68, i) * (0.8 + r() * 0.4), jitter: (r() * 2 - 1) * (1 - i / n), r: land });
     t += dur;
     d *= 0.76;
   }

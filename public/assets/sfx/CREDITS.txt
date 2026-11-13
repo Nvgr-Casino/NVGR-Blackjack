@@ -1,0 +1,5 @@
+Roulette recordings, from Mixkit (https://mixkit.co), under the Mixkit
+Sound Effects Free License (free for use in projects; no attribution required):
+
+roulette-spin.mp3  "Balin in casino roulette"  (Mixkit sfx 2071)
+roulette-drop.mp3  "Casino Roulette ball"      (Mixkit sfx 1987)

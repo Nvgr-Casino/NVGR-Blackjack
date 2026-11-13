@@ -9,7 +9,7 @@ import * as R from '../roulette/rules.js';
 import { BOARD_W, BOARD_H, AREA_BETS, LINE_BETS, areaRect, spotOf, numberFill, FELT_COLOR, LINE_COLOR } from '../roulette/layout.js';
 import { SEAT_CHIP_COLORS } from '../scene/rouletteTable.js';
 import { chipButtonDataURL } from '../scene/chip.js';
-import { rouletteSpinSound, winChime, croupierSay, isSoundOn, setSoundOn } from '../scene/sfx.js';
+import { rouletteSpinSound, preloadRouletteSounds, winChime, croupierSay, isSoundOn, setSoundOn } from '../scene/sfx.js';
 import { spinPlan, seedFor } from '../roulette/spinPlan.js';
 import { characterPortraitDataURL, defaultCharacterFor } from '../scene/character.js';
 import { dealerKeyFor } from '../scene/dealer.js';
@@ -85,6 +85,8 @@ function frameWheel(room) {
 // ---------- the 3D table ----------
 export function syncRouletteToScene(room, myKey) {
   if (!driver || !room) return;
+  // The wheel's recordings, ready before the first spin.
+  preloadRouletteSounds();
   const tier = stakesTier(room);
   scene.setGame('roulette');
   scene.setRoomTheme(tier);
