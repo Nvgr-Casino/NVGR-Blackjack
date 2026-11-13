@@ -7,9 +7,8 @@ import { spinPlan, ballRun, seedFor } from '../roulette/spinPlan.js';
 
 // The roulette wheel, built as the grandest real ones are (the Monte Carlo
 // wheels of the early 1900s, and the bespoke wheels made after them): a
-// head of ebony veneer, a starburst of tulipwood marquetry let into it
-// between lines of brass stringing, the house's name engraved round it in
-// gold, gilt rosettes; a ball track of black piano lacquer, so the ivory
+// head of black ebony between lines of brass stringing, NVGR CASINO round
+// it in gold letters between gilt rosettes; a ball track of black piano lacquer, so the ivory
 // ball shows against it every inch of its run; gilt diamonds on the
 // track; the rotor's numbers in gold on red and black lacquer, a band of
 // tulipwood round them, domed gold frets between the pockets with a bead
@@ -30,75 +29,58 @@ const POCKET_STEP = (Math.PI * 2) / 37;
 // by `rotor`. Pocket i is centred at i·step − 90° on the rotor's face.
 const pocketAngle = (number, rotor) => WHEEL_ORDER.indexOf(number) * POCKET_STEP - Math.PI / 2 - rotor;
 
-// The head, in the manner of the great Monte Carlo wheels: ebony veneer,
-// a starburst of tulipwood marquetry let into it between lines of brass
-// stringing, and the house's name engraved in gold round its outer band.
+// The head: black ebony under deep lacquer, lines of brass stringing at
+// its edges, and the house's name in gold letters round it — NVGR and
+// CASINO in turn, set between the gilt rosettes. The letters face in, so
+// the players across the table read them upright.
 function paintMarquetry(ctx, S) {
   const c = S / 2;
-  // Ebony: near black, a fine dark grain.
-  ctx.fillStyle = '#120a06';
+  ctx.fillStyle = '#0a0806';
   ctx.fillRect(0, 0, S, S);
-  for (let k = 0; k < 700; k++) {
+  // A faint grain in the black.
+  for (let k = 0; k < 500; k++) {
     const a = Math.random() * Math.PI * 2, r0 = c * (0.84 + Math.random() * 0.15);
-    ctx.strokeStyle = `rgba(70,40,24,${0.08 + Math.random() * 0.18})`;
+    ctx.strokeStyle = `rgba(60,36,22,${0.06 + Math.random() * 0.1})`;
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc(c, c, r0, a, a + 0.05 + Math.random() * 0.2);
+    ctx.arc(c, c, r0, a, a + 0.04 + Math.random() * 0.15);
     ctx.stroke();
   }
-  // Tulipwood leaves, pink-gold and striped, in a starburst.
-  const leaves = 24;
-  for (let i = 0; i < leaves; i++) {
-    const a = (i / leaves) * Math.PI * 2;
-    const w = (Math.PI * 2) / leaves * 0.36;
-    const g = ctx.createLinearGradient(c + Math.cos(a) * c * 0.86, c + Math.sin(a) * c * 0.86, c + Math.cos(a) * c * 0.99, c + Math.sin(a) * c * 0.99);
-    g.addColorStop(0, '#c8826a');
-    g.addColorStop(0.5, '#e8b090');
-    g.addColorStop(1, '#a86450');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.moveTo(c + Math.cos(a - w) * c * 0.885, c + Math.sin(a - w) * c * 0.885);
-    ctx.lineTo(c + Math.cos(a) * c * 0.955, c + Math.sin(a) * c * 0.955);
-    ctx.lineTo(c + Math.cos(a + w) * c * 0.885, c + Math.sin(a + w) * c * 0.885);
-    ctx.lineTo(c + Math.cos(a) * c * 0.865, c + Math.sin(a) * c * 0.865);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(80,30,16,0.35)';
-    ctx.lineWidth = 1;
-    for (let k = -2; k <= 2; k++) {
-      ctx.beginPath();
-      ctx.moveTo(c + Math.cos(a + k * w * 0.3) * c * 0.875, c + Math.sin(a + k * w * 0.3) * c * 0.875);
-      ctx.lineTo(c + Math.cos(a) * c * 0.95, c + Math.sin(a) * c * 0.95);
-      ctx.stroke();
-    }
-    ctx.strokeStyle = '#d8b46a';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }
-  // Brass stringing.
-  [[0.995, 10], [0.975, 2], [0.86, 3], [0.845, 1.5]].forEach(([r, w]) => {
+  // Brass stringing at both edges of the band.
+  [[0.995, 9], [0.978, 2], [0.862, 2], [0.848, 5]].forEach(([r, w]) => {
     ctx.strokeStyle = '#e2c27a';
     ctx.lineWidth = w;
     ctx.beginPath();
     ctx.arc(c, c, c * r, 0, Math.PI * 2);
     ctx.stroke();
   });
-  // The engraving, round the band inside the starburst.
-  const text = 'NVGR · CASINO · ROULETTE · ';
-  ctx.fillStyle = '#e8c87a';
-  ctx.font = `600 ${S * 0.016}px 'Cinzel', Georgia, serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  const chars = (text + text + text).split('');
-  chars.forEach((ch, i) => {
-    const a = (i / chars.length) * Math.PI * 2;
-    ctx.save();
-    ctx.translate(c + Math.cos(a) * c * 0.9, c + Math.sin(a) * c * 0.9);
-    ctx.rotate(a + Math.PI / 2);
-    ctx.fillText(ch, 0, 0);
-    ctx.restore();
-  });
-  grain(ctx, S, S, 6);
+  // The lettering. The rosettes stand at every eighth of the circle (the
+  // canvas's angle is the wheel's), so the words sit between them.
+  const R = c * 0.918;
+  const size = S * 0.034;
+  const spacing = (size * 0.95) / R;      // radians a letter
+  for (let k = 0; k < 8; k++) {
+    const word = k % 2 ? 'CASINO' : 'NVGR';
+    const mid = (k + 0.5) * (Math.PI / 4);
+    const chars = word.split('');
+    chars.forEach((ch, i) => {
+      const ang = mid - (i - (chars.length - 1) / 2) * spacing;
+      ctx.save();
+      ctx.translate(c + Math.cos(ang) * R, c + Math.sin(ang) * R);
+      ctx.rotate(ang - Math.PI / 2);
+      const g = ctx.createLinearGradient(0, -size / 2, 0, size / 2);
+      g.addColorStop(0, '#fff0b8');
+      g.addColorStop(0.5, '#e0b860');
+      g.addColorStop(1, '#a87a2c');
+      ctx.fillStyle = g;
+      ctx.font = `700 ${size}px 'Cinzel', Georgia, serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(ch, 0, 0);
+      ctx.restore();
+    });
+  }
+  grain(ctx, S, S, 4);
 }
 
 // The rotor's face: thirty-seven pockets of red and black lacquer (the
@@ -260,7 +242,7 @@ export function createWheel() {
   const g = new THREE.Group();
   const GOLD = new THREE.MeshPhysicalMaterial({ color: 0xe0b85e, roughness: 0.18, metalness: 1, clearcoat: 0.6, clearcoatRoughness: 0.1 });
   const DARK_GOLD = new THREE.MeshStandardMaterial({ color: 0xa8823a, roughness: 0.3, metalness: 1 });
-  const WOOD = new THREE.MeshPhysicalMaterial({ map: canvasTex(1024, 1024, paintMarquetry), roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.06 });
+  const WOOD = new THREE.MeshPhysicalMaterial({ map: canvasTex(2048, 2048, paintMarquetry), roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.06 });
   const SIDE = new THREE.MeshPhysicalMaterial({ color: 0x4a1a0a, roughness: 0.35, clearcoat: 1, clearcoatRoughness: 0.1 });
   const EBONY = new THREE.MeshPhysicalMaterial({ color: 0x0a0806, roughness: 0.12, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.02, side: THREE.DoubleSide });
 
