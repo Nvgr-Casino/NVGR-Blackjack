@@ -126,6 +126,13 @@ const toPx = (x, z) => [(x + TABLE_RADIUS) * PX, (z + SIDE_LENGTH) * PX];
 // along the table; drawing it taller by this much cancels that out.
 const FORESHORTEN = 1.5;
 
+// Where each seat's bet is placed: seats.js's betSpot, restated (seats.js
+// imports this module, so it can't be imported back).
+const BET_SPOTS = [95, 45, 0, -45, -95].map((deg) => {
+  const a = THREE.MathUtils.degToRad(deg);
+  return [Math.sin(a) * TABLE_RADIUS * 0.81, Math.cos(a) * TABLE_RADIUS * 0.81];
+});
+
 function createFeltTexture(themeKey) {
   const theme = feltTheme(themeKey);
   const canvas = document.createElement('canvas');
@@ -224,33 +231,95 @@ function createFeltTexture(themeKey) {
   const gapX = pays / 2 + 0.1;
   rule(-wide / 2, -gapX, R * 0.335);
   rule(gapX, wide / 2, R * 0.335);
-  // The dealer's rule.
-  text('DEALER MUST DRAW TO 16 AND STAND ON ALL 17s', R * 0.392, 0.06, { weight: 600, fill: INK_SOFT, spacing: 0.1, shadow: false });
-
-  // The insurance ribbon: a long band with pointed ends, the line in it.
-  {
-    const z = R * 0.468;
-    const w = text('INSURANCE PAYS 2 TO 1', z, 0.1, { spacing: 0.22 }) / 2 + 0.22;
-    const h = 0.075;
-    const [cx, cy] = toPx(0, z);
-    const pts = [[-w, -h], [w, -h], [w + 0.08, 0], [w, h], [-w, h], [-w - 0.08, 0]];
-    ctx.strokeStyle = INK_SOFT;
-    ctx.lineWidth = 0.009 * PX;
-    ctx.beginPath();
-    pts.forEach(([x, y], i) => { const X = cx + x * PX, Y = cy + y * PX * STRETCH; if (i) ctx.lineTo(X, Y); else ctx.moveTo(X, Y); });
-    ctx.closePath();
-    ctx.stroke();
-    // A suit just inside each point.
-    [[-w + 0.07, '♠'], [w - 0.07, '♦']].forEach(([x, g]) => {
+  // Lettering set round a gentle arc, as the real layouts are printed:
+  // each letter on the curve, turned along it. The arcs curve about a
+  // point well behind the dealer, so they sweep wide and shallow; `z` is
+  // where an arc crosses the table's middle.
+  const ARC_BACK = R * 0.7;
+  const onArc = (a, radius) => toPx(Math.sin(a) * radius, Math.cos(a) * radius - ARC_BACK);
+  const arcText = (str, z, size, { weight = 700, fill = INK, spacing = 0.18 } = {}) => {
+    const radius = z + ARC_BACK;
+    ctx.save();
+    ctx.font = font(size, weight);
+    const gap = size * spacing;
+    const widths = [...str].map((ch) => ctx.measureText(ch).width / PX + gap);
+    const total = widths.reduce((a, b) => a + b, 0) - gap;
+    let a = -total / radius / 2;
+    [...str].forEach((ch, i) => {
+      const mid = a + (widths[i] - gap) / 2 / radius;
+      const [x, y] = onArc(mid, radius);
       ctx.save();
-      ctx.translate(cx + x * PX, cy);
-      ctx.scale(1, STRETCH);
-      ctx.font = `${0.085 * PX}px Georgia, 'Segoe UI Symbol', serif`;
+      ctx.translate(x, y);
+      ctx.rotate(-mid);
+      ctx.scale(1, STRETCH * 0.8);
+      ctx.fillStyle = fill;
+      ctx.fillText(ch, 0, 0);
+      ctx.restore();
+      a += widths[i] / radius;
+    });
+    ctx.restore();
+    return total / radius;
+  };
+  const arcLine = (z, half, width = 0.009) => {
+    const radius = z + ARC_BACK;
+    const [cx, cy] = toPx(0, -ARC_BACK);
+    ctx.strokeStyle = INK_SOFT;
+    ctx.lineWidth = width * PX;
+    ctx.beginPath();
+    // Canvas angles run from +x clockwise; the table's front (+z) is down.
+    ctx.arc(cx, cy, radius * PX, Math.PI / 2 - half, Math.PI / 2 + half);
+    ctx.stroke();
+  };
+  // The dealer's rule, round a gentle arc.
+  arcText('DEALER MUST DRAW TO 16 AND STAND ON ALL 17s', R * 0.405, 0.052, { weight: 600, fill: INK_SOFT, spacing: 0.1 });
+
+  // The insurance band: an arc between two gold lines, its words on it,
+  // a suit at each end.
+  {
+    const r0 = R * 0.452, r1 = R * 0.53, rm = (r0 + r1) / 2;
+    const span = arcText('INSURANCE PAYS 2 TO 1', rm, 0.08, { spacing: 0.24 });
+    const half = span / 2 + 0.2 / (rm + ARC_BACK);
+    arcLine(r0, half);
+    arcLine(r1, half);
+    // The band's ends, closed square.
+    [-1, 1].forEach((side) => {
+      const a = side * half;
+      const [x0, y0] = onArc(a, r0 + ARC_BACK);
+      const [x1, y1] = onArc(a, r1 + ARC_BACK);
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      const s = side * (half - 0.08 / (rm + ARC_BACK));
+      const [gx, gy] = onArc(s, rm + ARC_BACK);
+      ctx.save();
+      ctx.translate(gx, gy);
+      ctx.rotate(-s);
+      ctx.scale(1, STRETCH * 0.8);
+      ctx.font = `${0.075 * PX}px Georgia, 'Segoe UI Symbol', serif`;
       ctx.fillStyle = INK;
-      ctx.fillText(g, 0, 0);
+      ctx.fillText(side < 0 ? '♠' : '♦', 0, 0);
       ctx.restore();
     });
   }
+
+  // Each seat's betting circle, printed in gold: a ring, a finer ring
+  // inside it, and four small diamonds round it.
+  BET_SPOTS.forEach(([x, z]) => {
+    const [cx, cy] = toPx(x, z);
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 0.014 * PX;
+    ctx.beginPath(); ctx.arc(cx, cy, 0.225 * PX, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = INK_SOFT;
+    ctx.lineWidth = 0.006 * PX;
+    ctx.beginPath(); ctx.arc(cx, cy, 0.19 * PX, 0, Math.PI * 2); ctx.stroke();
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
+      const dx = Math.cos(a) * 0.255 * PX, dy = Math.sin(a) * 0.255 * PX;
+      const d = 0.018 * PX;
+      ctx.fillStyle = INK;
+      ctx.beginPath();
+      ctx.moveTo(cx + dx, cy + dy - d); ctx.lineTo(cx + dx + d, cy + dy); ctx.lineTo(cx + dx, cy + dy + d); ctx.lineTo(cx + dx - d, cy + dy);
+      ctx.closePath(); ctx.fill();
+    }
+  });
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -344,7 +413,7 @@ export function createWoodTexture() {
 export const BRASS = new THREE.MeshStandardMaterial({ color: 0x9c7d4a, roughness: 0.42, metalness: 0.75 });
 // Near-black leather with a soft sheen, so the cushion's curve shows where
 // the light rolls off it; pure flat black read as a hole in the picture.
-export const LEATHER = new THREE.MeshStandardMaterial({ color: 0x1a1512, roughness: 0.42, metalness: 0 });
+export const LEATHER = new THREE.MeshStandardMaterial({ color: 0x3a0c10, roughness: 0.42, metalness: 0 });
 
 export function createTable() {
   const group = new THREE.Group();
@@ -429,8 +498,10 @@ export function createTable() {
 
   // The apron below: lacquered walnut, carrying the outline round to the
   // dealer's ledge along the back.
-  const woodMat = new THREE.MeshStandardMaterial({ map: createWoodTexture(), roughness: 0.5, metalness: 0 });
-  const APRON = m(0.14);
+  // Mahogany under a deep clear lacquer, as the roulette and baccarat
+  // tables are built.
+  const woodMat = new THREE.MeshPhysicalMaterial({ map: createWoodTexture(), color: 0xb0603a, roughness: 0.36, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.12 });
+  const APRON = m(0.18);
   const apron = new THREE.Mesh(
     new THREE.ExtrudeGeometry(buildTableShape(RAIL_OUTER, SIDE_LENGTH + LEDGE), {
       depth: APRON, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 3, curveSegments: 48,
@@ -444,6 +515,29 @@ export function createTable() {
   apron.receiveShadow = true;
   apron.castShadow = true;
   group.add(apron);
+  // A gilt band round the foot of the apron.
+  const gilt = new THREE.Mesh(
+    new THREE.ExtrudeGeometry(buildTableShape(RAIL_OUTER + 0.024, SIDE_LENGTH + LEDGE + 0.024), { depth: m(0.022), bevelEnabled: false, curveSegments: 48 }),
+    GOLD
+  );
+  gilt.rotation.x = Math.PI / 2;
+  gilt.position.y = -0.025 - APRON + m(0.03);
+  group.add(gilt);
+  // Brass studs in a line round the apron, under the armrest.
+  {
+    const outline = buildTableShape(RAIL_OUTER + 0.021, SIDE_LENGTH + LEDGE + 0.021).getSpacedPoints(150);
+    const studs = new THREE.InstancedMesh(new THREE.SphereGeometry(m(0.008), 8, 6), BRASS, outline.length);
+    const mtx = new THREE.Matrix4();
+    let n = 0;
+    outline.forEach((p) => {
+      // Not along the dealer's own edge.
+      if (p.y < -SIDE_LENGTH - LEDGE + 0.05) return;
+      mtx.makeTranslation(p.x, -0.025 - m(0.045), p.y);
+      studs.setMatrixAt(n++, mtx);
+    });
+    studs.count = n;
+    group.add(studs);
+  }
 
   // Pedestal: the same outline set well in, so seated knees clear it.
   const INSET = m(0.6);
@@ -460,6 +554,16 @@ export function createTable() {
   pedestal.castShadow = true;
   pedestal.receiveShadow = true;
   group.add(pedestal);
+  // Gold bands round the pedestal, under the apron and above the floor.
+  [pedestalTop - m(0.03), FLOOR_Y + m(0.09)].forEach((y) => {
+    const ring = new THREE.Mesh(
+      new THREE.ExtrudeGeometry(buildTableShape(RAIL_OUTER - INSET + m(0.012), SIDE_LENGTH + LEDGE - INSET * 0.4 + m(0.012)), { depth: m(0.022), bevelEnabled: false, curveSegments: 32 }),
+      GOLD
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = y;
+    group.add(ring);
+  });
 
   // Where the pedestal meets the floor, a line of light round its foot,
   // and the pool of that light on the floor round the table.

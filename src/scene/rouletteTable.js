@@ -163,7 +163,7 @@ function paintBoard(ctx, w, h, history, min, max) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#d8b46a';
-  ctx.font = "700 40px 'Cinzel', Georgia, serif";
+  ctx.font = "700 46px 'Cinzel', Georgia, serif";
   ctx.fillText('NVGR ROULETTE', w / 2, 44);
   ctx.fillStyle = 'rgba(216,180,106,0.5)';
   ctx.fillRect(30, 80, w - 60, 2);
@@ -183,7 +183,7 @@ function paintBoard(ctx, w, h, history, min, max) {
   // The last number, large, at the left.
   const last = history[0];
   ctx.fillStyle = '#8a8070';
-  ctx.font = "600 20px 'Cinzel', Georgia, serif";
+  ctx.font = "600 24px 'Cinzel', Georgia, serif";
   ctx.fillText('LAST', 165, 116);
   if (last !== undefined) ball(last, 165, 258, 112, 110);
   else { ctx.fillStyle = '#8a8070'; ctx.font = '600 26px Georgia, serif'; ctx.fillText('Place your bets', 165, 258); }
@@ -199,15 +199,15 @@ function paintBoard(ctx, w, h, history, min, max) {
   ctx.fillRect(30, 430, w - 60, 2);
   const n = history.length || 1;
   const pct = (c) => Math.round((history.filter((x) => colorOf(x) === c).length / n) * 100);
-  ctx.font = '700 28px Georgia, serif';
+  ctx.font = '700 34px Georgia, serif';
   [['RED', 'red', '#ff5a6e'], ['GREEN', 'green', '#3ad07c'], ['BLACK', 'black', '#e8e8ea']].forEach(([label, c, col], k) => {
     ctx.fillStyle = col;
-    ctx.fillText(`${label} ${history.length ? pct(c) + '%' : '–'}`, w * (0.12 + k * 0.19), 482);
+    ctx.fillText(`${label} ${history.length ? pct(c) + '%' : '–'}`, w * (0.12 + k * 0.2), 484);
   });
   const short = (v) => (v >= 1e6 ? v / 1e6 + 'M' : v >= 1000 ? v / 1000 + 'K' : String(v));
   ctx.fillStyle = '#e8dcc0';
-  ctx.font = '600 26px Georgia, serif';
-  ctx.fillText(`MIN ${short(min)}  ·  MAX ${short(max)}`, w * 0.8, 482);
+  ctx.font = '600 32px Georgia, serif';
+  ctx.fillText(`${short(min)} – ${short(max)}`, w * 0.84, 484);
 }
 
 export function createRouletteTable() {

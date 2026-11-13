@@ -9,13 +9,14 @@ import { playShoeShuffle } from './shuffle.js';
 import { place } from './furniture.js';
 import { updateSeatedCharacters } from './character.js';
 import { createDealerFigure, setDealerModel, startDealerIdle, updateDealerAnimations } from './dealer.js';
-import { createBetRing, createCardShoe, createChipRack, createDiscardHolder, SHOE_MOUTH } from './props.js';
+import { createCardShoe, createChipRack, createDiscardHolder, SHOE_MOUTH } from './props.js';
 import { createRoom, disposeRoom, ROOM_HALF, CEILING_Y } from './room.js';
 import { FLOOR_Y, m } from './scale.js';
 import { SEATS, DEALER, cameraPositionForSeat, cameraLookAtForSeat } from './seats.js';
 import { tickAnimations } from './animator.js';
 import { cameraOverride } from './cameraFocus.js';
 import { createService } from './service.js';
+import { createLobbyCrowd } from './lobbyCrowd.js';
 
 // Step 1-2: static table + deal animation. Step 3 (current): seats, a
 // dealer figure, and empty chairs around the table — no fixed "you" seat or
@@ -64,7 +65,11 @@ export function initScene(canvas) {
   // whole picture going soft — the cards most of all, being the finest
   // detail on screen — and a blurred card is worse than a slightly slower
   // one. The finer steps at the top let a capable GPU keep more sharpness.
-  const DPR_STEPS = [2, 1.75, 1.5, 1.25, 1];
+  // On a phone's 3x screen, though, even 1x is a third of its resolution
+  // and everything — the scoreboards' lettering most of all — went soft;
+  // a high-density screen never steps below 1.5x.
+  const MIN_DPR = window.devicePixelRatio >= 2 ? 1.5 : 1;
+  const DPR_STEPS = [2, 1.75, 1.5, 1.25, 1].filter((d) => d >= MIN_DPR);
   let dprStep = 0;
   const applyPixelRatio = () => renderer.setPixelRatio(Math.min(window.devicePixelRatio, DPR_STEPS[dprStep]));
 
@@ -227,10 +232,6 @@ export function initScene(canvas) {
   // switch away.
   const chairsBySeat = new Map();
   SEATS.forEach((seat) => {
-    const ring = createBetRing(0.22);
-    ring.position.copy(seat.betSpot);
-    blackjackSet.add(ring);
-
     // A tufted leather dining chair (Poly Haven), turned to face the table.
     const chair = place(blackjackSet, 'dining_chair_02', {
       x: seat.position.x, z: seat.position.z, yaw: seat.facingAngle, shadows: true,
@@ -309,6 +310,8 @@ export function initScene(canvas) {
     { game: 'roulette', set: rouletteSet, dealer: ROULETTE_DEALER.position },
     { game: 'baccarat', set: baccaratSet, dealer: BACCARAT_DEALER.position },
   ];
+  // Guests at the tables while the carousel is up (lobbyCrowd.js).
+  const crowd = createLobbyCrowd({ blackjack: blackjackSet, holdem: pokerSet, roulette: rouletteSet, baccarat: baccaratSet });
   const ARC_R = m(9);
   const ARC_STEP = 0.8;    // radians between neighbours: about 6 m apart
   // The arc moves on a critically damped spring: it gathers speed gently,
@@ -346,6 +349,7 @@ export function initScene(canvas) {
     layCarousel();
     // The waiters' rounds pass close by the camera here; the floor is kept clear.
     service.setWaitersVisible(false);
+    crowd.show(true);
   }
   function endCarousel() {
     carousel.on = false;
@@ -353,6 +357,7 @@ export function initScene(canvas) {
     dealer.visible = true;
     dealer.rotation.y = 0;
     service.setWaitersVisible(true);
+    crowd.show(false);
     // setGame decides again which one table shows.
     const was = game;
     game = null;
@@ -503,7 +508,7 @@ export function initScene(canvas) {
   // the device on that would downgrade everyone.
   const SETTLE_MS = 3000;
   const WINDOW_FRAMES = 30;
-  const SLOW_FRAME_MS = 22;   // ~45fps; below this and it reads as juddery
+  const SLOW_FRAME_MS = 26;   // ~38fps; below this and it reads as juddery
   let settleUntil = performance.now() + SETTLE_MS;
   let windowFrames = [];
   let slowWindows = 0;
@@ -561,7 +566,7 @@ export function initScene(canvas) {
       updateDealerAnimations(d);
       service.update(d);
       if (room && room.userData.update) room.userData.update(d, now);
-      if (carousel.on) { stepCarousel(d); placeCarouselCamera(d); }
+      if (carousel.on) { stepCarousel(d); placeCarouselCamera(d); updateSeatedCharacters(d); }
       else placeBackdropCamera(d);
       renderer.render(scene, camera);
       return;

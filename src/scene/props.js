@@ -5,22 +5,6 @@ import { CHIP_RADIUS, CHIP_HEIGHT, createChipColumn } from './chip.js';
 import { CARD_WIDTH, CARD_HEIGHT, cardBackMaterial, cardEdgeMaterial } from './card.js';
 import { crestPlateCanvas } from './crest.js';
 
-// A betting circle printed on the felt, in the same cream ink as the
-// felt's own markings. It used to be a glowing gold torus standing proud of
-// the cloth; a real one is ink, flat and matte.
-export function createBetRing(radius = 0.4) {
-  const geometry = new THREE.RingGeometry(radius - 0.012, radius, 64);
-  const material = new THREE.MeshLambertMaterial({
-    color: 0xe8dcc0,
-    transparent: true,
-    opacity: 0.5,
-    depthWrite: false,
-  });
-  const ring = new THREE.Mesh(geometry, material);
-  ring.rotation.x = -Math.PI / 2;
-  return ring;
-}
-
 // How thick a card is in a stack. A dealt card is drawn thicker so it
 // catches the light on the felt; stacked, that would make six decks a
 // tower, so the shoe and discard holder use the real ratio — six decks come

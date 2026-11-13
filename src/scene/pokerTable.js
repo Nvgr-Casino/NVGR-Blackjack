@@ -3,6 +3,7 @@ import { FLOOR_Y, m } from './scale.js';
 import { BRASS, LEATHER, FELT_THEMES, feltTheme, createBurlTexture, createWoodTexture } from './table.js';
 import { drawCasinoCrest } from './crest.js';
 import { CARD_WIDTH, CARD_HEIGHT } from './card.js';
+import { createChipRack } from './props.js';
 import { GOLD_INK, GOLD_INK_SOFT, feltWeave, addTableGlow, PEDESTAL_LACQUER, GOLD } from './tableLux.js';
 
 // The Hold'em table: a six-seat racetrack oval, 3.0 m by 1.6 m of felt —
@@ -231,6 +232,31 @@ function createPokerFelt(themeKey) {
   ctx.lineTo(cx - sx, cy + r);
   ctx.arc(cx - sx, cy, r, Math.PI / 2, Math.PI * 1.5);
   ctx.stroke();
+  // A finer line just outside it, so the betting line reads as a band.
+  {
+    const r2 = r + PX * 0.03;
+    ctx.lineWidth = PX * 0.003;
+    ctx.beginPath();
+    ctx.moveTo(cx - sx, cy - r2);
+    ctx.lineTo(cx + sx, cy - r2);
+    ctx.arc(cx + sx, cy, r2, -Math.PI / 2, Math.PI / 2);
+    ctx.lineTo(cx - sx, cy + r2);
+    ctx.arc(cx - sx, cy, r2, Math.PI / 2, Math.PI * 1.5);
+    ctx.stroke();
+  }
+  // The board's five places, outlined in gold where the flop, turn and
+  // river are laid.
+  BOARD_SPOTS.forEach((spot, i) => {
+    const [bx, by] = toPx(spot.x, spot.z);
+    const w = CARD_WIDTH * PX + 10, h = CARD_HEIGHT * PX + 10;
+    ctx.strokeStyle = i < 3 ? GOLD_INK_SOFT : 'rgba(230,198,126,0.4)';
+    ctx.lineWidth = PX * 0.004;
+    ctx.setLineDash(i < 3 ? [] : [10, 8]);
+    ctx.beginPath();
+    ctx.roundRect(bx - w / 2, by - h / 2, w, h, 8);
+    ctx.stroke();
+  });
+  ctx.setLineDash([]);
   // The house crest at each end of the board, and the game's name large
   // between the board and the front seats, a line under it; drawn taller
   // than wide, as the felt is read at a shallow angle, with a faint dark
@@ -302,7 +328,8 @@ export function createPokerTable() {
     return mesh;
   };
   const burl = new THREE.MeshStandardMaterial({ map: createBurlTexture(), roughness: 0.38, metalness: 0 });
-  const wood = new THREE.MeshStandardMaterial({ map: createWoodTexture(), roughness: 0.45, metalness: 0 });
+  // Mahogany under a deep clear lacquer, as the other tables are built.
+  const wood = new THREE.MeshPhysicalMaterial({ map: createWoodTexture(), color: 0xb0603a, roughness: 0.36, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.12 });
   band(-0.01, RIM, 0.03, 0.03, burl);
   band(RIM, RIM + TRACK, 0.024, 0.024, wood);
   const cushion = { thickness: m(0.03), size: m(0.045) };
@@ -329,7 +356,7 @@ export function createPokerTable() {
 
   // Apron, a lacquered pedestal, and the glow at its foot, as on the
   // blackjack table.
-  const APRON = m(0.13);
+  const APRON = m(0.17);
   const apron = new THREE.Mesh(new THREE.ExtrudeGeometry(stadium(POKER_RAIL_OUTER), {
     depth: APRON, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 3, curveSegments: 40,
   }), wood);
@@ -338,6 +365,19 @@ export function createPokerTable() {
   apron.castShadow = true;
   apron.receiveShadow = true;
   group.add(apron);
+  // A gilt band round the foot of the apron, and brass studs in a line
+  // under the armrest.
+  const gilt = new THREE.Mesh(new THREE.ExtrudeGeometry(stadium(POKER_RAIL_OUTER + 0.024), { depth: m(0.022), bevelEnabled: false, curveSegments: 40 }), GOLD);
+  gilt.rotation.x = Math.PI / 2;
+  gilt.position.y = -0.025 - APRON + m(0.03);
+  group.add(gilt);
+  {
+    const pts = stadium(POKER_RAIL_OUTER + 0.021).getSpacedPoints(170);
+    const studs = new THREE.InstancedMesh(new THREE.SphereGeometry(m(0.008), 8, 6), BRASS, pts.length);
+    const mtx = new THREE.Matrix4();
+    pts.forEach((p, i) => { mtx.makeTranslation(p.x, -0.025 - m(0.045), p.y); studs.setMatrixAt(i, mtx); });
+    group.add(studs);
+  }
   const pedestalTop = -0.025 - APRON;
   const pedestal = new THREE.Mesh(new THREE.ExtrudeGeometry(stadium(POKER_RAIL_OUTER - m(0.55)), {
     depth: pedestalTop - FLOOR_Y, bevelEnabled: false, curveSegments: 32,
@@ -346,6 +386,13 @@ export function createPokerTable() {
   pedestal.position.y = pedestalTop;
   pedestal.castShadow = true;
   group.add(pedestal);
+  // Gold bands round the pedestal, under the apron and above the floor.
+  [pedestalTop - m(0.03), FLOOR_Y + m(0.09)].forEach((y) => {
+    const band = new THREE.Mesh(new THREE.ExtrudeGeometry(stadium(POKER_RAIL_OUTER - m(0.55) + m(0.012)), { depth: m(0.022), bevelEnabled: false, curveSegments: 32 }), GOLD);
+    band.rotation.x = Math.PI / 2;
+    band.position.y = y;
+    group.add(band);
+  });
   addTableGlow(group, {
     footOuter: stadium(POKER_RAIL_OUTER - m(0.52)),
     footInner: stadium(POKER_RAIL_OUTER - m(0.548)),
@@ -353,14 +400,12 @@ export function createPokerTable() {
     edge: { outer: stadium(POKER_RAIL_OUTER + 0.012), inner: stadium(POKER_RAIL_OUTER - m(0.04)), y: pedestalTop - 0.022 },
   });
 
-  // The dealer's tray, set into the felt in front of them.
-  const tray = new THREE.Mesh(new THREE.BoxGeometry(m(0.42), 0.012, m(0.1)),
-    new THREE.MeshStandardMaterial({ color: 0x15100c, roughness: 0.6, metalness: 0 }));
-  tray.position.copy(POKER_DEALER.traySpot);
-  group.add(tray);
-  const trayRim = new THREE.Mesh(new THREE.BoxGeometry(m(0.44), 0.016, m(0.115)), BRASS);
-  trayRim.position.copy(POKER_DEALER.traySpot).setY(0.006);
-  group.add(trayRim);
+  // The dealer's float before them: the house's brass chip rack, its
+  // columns full, a little smaller than the blackjack table's.
+  const rack = createChipRack();
+  rack.scale.setScalar(0.72);
+  rack.position.copy(POKER_DEALER.traySpot).setY(0.01);
+  group.add(rack);
 
   group.add(createShuffler());
 

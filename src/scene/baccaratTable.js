@@ -233,7 +233,7 @@ function paintBoard(ctx, w, h, history, min, max) {
   ctx.fillStyle = '#d8b46a';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = "700 36px 'Cinzel', Georgia, serif";
+  ctx.font = "700 44px 'Cinzel', Georgia, serif";
   ctx.fillText('NVGR BACCARAT', w / 2, 40);
   const rows = 6, cols = 16, cell = (w - 60) / cols, top = 76;
   ctx.strokeStyle = 'rgba(216,180,106,0.25)';
@@ -257,15 +257,15 @@ function paintBoard(ctx, w, h, history, min, max) {
   });
   const count = (k) => history.filter((x) => x[0] === k).length;
   const y = top + rows * cell + 46;
-  ctx.font = '700 28px Georgia, serif';
+  ctx.font = '700 34px Georgia, serif';
   [['PLAYER', 'P', '#7fb6ff'], ['BANKER', 'B', '#ff7a7a'], ['TIE', 'T', '#6fe0a0']].forEach(([label, k, col], i) => {
     ctx.fillStyle = col;
-    ctx.fillText(`${label} ${count(k)}`, w * (0.1 + i * 0.17), y);
+    ctx.fillText(`${label} ${count(k)}`, w * (0.11 + i * 0.2), y);
   });
   const short = (n) => (n >= 1e6 ? n / 1e6 + 'M' : n >= 1000 ? n / 1000 + 'K' : String(n));
   ctx.fillStyle = '#e8dcc0';
-  ctx.font = '600 24px Georgia, serif';
-  ctx.fillText(`MIN ${short(min)}  ·  MAX ${short(max)}`, w * 0.8, y);
+  ctx.font = '600 32px Georgia, serif';
+  ctx.fillText(`${short(min)} – ${short(max)}`, w * 0.84, y);
 }
 
 export function createBaccaratTable() {
