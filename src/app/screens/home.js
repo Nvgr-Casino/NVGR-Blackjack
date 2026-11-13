@@ -328,7 +328,7 @@ function attachStage() {
     const target = Math.round(pos - Math.max(-1, Math.min(1, vel * 0.25)));
     const changed = wrapIndex(target) !== carouselIndex();
     carouselTarget = target;
-    lobbyScene.carouselTo(target);
+    lobbyScene.carouselTo(target, Math.max(-3, Math.min(3, -vel)));
     if (changed) showGame();
     settleWatch();
   };

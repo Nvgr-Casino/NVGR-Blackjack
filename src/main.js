@@ -85,7 +85,8 @@ function render() {
     const baccarat = session.screen === 'home' && lobbyGame === 'baccarat';
     // The lobby's home page shows every game's table on the carousel.
     const carousel = session.screen === 'home' && lobbyGame === 'home';
-    sceneHandles.setBackdrop(backdrop, { tier: 6, show: carousel ? 'carousel' : poker ? 'holdem' : roulette ? 'roulette' : baccarat ? 'baccarat' : 'blackjack', dealerKey: dealerKeyFor(6, 'male'), index: carouselIndex() });
+    // The carousel stands in the High Roller, New York at night through the glass.
+    sceneHandles.setBackdrop(backdrop, { tier: carousel ? 5 : 6, show: carousel ? 'carousel' : poker ? 'holdem' : roulette ? 'roulette' : baccarat ? 'baccarat' : 'blackjack', dealerKey: dealerKeyFor(6, 'male'), index: carouselIndex() });
   }
 
   if (session.screen === 'loading') {

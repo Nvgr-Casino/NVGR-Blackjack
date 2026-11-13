@@ -309,9 +309,12 @@ export function initScene(canvas) {
     { game: 'roulette', set: rouletteSet, dealer: ROULETTE_DEALER.position },
     { game: 'baccarat', set: baccaratSet, dealer: BACCARAT_DEALER.position },
   ];
-  const ARC_R = m(7.2);
-  const ARC_STEP = 0.66;   // radians between neighbours
-  const carousel = { on: false, pos: 0, target: 0, held: false, settledAt: -1 };
+  const ARC_R = m(9);
+  const ARC_STEP = 0.8;    // radians between neighbours: about 6 m apart
+  // The arc moves on a critically damped spring: it gathers speed gently,
+  // never overshoots, and a change of mind mid-glide just bends its path.
+  const SPRING = 6.5;
+  const carousel = { on: false, pos: 0, target: 0, vel: 0, held: false };
   function layCarousel() {
     const n = CAROUSEL_SETS.length;
     let nearest = null;
@@ -327,7 +330,7 @@ export function initScene(canvas) {
     });
     // The dealer waits at the table in the middle, and steps away while
     // the tables move.
-    const still = Math.abs(carousel.pos - carousel.target) < 0.004 && !carousel.held;
+    const still = Math.abs(carousel.pos - carousel.target) < 0.004 && Math.abs(carousel.vel) < 0.02 && !carousel.held;
     dealer.visible = !!nearest && still;
     if (nearest && still) {
       dealer.position.copy(nearest.c.dealer).applyAxisAngle(UP_Y, nearest.c.set.rotation.y).add(nearest.c.set.position);
@@ -338,6 +341,7 @@ export function initScene(canvas) {
   function startCarousel(index) {
     carousel.on = true;
     carousel.pos = carousel.target = index;
+    carousel.vel = 0;
     carousel.held = false;
     layCarousel();
     // The waiters' rounds pass close by the camera here; the floor is kept clear.
@@ -355,14 +359,26 @@ export function initScene(canvas) {
     setGame(was || 'blackjack');
   }
   /** Glide to game `index` (it may run past the ends; the arc wraps). */
-  function carouselTo(index) { carousel.target = index; carousel.held = false; }
+  /** Glide to game `index`; `vel` carries on a flick's speed (games a second). */
+  function carouselTo(index, vel) {
+    carousel.target = index;
+    if (carousel.held && typeof vel === 'number') carousel.vel = vel;
+    carousel.held = false;
+  }
   /** Follow a finger: `pos` is where the arc should stand right now. */
-  function carouselHold(pos) { carousel.held = true; carousel.pos = carousel.target = pos; }
+  function carouselHold(pos) { carousel.held = true; carousel.pos = carousel.target = pos; carousel.vel = 0; }
   function stepCarousel(delta) {
     if (!carousel.held) {
-      const k = 1 - Math.exp(-delta * 5.5);
-      carousel.pos += (carousel.target - carousel.pos) * k;
-      if (Math.abs(carousel.target - carousel.pos) < 0.0005) carousel.pos = carousel.target;
+      // In small steps, so a slow frame doesn't kick the spring.
+      let left = Math.min(delta, 0.1);
+      while (left > 0) {
+        const h = Math.min(left, 1 / 120);
+        left -= h;
+        const acc = SPRING * SPRING * (carousel.target - carousel.pos) - 2 * SPRING * carousel.vel;
+        carousel.vel += acc * h;
+        carousel.pos += carousel.vel * h;
+      }
+      if (Math.abs(carousel.target - carousel.pos) < 0.0005 && Math.abs(carousel.vel) < 0.001) { carousel.pos = carousel.target; carousel.vel = 0; }
     }
     layCarousel();
   }
@@ -373,13 +389,13 @@ export function initScene(canvas) {
     pointer.ey += (pointer.y - pointer.ey) * 0.04;
     const lean = stillMotion.matches ? 0 : 1;
     const tall = camera.aspect < 1;
-    const back = tall ? m(5.4) : m(4.6), up = tall ? m(3.3) : m(2.5);
+    const back = tall ? m(6.2) : m(5.0), up = tall ? m(2.55) : m(1.85);
     camera.position.set(
       pointer.ex * m(0.25) * lean,
       FLOOR_Y + up + Math.sin(backdropT * 0.35) * m(0.03) * lean - pointer.ey * m(0.1) * lean,
       back,
     );
-    carouselLook.set(0, FLOOR_Y + m(tall ? 0.2 : 0.75), tall ? m(0.3) : -m(0.35));
+    carouselLook.set(0, FLOOR_Y + m(tall ? 0.35 : 0.85), tall ? m(0.2) : -m(0.4));
     camera.lookAt(carouselLook);
   }
 
@@ -408,11 +424,17 @@ export function initScene(canvas) {
     } else if (carousel.on) {
       endCarousel();
     }
-    if (on === backdrop) return;
     backdrop = on;
-    if (on) renderer.setPixelRatio(Math.min(window.devicePixelRatio, lowPower ? 1 : 1.25));
-    else applyPixelRatio();
+    // A dimmed backdrop is drawn at a lower resolution; the carousel is the
+    // page itself, so it gets the tables' full sharpness.
+    const sharp = !on || show === 'carousel';
+    if (sharp !== backdropSharp) {
+      backdropSharp = sharp;
+      if (sharp) applyPixelRatio();
+      else renderer.setPixelRatio(Math.min(window.devicePixelRatio, lowPower ? 1 : 1.25));
+    }
   }
+  let backdropSharp = true;
   function placeBackdropCamera(delta) {
     if (!stillMotion.matches) backdropT += delta;
     const half = room ? room.userData.dims.half : ROOM_HALF;
@@ -530,8 +552,7 @@ export function initScene(canvas) {
     if (backdrop) {
       // About thirty frames a second is plenty for a slow drift; the
       // carousel, while it glides, at full rate.
-      const gliding = carousel.on && (carousel.held || Math.abs(carousel.target - carousel.pos) > 0.0005);
-      if (!gliding && now - lastBackdropDraw < 32) return;
+      if (!carousel.on && now - lastBackdropDraw < 32) return;
       lastBackdropDraw = now;
       lastFrame = now;
       settleUntil = now + SETTLE_MS;
