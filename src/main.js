@@ -20,6 +20,7 @@ import { renderFriends, attachFriends, renderDm, attachDm } from './app/screens/
 import { renderCharacter, attachCharacter } from './app/screens/character.js';
 import { brandMark } from './app/uiHelpers.js';
 import { createIntro } from './app/intro.js';
+import * as Curtain from './app/curtain.js';
 
 const canvas = document.getElementById('scene');
 const root = document.getElementById('root');
@@ -45,6 +46,17 @@ const BACKDROP_SCREENS = new Set(['auth', 'home']);
 
 function render() {
   syncRequestToast();
+  // Into a table or back out of one, behind the curtain (curtain.js): it is
+  // down while the other scene is built, and lifts once it has drawn.
+  if (lastScreen !== null && lastScreen !== 'loading') {
+    if (session.screen === 'table' && lastScreen !== 'table') {
+      if (!Curtain.isDown()) Curtain.cover('Taking your seat…');
+      Curtain.lift();
+    } else if (lastScreen === 'table' && session.screen !== 'table') {
+      Curtain.cover('');
+      Curtain.lift(300);
+    }
+  }
   if (intro && sceneHandles && session.screen !== 'loading') {
     if (session.uid) intro.signedIn(session.name);
     intro.done();

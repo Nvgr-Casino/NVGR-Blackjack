@@ -28,6 +28,7 @@ import { feltTheme } from '../../scene/table.js';
 import { characterPortraitDataURL, defaultCharacterFor } from '../../scene/character.js';
 import { brandMark, esc } from '../uiHelpers.js';
 import * as S from '../session.js';
+import * as Curtain from '../curtain.js';
 import * as Social from '../social.js';
 
 const SKYLINE = import.meta.env.BASE_URL + 'assets/skyline/night_skyline_ny_4k.webp';
@@ -289,12 +290,18 @@ function attachStage() {
       glideTo(carouselTarget + step);
     };
   });
-  on('stagePlay', () => {
+  on('stagePlay', async () => {
     const id = FLOOR[carouselIndex()].id;
-    if (id === 'blackjack') S.playNow();
-    else if (id === 'holdem') Poker.playPokerNow();
-    else if (id === 'roulette') Roulette.playRouletteNow();
-    else Baccarat.playBaccaratNow();
+    // The floor fades out while a seat is found; main.js lifts the
+    // curtain on the table, or here if no seat came of it.
+    Curtain.drop('Taking your seat…');
+    try {
+      if (id === 'blackjack') await S.playNow();
+      else if (id === 'holdem') await Poker.playPokerNow();
+      else if (id === 'roulette') await Roulette.playRouletteNow();
+      else await Baccarat.playBaccaratNow();
+    } catch (e) { /* the page says what went wrong */ }
+    if (S.session.screen !== 'table') Curtain.lift(0);
   });
   on('stageTables', () => go(FLOOR[carouselIndex()].id));
   // A drag anywhere on the floor turns the arc with the finger; let go and
