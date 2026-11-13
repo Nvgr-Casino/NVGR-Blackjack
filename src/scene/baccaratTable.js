@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { FLOOR_Y, m } from './scale.js';
 import { canvasTex, grain, gold, chrome, wood } from './casinoKit.js';
 import { addTableGlow } from './tableLux.js';
-import { createCardShoe, createDiscardHolder, SHOE_MOUTH } from './props.js';
+import { createCardShoe, createDiscardHolder, createChipRack, SHOE_MOUTH } from './props.js';
 import { CARD_WIDTH as CW0, CARD_HEIGHT as CH0 } from './card.js';
 // The coup's cards are laid a little larger than a blackjack table's, to
 // read across a table this size (baccaratController.js scales them so).
@@ -359,13 +359,11 @@ export function createBaccaratTable() {
   discard.position.set(-m(0.92), TOP, -D + m(0.2));
   discard.rotation.y = -0.3;
   g.add(discard);
-  // The dealer's float, let into the felt before them.
-  const tray = new THREE.Mesh(new THREE.BoxGeometry(m(0.56), m(0.02), m(0.12)), new THREE.MeshStandardMaterial({ color: 0x120c08, roughness: 0.7 }));
-  tray.position.set(0, TOP + m(0.004), HAND_Z);
-  g.add(tray);
-  const trayRim = new THREE.Mesh(new THREE.BoxGeometry(m(0.58), m(0.016), m(0.14)), CHROME);
-  trayRim.position.set(0, TOP + m(0.002), HAND_Z);
-  g.add(trayRim);
+  // The dealer's float: the chip rack before them at the table's edge, its
+  // columns full of the house's chips (the blackjack table's rack).
+  const rack = createChipRack();
+  rack.position.set(0, TOP, -m(0.135));
+  g.add(rack);
 
   // ---------- the scoreboard ----------
   const boardCanvas = document.createElement('canvas');
