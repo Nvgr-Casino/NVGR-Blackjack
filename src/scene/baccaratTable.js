@@ -235,7 +235,7 @@ function paintBoard(ctx, w, h, history, min, max) {
   ctx.textBaseline = 'middle';
   ctx.font = "700 36px 'Cinzel', Georgia, serif";
   ctx.fillText('NVGR BACCARAT', w / 2, 40);
-  const rows = 6, cols = 12, cell = (w - 60) / cols, top = 76;
+  const rows = 6, cols = 16, cell = (w - 60) / cols, top = 76;
   ctx.strokeStyle = 'rgba(216,180,106,0.25)';
   ctx.lineWidth = 1;
   for (let r = 0; r <= rows; r++) { ctx.beginPath(); ctx.moveTo(30, top + r * cell); ctx.lineTo(w - 30, top + r * cell); ctx.stroke(); }
@@ -260,12 +260,12 @@ function paintBoard(ctx, w, h, history, min, max) {
   ctx.font = '700 28px Georgia, serif';
   [['PLAYER', 'P', '#7fb6ff'], ['BANKER', 'B', '#ff7a7a'], ['TIE', 'T', '#6fe0a0']].forEach(([label, k, col], i) => {
     ctx.fillStyle = col;
-    ctx.fillText(`${label} ${count(k)}`, w * (0.2 + i * 0.3), y);
+    ctx.fillText(`${label} ${count(k)}`, w * (0.1 + i * 0.17), y);
   });
   const short = (n) => (n >= 1e6 ? n / 1e6 + 'M' : n >= 1000 ? n / 1000 + 'K' : String(n));
   ctx.fillStyle = '#e8dcc0';
   ctx.font = '600 24px Georgia, serif';
-  ctx.fillText(`MIN ${short(min)}  ·  MAX ${short(max)}`, w / 2, h - 30);
+  ctx.fillText(`MIN ${short(min)}  ·  MAX ${short(max)}`, w * 0.8, y);
 }
 
 export function createBaccaratTable() {
@@ -365,26 +365,26 @@ export function createBaccaratTable() {
   rack.position.set(0, TOP, -m(0.135));
   g.add(rack);
 
-  // ---------- the scoreboards ----------
-  // Two tall screens either side of the dealer, turned in toward the
-  // players, the coups so far on each in beads large enough to read from
-  // any seat. The board is painted at a high resolution and shown unlit,
+  // ---------- the scoreboard ----------
+  // One tall screen beside the dealer, on their right, turned in toward
+  // the players: the coups so far in beads large enough to read from any
+  // seat. The board is painted at a high resolution and shown unlit,
   // so its lettering stays sharp.
-  const BOARD_W = 768, BOARD_H = 560, BOARD_SCALE = 2.4;
+  const BOARD_W = 1000, BOARD_H = 540, BOARD_SCALE = 2.2;
   const boardCanvas = document.createElement('canvas');
   boardCanvas.width = Math.round(BOARD_W * BOARD_SCALE);
   boardCanvas.height = Math.round(BOARD_H * BOARD_SCALE);
   const boardTex = new THREE.CanvasTexture(boardCanvas);
   boardTex.colorSpace = THREE.SRGBColorSpace;
   boardTex.anisotropy = 16;
-  const SW = m(1.3), SH = SW * (BOARD_H / BOARD_W);
-  const SCREEN_Y = TOP + m(0.14) + SH / 2;
+  const SW = m(1.7), SH = SW * (BOARD_H / BOARD_W);
+  const SCREEN_Y = TOP + m(0.1) + SH / 2;
   const HOUSING = new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 0.2, metalness: 0.5 });
   const screenMat = new THREE.MeshBasicMaterial({ map: boardTex, toneMapped: false });
-  [-1, 1].forEach((side) => {
+  {
     const board = new THREE.Group();
-    board.position.set(side * m(1.12), 0, -D - m(0.55));
-    board.rotation.y = -side * 0.32;
+    board.position.set(-m(1.25), 0, -D - m(0.65));
+    board.rotation.y = 0.3;
     g.add(board);
     [-1, 1].forEach((leg) => {
       const pillar = new THREE.Mesh(new THREE.CylinderGeometry(m(0.03), m(0.04), SCREEN_Y - FLOOR_Y, 16), CHROME);
@@ -406,7 +406,7 @@ export function createBaccaratTable() {
       trim.position.set(0, SCREEN_Y + end * (SH / 2 + m(0.04)), -m(0.035));
       board.add(trim);
     });
-  });
+  }
   let boardKey = '';
   function setHistory(history, min, max) {
     const key = JSON.stringify([history, min, max]);

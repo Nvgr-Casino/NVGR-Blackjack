@@ -77,7 +77,7 @@ function frameCards(room) {
   driver.focusCards(room.phase === 'dealing' || resting);
   // The betting panel covers the lower part of the screen while bets are open.
   const seated = !!(room.players && room.players[safeKey(S.session.uid)]);
-  driver.setLift(seated && room.phase === 'betting' ? (window.innerWidth < window.innerHeight ? 0.05 : 0.2) : 0);
+  driver.setLift(seated && room.phase === 'betting' ? (window.innerWidth < window.innerHeight ? 0.04 : 0.14) : 0);
   clearTimeout(backTimer);
   if (resting) backTimer = setTimeout(() => { if (S.session.room && S.session.room.code === room.code) syncBaccaratToScene(S.session.room, safeKey(S.session.uid)); }, room.resultsAt + CARDS_AFTER_MS - now + 50);
 }
