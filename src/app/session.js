@@ -24,6 +24,8 @@ import * as Offline from './offlinePoker.js';
 import * as Leaderboard from './leaderboard.js';
 import * as OfflineBJ from './offlineBlackjack.js';
 import * as BJT from './bjTournamentSession.js';
+// Roulette tables, the same way as poker's.
+import * as Roulette from './rouletteSession.js';
 import { isBjTournament, registering as bjRegistering, registrationLabel } from '../blackjack/tournament.js';
 import {
   STARTING_CHIPS, RESTAKE_BELOW, BETTING_SECONDS, TURN_SECONDS, MAX_PUBLIC_SEATS, MIN_PUBLIC_TABLES,
@@ -51,6 +53,8 @@ export let lobbyGame = 'home';
 export let pokerTables = null;
 // Blackjack tournaments' tables, for the tournaments page.
 export let bjTournaments = null;
+// Roulette's tables, for its page.
+export let rouletteTables = null;
 export function setLobbyGame(game) {
   lobbyGame = game;
   formError = '';
@@ -309,6 +313,8 @@ function startTick() {
     const r = session.room;
     if (r && r.game === 'holdem') {
       Poker.tick(r);
+    } else if (r && r.game === 'roulette') {
+      Roulette.tick(r);
     } else if (r && isBjTournament(r) && BJT.tick(r)) {
       // The tournament's own steps: its start, the minimum bet for the
       // absent, and what follows each hand.
@@ -332,6 +338,11 @@ function tickCountdownOnly() {
   if (!el || !session.room) return;
   if (session.room.game === 'holdem') {
     const text = Poker.countdownText(session.room, safeKey(session.uid));
+    if (text) el.textContent = text;
+    return;
+  }
+  if (session.room.game === 'roulette') {
+    const text = Roulette.countdownText(session.room);
     if (text) el.textContent = text;
     return;
   }
@@ -362,6 +373,8 @@ export async function mutateRoom(code, fn) {
   if (OfflineBJ.isOfflineBlackjack(session.room) && OfflineBJ.active()) { OfflineBJ.mutate(fn); return; }
   // And so does a poker table against bots.
   if (session.room && session.room.offline && session.room.game === 'holdem') { Offline.mutate(fn); return; }
+  // And a practice roulette table.
+  if (Roulette.isPracticeRoulette(session.room)) { Roulette.practiceMutate(fn); return; }
   try {
     const result = await runTransaction(ref(db, 'rooms/' + code), (current) => {
       if (current === null || current === undefined) return current;
@@ -421,6 +434,7 @@ export async function joinRoom(code) {
   if (!snap.exists()) { formError = 'No table found with that code.'; render(); return; }
   // A poker table opens to watch; a seat is taken from there.
   if (snap.val().game === 'holdem') { await Poker.openPokerTable(code); return; }
+  if (snap.val().game === 'roulette') { await Roulette.joinRouletteTable(code); return; }
   // A tournament is watched; registering is from its table.
   if (isBjTournament(snap.val())) { await BJT.watchBj(code); return; }
   const chips = (await ensureAccount(session.uid, session.name)).chips;
@@ -463,8 +477,8 @@ export async function playNow() {
   for (const code of codes) {
     const result = await runTransaction(ref(db, 'rooms/' + code), (current) => {
       if (!current) return current;
-      // The index lists poker tables too.
-      if (current.game === 'holdem' || current.tournament) return;
+      // The index lists poker and roulette tables too.
+      if (current.game || current.tournament) return;
       const count = Object.keys(current.players || {}).length;
       // Already seated is not a no-op: seatPlayerIn is what brings someone
       // back in who sat a window out, so it still has to run. Only a full
@@ -529,6 +543,7 @@ export async function leaveTable() {
   const wasPublic = session.room && session.room.isPublic;
   if (session.room && session.room.offline) {
     if (OfflineBJ.isOfflineBlackjack(session.room)) OfflineBJ.leave();
+    else if (Roulette.isPracticeRoulette(session.room)) Roulette.stopPractice();
     else Offline.leavePractice();
     session.code = null; session.room = null; session.screen = 'home';
     updateHash(); render();
@@ -541,6 +556,18 @@ export async function leaveTable() {
     if (roomUnsub) { roomUnsub(); roomUnsub = null; }
     clearTick();
     session.code = null; session.room = null; session.screen = 'home';
+    updateHash(); render();
+    loadLobby();
+    return;
+  }
+  if (session.room && session.room.game === 'roulette') {
+    // Stop listening first, so getting up is not taken for being removed.
+    if (roomUnsub) { roomUnsub(); roomUnsub = null; }
+    clearTick();
+    await Roulette.leaveRoulette(code);
+    await setCurrentRoom(session.uid, null);
+    session.code = null; session.room = null; session.screen = 'home';
+    if (restakeIfBroke()) formNotice = RESTAKED;
     updateHash(); render();
     loadLobby();
     return;
@@ -641,6 +668,12 @@ export async function loadLobby() {
     render();
     return;
   }
+  if (lobbyGame === 'roulette') {
+    rouletteTables = await Roulette.loadRouletteTables().catch(() => []);
+    lobbyLoading = false;
+    render();
+    return;
+  }
   if (lobbyGame === 'holdem' || lobbyGame === 'tournaments') {
     const [poker, bj] = await Promise.all([
       Poker.loadPokerTables().catch(() => ({ tables: [], tournaments: [] })),
@@ -659,7 +692,7 @@ export async function loadLobby() {
     for (const code of codes) {
       const snap = await get(ref(db, 'rooms/' + code));
       const r = snap.val();
-      if (!r || !r.isPublic || r.game === 'holdem' || r.tournament) continue;
+      if (!r || !r.isPublic || r.game || r.tournament) continue;
       const seats = Object.values(r.players || {}).map((p) => ({ name: p.name, chips: p.chips || 0, character: p.character || null }));
       // Tables opened before stakes existed would all read as the lowest
       // tier, leaving a lobby of identical rooms — give each one a tier the

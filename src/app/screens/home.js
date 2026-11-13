@@ -8,14 +8,17 @@
 //      and the buttons to take part.
 //
 // Each game has its colours: Blackjack the green of its felt, Hold'em
-// claret, Tournaments royal purple, the leaderboard gold.
-import { MAX_PUBLIC_SEATS, stakesLabel, roomName, ROOM_NAMES, safeKey } from '../roomLogic.js';
+// claret, Roulette the black and red of its wheel, Tournaments royal
+// purple, the leaderboard gold.
+import { MAX_PUBLIC_SEATS, stakesLabel, roomName, ROOM_NAMES, safeKey, TABLE_STAKES } from '../roomLogic.js';
 import { POKER_SEATS, POKER_STAKES, buyInRange } from '../../poker/rules.js';
 import * as T from '../../poker/tournament.js';
 import * as BT from '../../blackjack/tournament.js';
 import * as BJT from '../bjTournamentSession.js';
 import * as OfflineBJ from '../offlineBlackjack.js';
 import * as Poker from '../pokerSession.js';
+import * as Roulette from '../rouletteSession.js';
+import { ROULETTE_SEATS, colorOf } from '../../roulette/rules.js';
 import * as Offline from '../offlinePoker.js';
 import * as Leaderboard from '../leaderboard.js';
 import { feltTheme } from '../../scene/table.js';
@@ -86,6 +89,19 @@ const ART = {
   blackjack: `<svg viewBox="0 0 160 120" aria-hidden="true"><g class="fan fan-l">${card(34, 22, -16, 'A', '♠', false, 46)}</g><g class="fan fan-r">${card(70, 16, 10, 'K', '♥', true, 46)}</g><g class="hop">${chipStack(132, 104, 3, ['#1f6b47', '#c8a46a', '#1f6b47'])}</g></svg>`,
   holdem: `<svg viewBox="0 0 160 120" aria-hidden="true"><g class="fan fan-l">${card(22, 22, -12, 'A', '♦', true, 44)}</g><g class="fan fan-r">${card(52, 18, 6, 'A', '♣', false, 44)}</g><g class="hop">${chipStack(126, 104, 5, ['#7c1f24', '#1f3d6b', '#f1ece2', '#7c1f24', '#c8a46a'])}</g></svg>`,
   tournaments: `<svg viewBox="0 0 160 120" aria-hidden="true">${trophy(80, 22, 1.25)}</svg>`,
+  roulette: (() => {
+    const cx = 74, cy = 60, R = 44;
+    const p = (a, r) => `${(cx + Math.cos(a) * r).toFixed(1)} ${(cy + Math.sin(a) * r).toFixed(1)}`;
+    const pockets = Array.from({ length: 37 }, (_, i) => {
+      const a0 = (i / 37) * Math.PI * 2, a1 = ((i + 1) / 37) * Math.PI * 2;
+      return `<path d="M${p(a0, R * 0.62)}L${p(a0, R)}A${R} ${R} 0 0 1 ${p(a1, R)}L${p(a1, R * 0.62)}Z" fill="${i === 0 ? '#0f7a3c' : i % 2 ? '#b3122e' : '#141414'}"/>`;
+    }).join('');
+    return `<svg viewBox="0 0 160 120" aria-hidden="true"><g class="spin-slow">
+      <circle cx="${cx}" cy="${cy}" r="${R + 6}" fill="#3a1a0a" stroke="#c8a46a" stroke-width="2"/>${pockets}
+      <circle cx="${cx}" cy="${cy}" r="${R * 0.6}" fill="#6a4020"/><circle cx="${cx}" cy="${cy}" r="6" fill="#d8dce2"/></g>
+      <circle cx="${cx + 32}" cy="${cy - 22}" r="4.5" fill="#f6f2ea"/>
+      <g class="hop">${chipStack(136, 104, 4, ['#b3122e', '#f1ece2', '#141414', '#c8a46a'])}</g></svg>`;
+  })(),
 };
 
 // ---------- the top bar and the parts shared by every page ----------
@@ -152,6 +168,7 @@ function homePage() {
   const posters = [
     ['blackjack', 'Table game', 'Blackjack', 'Beat the dealer to 21'],
     ['holdem', 'Poker', "Texas Hold'em", 'No-limit cash games and practice'],
+    ['roulette', 'Table game', 'Roulette', 'Single zero · straight up pays 35 to 1'],
     ['tournaments', 'Blackjack & Hold\'em', 'Tournaments', `Win up to ${short(T.TOURNAMENTS[T.TOURNAMENTS.length - 1].prizes[0])}`],
   ];
   const top = Leaderboard.ranked('chips').slice(0, 3);
@@ -160,7 +177,7 @@ function homePage() {
       <div class="marquee-text">
         <span class="marquee-greet">${greet}, ${esc(S.session.name.split(' ')[0])}</span>
         <h1 class="marquee-title">Tonight at <span class="gold-num">the Royal Flush</span></h1>
-        <p class="marquee-line">Two games, six rooms, and tournaments up to ${short(T.TOURNAMENTS[T.TOURNAMENTS.length - 1].prizes[0])} — pull up a chair.</p>
+        <p class="marquee-line">Three games, six rooms, and tournaments up to ${short(T.TOURNAMENTS[T.TOURNAMENTS.length - 1].prizes[0])} — pull up a chair.</p>
       </div>
       <div class="marquee-me">
         <img class="welcome-avatar" src="${portrait(S.session.character, '', 128)}" alt="">
@@ -234,6 +251,71 @@ function blackjackPage() {
       actions: '<button class="btn btn-primary btn-lg" id="playNowBtn">Play now</button><button class="btn btn-ghost" data-sheet="join" data-key="bj">Join or host</button>',
     })}
     <section class="list-section">${listHead('Tables')}${list}</section>`;
+}
+
+// ---------- 2c. roulette ----------
+
+const rouletteNums = (history, n) => `<span class="rl-mini">${history.slice(0, n).map((x) => `<i class="${colorOf(x)}">${x}</i>`).join('')}</span>`;
+
+function rouletteRow(t) {
+  const full = t.count >= ROULETTE_SEATS;
+  return `
+    <li><button class="row" data-sheet="roulette" data-key="${esc(t.code)}">
+      <span class="felt-dot rl-dot"></span>
+      <span class="row-main">
+        <span class="row-title">${esc(ROOM_NAMES[t.tier - 1])}</span>
+        <span class="row-sub">${stakesLabel(t.minBet, t.maxBet)}${t.history.length ? ' · ' + rouletteNums(t.history, 5) : ''}</span>
+      </span>
+      <span class="pill ${full ? 'muted' : t.count ? 'live' : ''}">${full ? 'Full' : `${t.count}/${ROULETTE_SEATS}`}</span>
+      ${chevron}
+    </button></li>`;
+}
+
+function roulettePage() {
+  const tables = S.rouletteTables;
+  let list;
+  if (S.lobbyLoading && !tables) list = '<div class="empty-state">Loading tables…</div>';
+  else if (!tables || !tables.length) list = '<div class="empty-state">No open tables right now. Play now and one will be set up for you.</div>';
+  else list = `<ul class="rows">${tables.map(rouletteRow).join('')}</ul>`;
+  return `
+    ${banner('roulette', {
+      kicker: 'Table game · six seats',
+      title: 'Roulette',
+      line: 'European wheel, one zero · straight up pays 35 to 1',
+      actions: '<button class="btn btn-primary btn-lg" id="rouletteNowBtn">Play now</button><button class="btn btn-ghost" data-sheet="join" data-key="roulette">Join or host</button>',
+    })}
+    <section class="list-section">${listHead('Tables')}${list}</section>
+    <section class="feature-card theme-roulette">
+      <div class="feature-text">
+        <span class="kicker">Practice</span>
+        <h2 class="feature-title">A wheel to yourself</h2>
+        <p class="feature-line">Learn the bets at your own pace. Practice chips — your balance isn't touched.</p>
+      </div>
+      <div class="feature-form">
+        <label class="field-inline"><span>Stakes</span><select id="rlPracticeStakes">${TABLE_STAKES.map((st, i) => `<option value="${i}">${esc(ROOM_NAMES[i])} · ${short(st.min)} / ${short(st.max)}</option>`).join('')}</select></label>
+        <button class="btn btn-primary btn-lg" id="rlPracticeBtn">Spin for practice</button>
+      </div>
+    </section>`;
+}
+
+function rouletteSheet(t) {
+  const full = t.count >= ROULETTE_SEATS;
+  return `
+    <div class="sheet-band theme-roulette">
+      <span class="tt-room">Roulette · table ${esc(t.code)}</span>
+      <h2 class="ls-title">${esc(ROOM_NAMES[t.tier - 1])}</h2>
+    </div>
+    <div class="sheet-body">
+      <div class="facts">
+        ${fact('Bets', stakesLabel(t.minBet, t.maxBet) + ' a spin')}
+        ${fact('Seated', `${t.count} of ${ROULETTE_SEATS}`)}
+        ${fact('Last numbers', t.history.length ? rouletteNums(t.history, 6) : 'None yet')}
+      </div>
+      <div class="sheet-status"><span class="status-title">At the table</span><div class="status-line"><span class="seat-faces">${seatsHtml(t.seats || [], ROULETTE_SEATS)}</span></div></div>
+      <div class="sheet-actions">
+        <button class="btn btn-primary" data-join-roulette="${esc(t.code)}" ${full ? 'disabled' : ''}>${full ? 'Table full' : 'Take a seat'}</button>
+      </div>
+    </div>`;
 }
 
 // ---------- 2b. Hold'em ----------
@@ -538,9 +620,11 @@ function bjSheet(t) {
 
 function joinSheet(game) {
   const stakes = POKER_STAKES.map((st, i) => `<option value="${i}">${esc(ROOM_NAMES[i])} · ${short(st.sb)} / ${short(st.bb)}</option>`).join('');
+  const rlStakes = TABLE_STAKES.map((st, i) => `<option value="${i}">${esc(ROOM_NAMES[i])} · ${short(st.min)} / ${short(st.max)}</option>`).join('');
+  const theme = game === 'holdem' || game === 'roulette' ? game : 'blackjack';
   return `
-    <div class="sheet-band theme-${game === 'holdem' ? 'holdem' : 'blackjack'}">
-      <span class="tt-room">${game === 'holdem' ? "Texas Hold'em" : 'Blackjack'}</span>
+    <div class="sheet-band theme-${theme}">
+      <span class="tt-room">${game === 'holdem' ? "Texas Hold'em" : game === 'roulette' ? 'Roulette' : 'Blackjack'}</span>
       <h2 class="ls-title">Join or host</h2>
     </div>
     <div class="sheet-body">
@@ -554,7 +638,9 @@ function joinSheet(game) {
       <span class="status-title">Host a private table for friends</span>
       ${game === 'holdem'
         ? `<div class="join-inline"><select id="pokerStakes" aria-label="Stakes">${stakes}</select><button class="btn" id="pokerHostBtn">Create</button></div>`
-        : '<button class="btn btn-block" id="hostBtn">Create a private table</button>'}
+        : game === 'roulette'
+          ? `<div class="join-inline"><select id="rouletteStakes" aria-label="Stakes">${rlStakes}</select><button class="btn" id="rouletteHostBtn">Create</button></div>`
+          : '<button class="btn btn-block" id="hostBtn">Create a private table</button>'}
     </div>`;
 }
 
@@ -564,6 +650,7 @@ function sheetHtml() {
   if (sheet.kind === 'tour') { const def = tourDef(sheet.key); if (def) inner = tourSheet(def); }
   else if (sheet.kind === 'poker') { const t = ((S.pokerTables && S.pokerTables.tables) || []).find((x) => x.code === sheet.key); if (t) inner = pokerSheet(t); }
   else if (sheet.kind === 'bj') { const t = (S.lobbyTables || []).find((x) => x.code === sheet.key); if (t) inner = bjSheet(t); }
+  else if (sheet.kind === 'roulette') { const t = (S.rouletteTables || []).find((x) => x.code === sheet.key); if (t) inner = rouletteSheet(t); }
   else if (sheet.kind === 'join') inner = joinSheet(sheet.key);
   if (!inner) return '';
   return `
@@ -577,7 +664,7 @@ function sheetHtml() {
 
 // ---------- the page ----------
 
-const PAGES = { home: homePage, blackjack: blackjackPage, holdem: holdemPage, tournaments: tournamentsPage, leaderboard: leaderboardPage };
+const PAGES = { home: homePage, blackjack: blackjackPage, holdem: holdemPage, roulette: roulettePage, tournaments: tournamentsPage, leaderboard: leaderboardPage };
 
 export function renderHome() {
   const page = PAGES[S.lobbyGame] || homePage;
@@ -676,6 +763,16 @@ export function attachHome() {
 
   on('playNowBtn', S.playNow);
   on('pokerNowBtn', Poker.playPokerNow);
+  on('rouletteNowBtn', Roulette.playRouletteNow);
+  on('rlPracticeBtn', () => {
+    const sel = document.getElementById('rlPracticeStakes');
+    Roulette.startPractice(sel ? Number(sel.value) : 0);
+  });
+  on('rouletteHostBtn', () => {
+    const sel = document.getElementById('rouletteStakes');
+    sheet = null;
+    Roulette.hostRouletteTable(sel ? Number(sel.value) : 0);
+  });
   on('hostBtn', () => { sheet = null; S.createRoom(); });
   on('pokerHostBtn', () => {
     const sel = document.getElementById('pokerStakes');
@@ -727,6 +824,7 @@ export function attachHome() {
   });
   all('[data-open-poker]', (el) => { el.onclick = () => { sheet = null; Poker.openPokerTable(el.dataset.openPoker); }; });
   all('[data-join-table]', (el) => { el.onclick = () => { sheet = null; S.joinSpecificPublicTable(el.dataset.joinTable); }; });
+  all('[data-join-roulette]', (el) => { el.onclick = () => { sheet = null; Roulette.joinRouletteTable(el.dataset.joinRoulette); }; });
 
   const code = document.getElementById('joinCode');
   const join = () => { if (code && code.value.trim()) { sheet = null; S.joinRoom(code.value); } };

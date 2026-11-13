@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { createTable } from './table.js';
 import { createPokerTable, POKER_SEATS_3D, POKER_DEALER } from './pokerTable.js';
+import { createRouletteTable, ROULETTE_SEATS_3D, ROULETTE_DEALER } from './rouletteTable.js';
 import { playShoeShuffle } from './shuffle.js';
 import { place } from './furniture.js';
 import { updateSeatedCharacters } from './character.js';
@@ -176,9 +177,9 @@ export function initScene(canvas) {
   // The Royal Flush first: it is what the lobby shows behind it (setBackdrop).
   setRoomTheme(6);
 
-  // Two tables, one shown at a time (setGame): the blackjack table with its
-  // shoe, rack, discard holder, circles and five chairs, and the Hold'em
-  // table with its six. The room, the light and the dealer are shared; the
+  // Three tables, one shown at a time (setGame): the blackjack table with
+  // its shoe, rack, discard holder, circles and five chairs, the Hold'em
+  // table with its six, and the roulette table with its wheel and six. The room, the light and the dealer are shared; the
   // dealer moves to the side of whichever table is out.
   const blackjackSet = new THREE.Group();
   scene.add(blackjackSet);
@@ -247,6 +248,21 @@ export function initScene(canvas) {
     }));
   });
 
+  // The roulette table and its six chairs.
+  const rouletteSet = new THREE.Group();
+  rouletteSet.visible = false;
+  scene.add(rouletteSet);
+  const rouletteTable = createRouletteTable();
+  glowing.push(rouletteTable);
+  rouletteTable.userData.setGlow(tableGlow);
+  rouletteSet.add(rouletteTable);
+  const rouletteChairs = new Map();
+  ROULETTE_SEATS_3D.forEach((seat) => {
+    rouletteChairs.set(seat.index, place(rouletteSet, 'dining_chair_02', {
+      x: seat.position.x, z: seat.position.z, yaw: seat.facingAngle, shadows: true,
+    }));
+  });
+
   // Drinks and the waiters who bring them (service.js).
   service = createService({ scene, blackjackSet, pokerSet, blackjackTable: table, pokerTable });
   service.prepare('blackjack');
@@ -257,10 +273,10 @@ export function initScene(canvas) {
   function setGame(next) {
     if (next === game) return;
     game = next;
-    const poker = game === 'holdem';
-    blackjackSet.visible = !poker;
-    pokerSet.visible = poker;
-    dealer.position.copy(poker ? POKER_DEALER.position : DEALER.position);
+    blackjackSet.visible = game === 'blackjack';
+    pokerSet.visible = game === 'holdem';
+    rouletteSet.visible = game === 'roulette';
+    dealer.position.copy(game === 'holdem' ? POKER_DEALER.position : game === 'roulette' ? ROULETTE_DEALER.position : DEALER.position);
   }
 
   // ---------- the lobby's backdrop ----------
@@ -462,6 +478,7 @@ export function initScene(canvas) {
     service,
     pokerChairs,
     setPokerFelt: pokerTable.userData.setFeltTheme,
+    rouletteSet, rouletteTable, rouletteChairs,
   };
 }
 

@@ -11,6 +11,7 @@ import { leaveVoice } from './app/voice.js';
 import { syncRequestToast } from './app/social.js';
 import { mountTable3D, syncRoomToScene, renderTableScreen, attachTableScreen, resetTableDiffState, hideBlackjackTable } from './app/table3dBridge.js';
 import { mountPoker3D, syncPokerToScene, renderPokerScreen, attachPokerScreen, leavePokerView } from './app/pokerBridge.js';
+import { mountRoulette3D, syncRouletteToScene, renderRouletteScreen, attachRouletteScreen, leaveRouletteView } from './app/rouletteBridge.js';
 import { renderAuth, attachAuth } from './app/screens/auth.js';
 import { renderHome, attachHome } from './app/screens/home.js';
 import { renderJoin, attachJoin } from './app/screens/join.js';
@@ -60,6 +61,7 @@ function render() {
   if (lastScreen === 'table' && session.screen !== 'table') {
     // Nothing of the table just left stays on it: the backdrop shows it.
     if (shownGame === 'holdem') leavePokerView();
+    else if (shownGame === 'roulette') leaveRouletteView();
     else hideBlackjackTable();
     resetTableDiffState();
     clearService();
@@ -69,7 +71,8 @@ function render() {
   lastScreen = session.screen;
   if (sceneHandles) {
     const poker = session.screen === 'home' && (lobbyGame === 'holdem' || lobbyGame === 'tournaments');
-    sceneHandles.setBackdrop(backdrop, { tier: 6, show: poker ? 'holdem' : 'blackjack', dealerKey: dealerKeyFor(6, 'male') });
+    const roulette = session.screen === 'home' && lobbyGame === 'roulette';
+    sceneHandles.setBackdrop(backdrop, { tier: 6, show: poker ? 'holdem' : roulette ? 'roulette' : 'blackjack', dealerKey: dealerKeyFor(6, 'male') });
   }
 
   if (session.screen === 'loading') {
@@ -108,6 +111,18 @@ function render() {
   }
   if (session.screen === 'table') {
     const myKey = session.uid ? safeKey(session.uid) : null;
+    if (session.room && session.room.game === 'roulette') {
+      if (shownGame !== 'roulette') {
+        if (shownGame === 'holdem') leavePokerView(); else hideBlackjackTable();
+        resetTableDiffState();
+        shownGame = 'roulette';
+      }
+      root.innerHTML = renderRouletteScreen();
+      attachRouletteScreen();
+      syncRouletteToScene(session.room, myKey);
+      return;
+    }
+    if (shownGame === 'roulette') { leaveRouletteView(); shownGame = null; }
     if (session.room && session.room.game === 'holdem') {
       if (shownGame !== 'holdem') { hideBlackjackTable(); shownGame = 'holdem'; }
       root.innerHTML = renderPokerScreen();
@@ -153,6 +168,7 @@ async function boot() {
   sceneHandles = initScene(canvas);
   mountTable3D(sceneHandles);
   mountPoker3D(sceneHandles);
+  mountRoulette3D(sceneHandles);
   mountService(sceneHandles);
   setOnChange(render);
   initAuth();
