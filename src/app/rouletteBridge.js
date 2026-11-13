@@ -9,6 +9,7 @@ import * as R from '../roulette/rules.js';
 import { BOARD_W, BOARD_H, AREA_BETS, LINE_BETS, areaRect, spotOf, numberFill } from '../roulette/layout.js';
 import { SEAT_CHIP_COLORS } from '../scene/rouletteTable.js';
 import { chipButtonDataURL } from '../scene/chip.js';
+import { rouletteSpinSound, winChime, croupierSay, isSoundOn, setSoundOn } from '../scene/sfx.js';
 import { characterPortraitDataURL, defaultCharacterFor } from '../scene/character.js';
 import { dealerKeyFor } from '../scene/dealer.js';
 import { safeKey, roomName, stakesTier, stakesFor, stakesLabel, chipLadderForTable } from './roomLogic.js';
@@ -29,6 +30,56 @@ export function mountRoulette3D(handles) {
 const short = (n) => (n >= 1e6 ? +(n / 1e6).toFixed(2) + 'M' : n >= 1000 ? (n % 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') : n / 1000) + 'K' : String(n));
 const players = (r) => (r.playerOrder || []).filter((k) => r.players && r.players[k]);
 const colorName = (c) => (c === 'green' ? 'Zero' : c === 'red' ? 'Red' : 'Black');
+
+// ---------- the moments ----------
+// What has been heard and seen already, so each call and each sound comes
+// once: the spin by its start, the result by its time, the window by its
+// round. A table first opened mid-spin hears only what is left of it.
+let heard = { table: null, spinAt: null, resultsAt: null, round: null };
+const NUMBER_WORDS = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen', 'Twenty', 'Twenty-one', 'Twenty-two', 'Twenty-three', 'Twenty-four', 'Twenty-five', 'Twenty-six', 'Twenty-seven', 'Twenty-eight', 'Twenty-nine', 'Thirty', 'Thirty-one', 'Thirty-two', 'Thirty-three', 'Thirty-four', 'Thirty-five', 'Thirty-six'];
+function moments(room, me) {
+  const now = Date.now();
+  if (heard.table !== room.code) {
+    // Just sat down: nothing already over is announced.
+    heard = { table: room.code, spinAt: room.spinAt, resultsAt: room.resultsAt, round: room.round };
+    if (room.phase === 'spinning' && now - room.spinAt < R.SPIN_MS * 0.6) heard.spinAt = null;
+    else return;
+  }
+  if (room.phase === 'spinning' && room.spinAt && heard.spinAt !== room.spinAt) {
+    heard.spinAt = room.spinAt;
+    const T = R.SPIN_MS * 0.94;
+    rouletteSpinSound(T, T * 0.82, now - room.spinAt);
+    if (now - room.spinAt < 1500) croupierSay('No more bets');
+  }
+  if (room.phase === 'results' && room.result && heard.resultsAt !== room.resultsAt) {
+    heard.resultsAt = room.resultsAt;
+    if (now - room.resultsAt < 3000) {
+      const { number, color } = room.result;
+      croupierSay(number === 0 ? 'Zero' : `${NUMBER_WORDS[number]}, ${color}`);
+      if (me && me.result && me.result.won > 0) winChime();
+    }
+  }
+  if (room.phase === 'betting' && room.round !== heard.round) {
+    heard.round = room.round;
+    if (me && room.bettingDeadline && room.bettingDeadline - now > R.BETTING_MS - 4000) croupierSay('Place your bets');
+  }
+}
+
+// The camera swoops down over the wheel for the spin, and stays to show
+// where the ball has come to rest before going back to your seat.
+const WHEEL_AFTER_MS = 3200;
+let backTimer = null;
+function frameWheel(room) {
+  const now = Date.now();
+  const resting = room.phase === 'results' && room.resultsAt && now - room.resultsAt < WHEEL_AFTER_MS;
+  driver.focusWheel(room.phase === 'spinning' || resting);
+  // The board covers the lower part of the screen while bets are open.
+  const seated = !!(room.players && room.players[safeKey(S.session.uid)]);
+  const betting = seated && room.phase === 'betting';
+  driver.setLift(betting ? (window.innerWidth < window.innerHeight ? 0.04 : 0.24) : 0);
+  clearTimeout(backTimer);
+  if (resting) backTimer = setTimeout(() => { if (S.session.room && S.session.room.code === room.code) syncRouletteToScene(S.session.room, safeKey(S.session.uid)); }, room.resultsAt + WHEEL_AFTER_MS - now + 50);
+}
 
 // ---------- the 3D table ----------
 export function syncRouletteToScene(room, myKey) {
@@ -60,6 +111,13 @@ export function syncRouletteToScene(room, myKey) {
     }
   });
   driver.setBets(chips, room.minBet || 100);
+  // Each player's own chips before them; the limits and the last numbers
+  // on the table's plaque and tower.
+  driver.setStacks(Object.fromEntries(keys.map((k) => [room.players[k].seat, room.players[k].chips])), room.minBet || 100);
+  driver.setLimits(room.minBet || 100, room.maxBet || 2000);
+  driver.setHistory((room.history || []).slice(0, 13), room.minBet || 100, room.maxBet || 2000);
+  frameWheel(room);
+  moments(room, me);
   if (room.phase === 'spinning' && room.result) {
     driver.spinTo(room.result.number, room.spinAt, R.SPIN_MS * 0.94);
     driver.showDolly(null);
@@ -74,6 +132,9 @@ export function syncRouletteToScene(room, myKey) {
 
 export function leaveRouletteView() {
   if (!driver) return;
+  clearTimeout(backTimer);
+  heard = { table: null, spinAt: null, resultsAt: null, round: null };
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
   for (let i = 0; i < R.ROULETTE_SEATS; i++) driver.clearSeatCharacter(i);
   driver.clear();
 }
@@ -264,6 +325,7 @@ export function renderRouletteScreen() {
       <div class="hud-right">
         ${!r.isPublic ? `<button class="hud-btn" id="rlInviteBtn" data-invite="${esc(inviteUrl)}">Invite</button>` : ''}
         ${chatBtn}
+        <button class="hud-btn hud-icon ${isSoundOn() ? '' : 'off'}" id="rlSoundBtn" title="${isSoundOn() ? 'Sound on — tap to turn off' : 'Sound off — tap to turn on'}" aria-label="Sound ${isSoundOn() ? 'on' : 'off'}">${isSoundOn() ? SOUND_ON : SOUND_OFF}</button>
       </div>
     </div>
     ${S.connLost ? '<div class="conn-banner">Connection lost — reconnecting…</div>' : ''}
@@ -274,8 +336,12 @@ export function renderRouletteScreen() {
     <div class="hud-dock">${dock}</div>`;
 }
 
+const SOUND_ON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+const SOUND_OFF = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M17 9l5 6M22 9l-5 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+
 export function attachRouletteScreen() {
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+  on('rlSoundBtn', () => { setSoundOn(!isSoundOn()); if (!isSoundOn() && window.speechSynthesis) window.speechSynthesis.cancel(); S.refresh(); });
   on('leaveBtn', S.leaveTable);
   on('rlUndoBtn', Roulette.undo);
   on('rlClearBtn', Roulette.clear);

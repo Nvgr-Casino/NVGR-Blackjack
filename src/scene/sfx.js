@@ -164,3 +164,116 @@ export function riffleSound(ms = 900, delayMs = 0) {
   }
   burst(c, at + ms / 1000, { freq: 700, q: 1, gain: 0.04, decay: 0.05, type: 'lowpass' });
 }
+
+// ---------- roulette ----------
+/**
+ * The wheel spun and the ball sent round: the rotor's whir, the ball's
+ * rolling run round the track — its rumble slowing lap by lap — then its
+ * fall: a knock off a diamond, a rattle across the frets, and the few small
+ * clicks of it settling in its pocket. Timed from the spin's start, so a
+ * player who arrives mid-spin hears only what is left of it.
+ */
+export function rouletteSpinSound(totalMs, landMs, elapsedMs = 0) {
+  const c = ready();
+  if (!c || elapsedMs >= landMs + 400) return;
+  const now = c.currentTime;
+  const t0 = now - elapsedMs / 1000;
+  const drop = t0 + (landMs * 0.72) / 1000;
+  const land = t0 + landMs / 1000;
+  const from = Math.max(now, t0);
+  // The rotor's whir under it all.
+  {
+    const src = c.createBufferSource();
+    src.buffer = noise;
+    src.loop = true;
+    const f = c.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = 260;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0, from);
+    g.gain.linearRampToValueAtTime(0.03, from + 0.4);
+    g.gain.linearRampToValueAtTime(0.0001, t0 + totalMs / 1000);
+    src.connect(f).connect(g).connect(effects);
+    src.start(from);
+    src.stop(t0 + totalMs / 1000 + 0.1);
+  }
+  // The ball rolling: noise through a band that falls as it slows, its
+  // loudness rising and falling once a lap.
+  if (from < drop) {
+    const src = c.createBufferSource();
+    src.buffer = noise;
+    src.loop = true;
+    const f = c.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = 2.5;
+    f.frequency.setValueAtTime(2600, t0);
+    f.frequency.exponentialRampToValueAtTime(900, drop);
+    const am = c.createGain();
+    am.gain.value = 0.6;
+    const lfo = c.createOscillator();
+    lfo.frequency.setValueAtTime(7, t0);
+    lfo.frequency.linearRampToValueAtTime(2, drop);
+    const depth = c.createGain();
+    depth.gain.value = 0.4;
+    lfo.connect(depth).connect(am.gain);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0, from);
+    g.gain.linearRampToValueAtTime(0.06, from + 0.25);
+    g.gain.exponentialRampToValueAtTime(0.015, drop);
+    g.gain.linearRampToValueAtTime(0.0001, drop + 0.25);
+    src.connect(f).connect(am).connect(g).connect(effects);
+    src.start(from);
+    lfo.start(from);
+    src.stop(drop + 0.3);
+    lfo.stop(drop + 0.3);
+  }
+  // The fall: off a diamond, across the frets, and still.
+  const knocks = [0, 0.16, 0.3, 0.42, 0.55, 0.64, 0.74, 0.81, 0.87, 0.92, 0.96, 1];
+  knocks.forEach((k, i) => {
+    const t = drop + (land - drop) * k;
+    if (t < now) return;
+    const loud = i === 0 ? 1 : Math.max(0.25, 1 - k * 0.7);
+    ping(c, t, { freq: (i === 0 ? 1700 : 3200) + Math.random() * 1400, gain: 0.05 * loud, decay: i === 0 ? 0.08 : 0.035, type: 'triangle' });
+    burst(c, t, { freq: 4500 + Math.random() * 2000, q: 3, gain: 0.04 * loud, decay: 0.02 });
+  });
+  [0.08, 0.15, 0.2].forEach((d, i) => {
+    const t = land + d;
+    if (t >= now) ping(c, t, { freq: 3800 + i * 300, gain: 0.015, decay: 0.03, type: 'triangle' });
+  });
+}
+
+/** A win: a bright little rise of three notes over the chips. */
+export function winChime() {
+  const c = ready();
+  if (!c) return;
+  const at = c.currentTime + 0.05;
+  [1046.5, 1318.5, 1568, 2093].forEach((f, i) => ping(c, at + i * 0.09, { freq: f, gain: 0.05, decay: 0.5 }));
+  chipSound(4, 250);
+}
+
+// The croupier's calls, in a voice from the device. Off with the sound.
+let voice = null;
+function pickVoice() {
+  const s = window.speechSynthesis;
+  if (!s) return null;
+  const all = s.getVoices();
+  return all.find((v) => /en-GB/i.test(v.lang) && /female|libby|sonia|serena|kate/i.test(v.name))
+    || all.find((v) => /en-GB/i.test(v.lang))
+    || all.find((v) => /^en/i.test(v.lang)) || null;
+}
+if (typeof window !== 'undefined' && window.speechSynthesis) {
+  window.speechSynthesis.onvoiceschanged = () => { voice = pickVoice(); };
+}
+/** The croupier says `text`: "Place your bets", "No more bets", the number. */
+export function croupierSay(text) {
+  const s = typeof window !== 'undefined' && window.speechSynthesis;
+  if (!s || !soundOn || document.hidden) return;
+  if (!voice) voice = pickVoice();
+  const u = new SpeechSynthesisUtterance(text);
+  if (voice) u.voice = voice;
+  u.rate = 0.95;
+  u.pitch = 1;
+  u.volume = 0.85;
+  s.cancel();
+  s.speak(u);
+}

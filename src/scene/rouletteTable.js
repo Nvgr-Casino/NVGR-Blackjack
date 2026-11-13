@@ -51,11 +51,13 @@ export const ROULETTE_SEATS_3D = Array.from({ length: ROULETTE_SEATS }, (_, inde
 export const ROULETTE_DEALER = {
   position: new THREE.Vector3(WHEEL_X + m(0.78), 0, -W / 2 - m(0.34)),
 };
+export const WHEEL_CENTER = new THREE.Vector3(WHEEL_X, TOP + m(0.06), 0);
 // Where the camera looks: between the wheel and the layout.
 export const ROULETTE_LOOK = new THREE.Vector3(m(0.1), 0, 0);
 
-// Each seat's wheel chips, in a colour of its own, as roulette is played.
-export const SEAT_CHIP_COLORS = ['#c0392b', '#1f6fd1', '#1a9a4a', '#e0b02a', '#8a3ad0', '#e06a1a'];
+// Each seat's wheel chips, in a colour of its own, as roulette is played —
+// colours that stand out on the felt and on the red and black numbers.
+export const SEAT_CHIP_COLORS = ['#f2c230', '#2e8cff', '#f4f1ea', '#a65ce8', '#ff8a1c', '#22c7b8'];
 
 // ---------- the felt ----------
 function paintLayout(ctx) {
@@ -207,42 +209,196 @@ const POCKET_STEP = (Math.PI * 2) / 37;
 // on the rotor when the rotor itself is turned by `rotor`.
 const pocketAngle = (number, rotor) => WHEEL_ORDER.indexOf(number) * POCKET_STEP - Math.PI / 2 - rotor;
 
+// A veneer for the wheel's head: radial leaves of two woods, book-matched,
+// rings of gold inlay between.
+function paintVeneer(ctx, S) {
+  const c = S / 2;
+  const leaves = 32;
+  for (let i = 0; i < leaves; i++) {
+    const a0 = (i / leaves) * Math.PI * 2, a1 = ((i + 1) / leaves) * Math.PI * 2;
+    const g = ctx.createRadialGradient(c, c, c * 0.3, c, c, c);
+    g.addColorStop(0, i % 2 ? '#5a2410' : '#7a3a1a');
+    g.addColorStop(1, i % 2 ? '#3a1408' : '#5a2a12');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(c, c);
+    ctx.arc(c, c, c, a0, a1);
+    ctx.closePath();
+    ctx.fill();
+    // The grain, running out along the leaf.
+    for (let k = 0; k < 10; k++) {
+      const a = a0 + (a1 - a0) * Math.random();
+      ctx.strokeStyle = `rgba(20,6,2,${0.1 + Math.random() * 0.15})`;
+      ctx.lineWidth = 1 + Math.random() * 2;
+      ctx.beginPath();
+      ctx.moveTo(c + Math.cos(a) * c * 0.35, c + Math.sin(a) * c * 0.35);
+      ctx.lineTo(c + Math.cos(a + 0.01) * c, c + Math.sin(a + 0.01) * c);
+      ctx.stroke();
+    }
+  }
+  [[0.98, 10], [0.9, 4], [0.62, 6]].forEach(([r, w]) => {
+    ctx.strokeStyle = '#d8b46a';
+    ctx.lineWidth = w;
+    ctx.beginPath();
+    ctx.arc(c, c, c * r, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+  grain(ctx, S, S, 8);
+}
+
+// The results tower's screen: the house's name, the last number large, a
+// column of the ones before it, red to the left and black to the right as
+// the casinos show them; the table's limits under.
+function paintTower(ctx, w, h, history, min, max) {
+  const bg = ctx.createLinearGradient(0, 0, 0, h);
+  bg.addColorStop(0, '#0c0a10');
+  bg.addColorStop(1, '#16121c');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, h);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#d8b46a';
+  ctx.font = "700 38px 'Cinzel', Georgia, serif";
+  ctx.fillText('NVGR', w / 2, 44);
+  ctx.font = "600 20px 'Cinzel', Georgia, serif";
+  ctx.fillText('ROULETTE', w / 2, 76);
+  ctx.fillStyle = 'rgba(216,180,106,0.5)';
+  ctx.fillRect(30, 96, w - 60, 2);
+  const fill = (n) => (colorOf(n) === 'red' ? '#d0203a' : colorOf(n) === 'black' ? '#e8e8ea' : '#2ac06a');
+  const last = history[0];
+  if (last !== undefined) {
+    ctx.fillStyle = colorOf(last) === 'red' ? '#b3122e' : colorOf(last) === 'black' ? '#202024' : '#0f7a3c';
+    ctx.beginPath();
+    ctx.arc(w / 2, 180, 66, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#d8b46a';
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '800 76px Georgia, serif';
+    ctx.fillText(String(last), w / 2, 184);
+  } else {
+    ctx.fillStyle = '#8a8070';
+    ctx.font = '600 24px Georgia, serif';
+    ctx.fillText('Place your bets', w / 2, 180);
+  }
+  history.slice(1, 13).forEach((n, i) => {
+    const y = 282 + i * 46;
+    const x = colorOf(n) === 'red' ? w * 0.3 : colorOf(n) === 'black' ? w * 0.7 : w / 2;
+    ctx.fillStyle = fill(n);
+    ctx.font = '700 36px Georgia, serif';
+    ctx.fillText(String(n), x, y);
+  });
+  ctx.fillStyle = 'rgba(216,180,106,0.5)';
+  ctx.fillRect(30, h - 92, w - 60, 2);
+  const short = (n) => (n >= 1e6 ? n / 1e6 + 'M' : n >= 1000 ? n / 1000 + 'K' : String(n));
+  ctx.fillStyle = '#e8dcc0';
+  ctx.font = '600 26px Georgia, serif';
+  ctx.fillText(`MIN ${short(min)}  ·  MAX ${short(max)}`, w / 2, h - 50);
+}
+
 export function createRouletteTable() {
   const g = new THREE.Group();
   const GOLD = gold();
   const CHROME = chrome();
-  const MAHOGANY = wood('#4a1a0e', '#1a0604');
-  const LEATHER = new THREE.MeshStandardMaterial({ color: 0x22100a, roughness: 0.45 });
-  const FELT = new THREE.MeshStandardMaterial({ color: 0x0d5a31, roughness: 0.95 });
+  // Mahogany under a deep clear lacquer, as a table built to last is.
+  const MAHOGANY = new THREE.MeshPhysicalMaterial({ map: wood('#4a1a0e', '#1a0604').map, roughness: 0.38, clearcoat: 1, clearcoatRoughness: 0.12 });
+  const ROSEWOOD = new THREE.MeshPhysicalMaterial({ map: wood('#6a2c14', '#2a0c04', { across: true }).map, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.08 });
+  const LEATHER = new THREE.MeshStandardMaterial({ color: 0x3a0c10, roughness: 0.42 });
+  const FELT = new THREE.MeshStandardMaterial({ map: canvasTex(512, 512, (ctx) => { ctx.fillStyle = '#0d5a31'; ctx.fillRect(0, 0, 512, 512); grain(ctx, 512, 512, 14); }, { repeat: true }), roughness: 0.95 });
+  FELT.map.repeat.set(6, 3);
 
   // ---------- the cabinet ----------
-  const body = new THREE.Mesh(new THREE.BoxGeometry(L - m(0.14), m(0.24), W - m(0.14)), MAHOGANY);
-  body.position.y = TOP - m(0.14);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(L - m(0.14), m(0.26), W - m(0.14)), MAHOGANY);
+  body.position.y = TOP - m(0.15);
   body.castShadow = true;
   body.receiveShadow = true;
   g.add(body);
-  const apron = new THREE.Mesh(new THREE.BoxGeometry(L - m(0.18), m(0.025), W - m(0.18)), GOLD);
-  apron.position.y = TOP - m(0.27);
-  g.add(apron);
-  const legGeo = new THREE.LatheGeometry([[0, 0], [0.05, 0], [0.055, 0.06], [0.032, 0.2], [0.048, 0.4], [0.036, 0.5], [0.065, 0.56], [0, 0.56]].map(([r, h]) => new THREE.Vector2(m(r), m(h))), 16);
-  [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1]].forEach(([sx, sz]) => {
+  // Carved panels round the apron, each framed in gilt moulding.
+  const panelRow = (count, length, place) => {
+    const pw = length / count;
+    for (let i = 0; i < count; i++) {
+      const c = -length / 2 + (i + 0.5) * pw;
+      const panel = new THREE.Mesh(new THREE.BoxGeometry(pw - m(0.08), m(0.14), m(0.016)), ROSEWOOD);
+      place(panel, c, 0);
+      g.add(panel);
+      [[pw - m(0.05), m(0.012), 0, m(0.08)], [pw - m(0.05), m(0.012), 0, -m(0.08)], [m(0.012), m(0.172), (pw - m(0.05)) / 2, 0], [m(0.012), m(0.172), -(pw - m(0.05)) / 2, 0]].forEach(([fw, fh, dx, dy]) => {
+        const f = new THREE.Mesh(new THREE.BoxGeometry(fw, fh, m(0.02)), GOLD);
+        place(f, c + dx, dy);
+        g.add(f);
+      });
+      // A carved gilt lozenge at the panel's heart.
+      const boss = new THREE.Mesh(new THREE.OctahedronGeometry(m(0.024)), GOLD);
+      boss.scale.set(1.6, 1, 0.25);
+      place(boss, c, 0, m(0.004));
+      g.add(boss);
+    }
+  };
+  const apronY = TOP - m(0.15);
+  [1, -1].forEach((s) => panelRow(6, L - m(0.5), (mesh, along, dy, out = 0) => {
+    mesh.position.set(along, apronY + dy, s * ((W - m(0.14)) / 2 + m(0.008) + out));
+    if (s < 0) mesh.rotation.y = Math.PI;
+  }));
+  [1, -1].forEach((s) => panelRow(2, W - m(0.5), (mesh, along, dy, out = 0) => {
+    mesh.position.set(s * ((L - m(0.14)) / 2 + m(0.008) + out), apronY + dy, along);
+    mesh.rotation.y = s * Math.PI / 2;
+  }));
+  // A gilt band under the panels, and the light along it.
+  const band = new THREE.Mesh(new THREE.BoxGeometry(L - m(0.1), m(0.025), W - m(0.1)), GOLD);
+  band.position.y = TOP - m(0.29);
+  g.add(band);
+  // Eight turned legs, gilt at the collar and the foot.
+  const legGeo = new THREE.LatheGeometry([[0, 0], [0.04, 0], [0.05, 0.04], [0.03, 0.14], [0.05, 0.3], [0.034, 0.42], [0.042, 0.47], [0.06, 0.5], [0, 0.5]].map(([r, h]) => new THREE.Vector2(m(r), m(h))), 20);
+  const collarGeo = new THREE.TorusGeometry(m(0.046), m(0.012), 8, 24);
+  const footGeo = new THREE.CylinderGeometry(m(0.05), m(0.058), m(0.035), 20);
+  [[-0.5, -1], [-0.17, -1], [0.17, -1], [0.5, -1], [-0.5, 1], [-0.17, 1], [0.17, 1], [0.5, 1]].forEach(([fx, sz]) => {
+    const x = fx * (L - m(0.5)), z = sz * (W / 2 - m(0.22));
     const leg = new THREE.Mesh(legGeo, MAHOGANY);
-    leg.position.set(sx * (L / 2 - m(0.22)), FLOOR_Y, sz * (W / 2 - m(0.22)));
+    leg.position.set(x, FLOOR_Y + m(0.035), z);
     leg.castShadow = true;
     g.add(leg);
+    const collar = new THREE.Mesh(collarGeo, GOLD);
+    collar.rotation.x = Math.PI / 2;
+    collar.position.set(x, FLOOR_Y + m(0.44), z);
+    g.add(collar);
+    const foot = new THREE.Mesh(footGeo, GOLD);
+    foot.position.set(x, FLOOR_Y + m(0.0175), z);
+    g.add(foot);
   });
-  const felt = new THREE.Mesh(new THREE.ShapeGeometry(roundedRect(L - m(0.16), W - m(0.16), m(0.1))), FELT);
+
+  // ---------- the top ----------
+  const felt = new THREE.Mesh(new THREE.ShapeGeometry(roundedRect(L - m(0.3), W - m(0.3), m(0.08))), FELT);
   felt.rotation.x = -Math.PI / 2;
   felt.position.y = TOP;
   felt.receiveShadow = true;
   g.add(felt);
-  const railShape = roundedRect(L, W, m(0.16));
-  railShape.holes.push(roundedRect(L - m(0.16), W - m(0.16), m(0.1)));
-  const rail = new THREE.Mesh(new THREE.ExtrudeGeometry(railShape, { depth: m(0.05), bevelEnabled: true, bevelThickness: m(0.028), bevelSize: m(0.022), bevelSegments: 5, curveSegments: 14 }), LEATHER);
+  // A border of polished rosewood between the felt and the armrest, a line
+  // of gold let into it.
+  const track = roundedRect(L - m(0.14), W - m(0.14), m(0.12));
+  track.holes.push(roundedRect(L - m(0.3), W - m(0.3), m(0.08)));
+  const border = new THREE.Mesh(new THREE.ExtrudeGeometry(track, { depth: m(0.012), bevelEnabled: false, curveSegments: 16 }), ROSEWOOD);
+  border.rotation.x = -Math.PI / 2;
+  border.position.y = TOP - m(0.008);
+  g.add(border);
+  const inlay = roundedRect(L - m(0.2), W - m(0.2), m(0.1));
+  inlay.holes.push(roundedRect(L - m(0.215), W - m(0.215), m(0.095)));
+  const inlayMesh = new THREE.Mesh(new THREE.ExtrudeGeometry(inlay, { depth: m(0.013), bevelEnabled: false, curveSegments: 16 }), GOLD);
+  inlayMesh.rotation.x = -Math.PI / 2;
+  inlayMesh.position.y = TOP - m(0.008);
+  g.add(inlayMesh);
+  // The armrest: oxblood leather, padded, brass nails along its foot.
+  const railShape = roundedRect(L + m(0.06), W + m(0.06), m(0.18));
+  railShape.holes.push(roundedRect(L - m(0.14), W - m(0.14), m(0.12)));
+  const rail = new THREE.Mesh(new THREE.ExtrudeGeometry(railShape, { depth: m(0.05), bevelEnabled: true, bevelThickness: m(0.032), bevelSize: m(0.026), bevelSegments: 6, curveSegments: 16 }), LEATHER);
   rail.rotation.x = -Math.PI / 2;
-  rail.position.y = TOP - m(0.01);
+  rail.position.y = TOP - m(0.012);
   rail.castShadow = true;
   g.add(rail);
+  const nailPath = roundedRect(L + m(0.1), W + m(0.1), m(0.2)).getSpacedPoints(220);
+  const nails = new THREE.InstancedMesh(new THREE.SphereGeometry(m(0.008), 8, 6), new THREE.MeshStandardMaterial({ color: 0xc8a050, roughness: 0.25, metalness: 0.95 }), nailPath.length);
+  const nm = new THREE.Matrix4();
+  nailPath.forEach((p, i) => { nm.makeTranslation(p.x, TOP - m(0.035), -p.y); nails.setMatrixAt(i, nm); });
+  g.add(nails);
   // The layout.
   const layoutTex = canvasTex(BOARD_W, BOARD_H, paintLayout);
   const layout = new THREE.Mesh(new THREE.PlaneGeometry(LAYOUT_W, LAYOUT_D), new THREE.MeshStandardMaterial({ map: layoutTex, roughness: 0.95 }));
@@ -251,43 +407,179 @@ export function createRouletteTable() {
   layout.receiveShadow = true;
   g.add(layout);
 
+  // ---------- the croupier's side ----------
+  // The float: a tray let into the felt, columns of chips in every colour.
+  const floatX = WHEEL_X + m(0.98), floatZ = -W / 2 + m(0.24);
+  const tray = new THREE.Mesh(new THREE.BoxGeometry(m(0.62), m(0.02), m(0.13)), new THREE.MeshStandardMaterial({ color: 0x120c08, roughness: 0.7 }));
+  tray.position.set(floatX, TOP + m(0.004), floatZ);
+  g.add(tray);
+  const trayRim = new THREE.Mesh(new THREE.BoxGeometry(m(0.64), m(0.016), m(0.15)), CHROME);
+  trayRim.position.set(floatX, TOP + m(0.002), floatZ);
+  g.add(trayRim);
+  const floatChips = new THREE.InstancedMesh(new THREE.CylinderGeometry(m(0.019), m(0.019), m(0.0038), 16), new THREE.MeshStandardMaterial({ roughness: 0.5 }), 6 * 3 * 14);
+  const fc = new THREE.Color(), fmx = new THREE.Matrix4();
+  let fi = 0;
+  SEAT_CHIP_COLORS.forEach((col, c) => {
+    for (let row = 0; row < 3; row++) {
+      for (let k = 0; k < 14; k++) {
+        // Each column lies along the tray, chips on their edges.
+        fmx.makeRotationX(Math.PI / 2).setPosition(floatX - m(0.25) + c * m(0.1), TOP + m(0.024), floatZ - m(0.04) + (row * 14 + k) * m(0.0021));
+        floatChips.setMatrixAt(fi, fmx);
+        floatChips.setColorAt(fi, fc.set(col));
+        fi++;
+      }
+    }
+  });
+  g.add(floatChips);
+  // The limits, on a brass plaque standing on the table.
+  const plaqueCanvas = document.createElement('canvas');
+  plaqueCanvas.width = 512;
+  plaqueCanvas.height = 192;
+  const plaqueTex = new THREE.CanvasTexture(plaqueCanvas);
+  plaqueTex.colorSpace = THREE.SRGBColorSpace;
+  const plaque = new THREE.Mesh(new THREE.PlaneGeometry(m(0.3), m(0.11)), new THREE.MeshStandardMaterial({ map: plaqueTex, roughness: 0.3, metalness: 0.6, emissive: 0xffffff, emissiveMap: plaqueTex, emissiveIntensity: 0.25 }));
+  plaque.position.set(L / 2 - m(0.32), TOP + m(0.09), -W / 2 + m(0.2));
+  plaque.rotation.set(-0.25, -0.2, 0);
+  g.add(plaque);
+  const plaqueStand = new THREE.Mesh(new THREE.BoxGeometry(m(0.32), m(0.13), m(0.012)), GOLD);
+  plaqueStand.position.copy(plaque.position).add(new THREE.Vector3(0, 0, -m(0.008)));
+  plaqueStand.rotation.copy(plaque.rotation);
+  g.add(plaqueStand);
+  function setLimits(min, max) {
+    const ctx = plaqueCanvas.getContext('2d');
+    const gr = ctx.createLinearGradient(0, 0, 0, 192);
+    gr.addColorStop(0, '#2a1a0a');
+    gr.addColorStop(1, '#120a04');
+    ctx.fillStyle = gr;
+    ctx.fillRect(0, 0, 512, 192);
+    ctx.strokeStyle = '#d8b46a';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(10, 10, 492, 172);
+    const short = (n) => (n >= 1e6 ? n / 1e6 + 'M' : n >= 1000 ? n / 1000 + 'K' : String(n));
+    ctx.fillStyle = '#e8cd8a';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = "600 34px 'Cinzel', Georgia, serif";
+    ctx.fillText('TABLE LIMITS', 256, 62);
+    ctx.font = '700 46px Georgia, serif';
+    ctx.fillText(`${short(min)} – ${short(max)}`, 256, 128);
+    plaqueTex.needsUpdate = true;
+  }
+  setLimits(100, 2000);
+  // The results tower at the wheel's end: a screen on a pillar of chrome.
+  const towerCanvas = document.createElement('canvas');
+  towerCanvas.width = 384;
+  towerCanvas.height = 920;
+  const towerTex = new THREE.CanvasTexture(towerCanvas);
+  towerTex.colorSpace = THREE.SRGBColorSpace;
+  towerTex.anisotropy = 8;
+  const tower = new THREE.Group();
+  tower.position.set(-L / 2 - m(0.28), 0, -W / 2 + m(0.05));
+  tower.rotation.y = 0.55;
+  g.add(tower);
+  const pillar = new THREE.Mesh(new THREE.CylinderGeometry(m(0.035), m(0.045), m(1.25), 16), CHROME);
+  pillar.position.y = FLOOR_Y + m(0.625);
+  tower.add(pillar);
+  const towerFoot = new THREE.Mesh(new THREE.CylinderGeometry(m(0.18), m(0.22), m(0.04), 32), CHROME);
+  towerFoot.position.y = FLOOR_Y + m(0.02);
+  tower.add(towerFoot);
+  const housing = new THREE.Mesh(new THREE.BoxGeometry(m(0.38), m(0.86), m(0.06)), new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 0.2, metalness: 0.5 }));
+  housing.position.y = FLOOR_Y + m(1.66);
+  tower.add(housing);
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(m(0.34), m(0.81)), new THREE.MeshBasicMaterial({ map: towerTex, toneMapped: false }));
+  screen.position.set(0, FLOOR_Y + m(1.66), m(0.031));
+  tower.add(screen);
+  const crown = new THREE.Mesh(new THREE.BoxGeometry(m(0.4), m(0.03), m(0.07)), GOLD);
+  crown.position.y = FLOOR_Y + m(2.1);
+  tower.add(crown);
+  let towerKey = '';
+  function setHistory(history, min, max) {
+    const key = JSON.stringify([history, min, max]);
+    if (key === towerKey) return;
+    towerKey = key;
+    paintTower(towerCanvas.getContext('2d'), towerCanvas.width, towerCanvas.height, history || [], min, max);
+    towerTex.needsUpdate = true;
+  }
+  setHistory([], 100, 2000);
+
   // ---------- the wheel ----------
-  const bowl = new THREE.Mesh(new THREE.LatheGeometry([[0.5, 0], [0.5, 0.1], [0.48, 0.118], [0.44, 0.108], [0.375, 0.07], [0.35, 0.06], [0, 0.06]].map(([r, h]) => new THREE.Vector2(m(r), m(h))), 72), MAHOGANY);
+  // The head: a drum of veneered wood, gilt at the rim.
+  const head = new THREE.Mesh(new THREE.CylinderGeometry(m(0.53), m(0.5), m(0.06), 72, 1, true), MAHOGANY);
+  head.position.set(WHEEL_X, TOP + m(0.07), 0);
+  g.add(head);
+  const headTop = new THREE.Mesh(new THREE.RingGeometry(m(0.47), m(0.53), 72), new THREE.MeshPhysicalMaterial({ map: canvasTex(1024, 1024, paintVeneer), roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.08 }));
+  headTop.rotation.x = -Math.PI / 2;
+  headTop.position.set(WHEEL_X, TOP + m(0.1), 0);
+  g.add(headTop);
+  [[m(0.53), TOP + m(0.1), m(0.012)], [m(0.47), TOP + m(0.1), m(0.008)], [m(0.505), TOP + m(0.04), m(0.01)]].forEach(([r, y, t]) => {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(r, t, 8, 96), GOLD);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(WHEEL_X, y, 0);
+    g.add(ring);
+  });
+  // The ball track, polished, sloping in to the rotor.
+  const trackMat = new THREE.MeshPhysicalMaterial({ map: canvasTex(1024, 1024, paintVeneer), color: 0xd0a080, roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.04, side: THREE.DoubleSide });
+  const bowl = new THREE.Mesh(new THREE.LatheGeometry([[0.47, 0.12], [0.455, 0.108], [0.42, 0.092], [0.38, 0.072], [0.36, 0.064]].map(([r, h]) => new THREE.Vector2(m(r), m(h))), 96), trackMat);
   bowl.position.set(WHEEL_X, TOP - m(0.02), 0);
-  bowl.castShadow = true;
   g.add(bowl);
-  const trim = new THREE.Mesh(new THREE.TorusGeometry(m(0.495), m(0.012), 6, 72), GOLD);
-  trim.rotation.x = Math.PI / 2;
-  trim.position.set(WHEEL_X, TOP + m(0.098), 0);
-  g.add(trim);
-  // Diamonds on the track, that knock the ball about.
+  // Diamonds on the track, upright and lying in turn, that knock the ball about.
   for (let k = 0; k < 8; k++) {
-    const a = (k / 8) * Math.PI * 2;
-    const d = new THREE.Mesh(new THREE.OctahedronGeometry(m(0.014)), CHROME);
-    d.scale.set(1, 0.5, 2);
-    d.position.set(WHEEL_X + Math.cos(a) * m(0.415), TOP + m(0.07), Math.sin(a) * m(0.415));
+    const a = (k / 8) * Math.PI * 2 + Math.PI / 8;
+    const d = new THREE.Mesh(new THREE.OctahedronGeometry(m(0.016)), CHROME);
+    d.scale.set(k % 2 ? 0.6 : 1, k % 2 ? 1.1 : 0.5, 2);
+    d.position.set(WHEEL_X + Math.cos(a) * m(0.405), TOP + m(0.066), Math.sin(a) * m(0.405));
     d.rotation.y = -a;
     g.add(d);
   }
+  // The rotor: the pocket ring with its frets, a gilt rim, the cone, the
+  // turret.
   const rotor = new THREE.Group();
   rotor.position.set(WHEEL_X, TOP + m(0.045), 0);
   g.add(rotor);
-  const face = new THREE.Mesh(new THREE.CircleGeometry(m(0.35), 74), new THREE.MeshStandardMaterial({ map: canvasTex(1024, 1024, paintWheel), roughness: 0.3, metalness: 0.1 }));
+  const face = new THREE.Mesh(new THREE.CircleGeometry(m(0.35), 74), new THREE.MeshPhysicalMaterial({ map: canvasTex(1024, 1024, paintWheel), roughness: 0.3, metalness: 0.05, clearcoat: 0.8, clearcoatRoughness: 0.15 }));
   face.rotation.x = -Math.PI / 2;
   rotor.add(face);
-  const turret = new THREE.Mesh(new THREE.LatheGeometry([[0, 0.13], [0.012, 0.12], [0.02, 0.075], [0.012, 0.055], [0.042, 0.022], [0.052, 0], [0, 0]].map(([r, h]) => new THREE.Vector2(m(r), m(h))), 24), CHROME);
+  const frets = new THREE.InstancedMesh(new THREE.BoxGeometry(m(0.066), m(0.016), m(0.0035)), CHROME, 37);
+  const fm = new THREE.Matrix4();
+  for (let i = 0; i < 37; i++) {
+    // On the boundary between pocket i and the next (pocket i is centred
+    // at i·step − 90° on the face; see pocketAngle).
+    const a = i * POCKET_STEP - Math.PI / 2 + POCKET_STEP / 2;
+    const r = m(0.3);
+    fm.makeRotationY(-a);
+    fm.setPosition(Math.cos(a) * r, m(0.008), Math.sin(a) * r);
+    frets.setMatrixAt(i, fm);
+  }
+  rotor.add(frets);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(m(0.348), m(0.008), 8, 96), GOLD);
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = m(0.004);
+  rotor.add(rim);
+  const pocketRim = new THREE.Mesh(new THREE.TorusGeometry(m(0.266), m(0.006), 8, 96), CHROME);
+  pocketRim.rotation.x = Math.PI / 2;
+  pocketRim.position.y = m(0.012);
+  rotor.add(pocketRim);
+  const cone = new THREE.Mesh(new THREE.LatheGeometry([[0.26, 0.012], [0.22, 0.02], [0.16, 0.03], [0.1, 0.04], [0.06, 0.05], [0, 0.052]].map(([r, h]) => new THREE.Vector2(m(r), m(h))), 64), ROSEWOOD);
+  rotor.add(cone);
+  [m(0.2), m(0.12)].forEach((r, i) => {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(r, m(0.004), 6, 64), GOLD);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = i ? m(0.039) : m(0.026);
+    rotor.add(ring);
+  });
+  const turret = new THREE.Mesh(new THREE.LatheGeometry([[0, 0.17], [0.014, 0.165], [0.016, 0.15], [0.009, 0.13], [0.02, 0.105], [0.012, 0.09], [0.03, 0.07], [0.05, 0.055], [0.06, 0.048], [0, 0.048]].map(([r, h]) => new THREE.Vector2(m(r), m(h))), 32), CHROME);
   rotor.add(turret);
   for (let k = 0; k < 4; k++) {
     const a = (k / 4) * Math.PI * 2;
-    const arm = new THREE.Mesh(new THREE.CylinderGeometry(m(0.007), m(0.007), m(0.12), 8), CHROME);
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(m(0.006), m(0.009), m(0.12), 10), CHROME);
     arm.rotation.set(0, -a, Math.PI / 2);
-    arm.position.set(Math.cos(a) * m(0.06), m(0.08), Math.sin(a) * m(0.06));
+    arm.position.set(Math.cos(a) * m(0.065), m(0.1), Math.sin(a) * m(0.065));
     rotor.add(arm);
-    const knob = new THREE.Mesh(new THREE.SphereGeometry(m(0.013), 10, 8), CHROME);
-    knob.position.set(Math.cos(a) * m(0.12), m(0.08), Math.sin(a) * m(0.12));
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(m(0.014), 14, 10), CHROME);
+    knob.position.set(Math.cos(a) * m(0.125), m(0.1), Math.sin(a) * m(0.125));
     rotor.add(knob);
   }
-  const ball = new THREE.Mesh(new THREE.SphereGeometry(m(0.011), 14, 10), new THREE.MeshStandardMaterial({ color: 0xf6f2ea, roughness: 0.18 }));
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(m(0.011), 16, 12), new THREE.MeshPhysicalMaterial({ color: 0xfbf8f2, roughness: 0.12, clearcoat: 1 }));
   ball.castShadow = true;
   g.add(ball);
 
@@ -309,13 +601,13 @@ export function createRouletteTable() {
     footOuter: roundedRect(L - m(0.3), W - m(0.3), m(0.12)),
     footInner: roundedRect(L - m(0.36), W - m(0.36), m(0.1)),
     w: L + m(2.4), d: W + m(2.2),
-    edge: { outer: roundedRect(L + 0.01, W + 0.01, m(0.16)), inner: roundedRect(L - m(0.06), W - m(0.06), m(0.14)), y: TOP - m(0.06) },
+    edge: { outer: roundedRect(L - m(0.1), W - m(0.1), m(0.14)), inner: roundedRect(L - m(0.16), W - m(0.16), m(0.12)), y: TOP - m(0.3) },
   });
 
   // ---------- the spin ----------
   const SLOW = 0.45;                 // the wheel's own idle turn, radians a second
   const RT = m(0.43), RP = m(0.3);   // the ball's track, and its pocket's radius
-  const YT = TOP + m(0.083), YP = TOP + m(0.05);
+  const YT = TOP + m(0.09), YP = TOP + m(0.057);
   let base = 0;                      // the rotor's angle at `baseAt`
   let baseAt = 0;
   let spin = null;                   // { start, T, land, number, boost, laps }
@@ -390,6 +682,8 @@ export function createRouletteTable() {
   }
 
   g.userData.wheel = { update, spinTo, rest, showDolly, get spinning() { return !!spin && Date.now() - spin.start < spin.T; } };
+  g.userData.setLimits = setLimits;
+  g.userData.setHistory = setHistory;
   return g;
 }
 
