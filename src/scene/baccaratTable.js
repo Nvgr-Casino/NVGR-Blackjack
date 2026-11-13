@@ -233,7 +233,7 @@ function paintBoard(ctx, w, h, history, min, max) {
   ctx.fillStyle = '#d8b46a';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = "700 34px 'Cinzel', Georgia, serif";
+  ctx.font = "700 36px 'Cinzel', Georgia, serif";
   ctx.fillText('NVGR BACCARAT', w / 2, 40);
   const rows = 6, cols = 12, cell = (w - 60) / cols, top = 76;
   ctx.strokeStyle = 'rgba(216,180,106,0.25)';
@@ -365,38 +365,56 @@ export function createBaccaratTable() {
   rack.position.set(0, TOP, -m(0.135));
   g.add(rack);
 
-  // ---------- the scoreboard ----------
+  // ---------- the scoreboards ----------
+  // Two tall screens either side of the dealer, turned in toward the
+  // players, the coups so far on each in beads large enough to read from
+  // any seat. The board is painted at a high resolution and shown unlit,
+  // so its lettering stays sharp.
+  const BOARD_W = 768, BOARD_H = 560, BOARD_SCALE = 2.4;
   const boardCanvas = document.createElement('canvas');
-  boardCanvas.width = 768;
-  boardCanvas.height = 560;
+  boardCanvas.width = Math.round(BOARD_W * BOARD_SCALE);
+  boardCanvas.height = Math.round(BOARD_H * BOARD_SCALE);
   const boardTex = new THREE.CanvasTexture(boardCanvas);
   boardTex.colorSpace = THREE.SRGBColorSpace;
-  boardTex.anisotropy = 8;
-  const board = new THREE.Group();
-  board.position.set(RX + m(0.45), 0, -D + m(0.05));
-  board.rotation.y = -0.75;
-  g.add(board);
-  const pillar = new THREE.Mesh(new THREE.CylinderGeometry(m(0.035), m(0.045), m(1.2), 16), CHROME);
-  pillar.position.y = FLOOR_Y + m(0.6);
-  board.add(pillar);
-  const bfoot = new THREE.Mesh(new THREE.CylinderGeometry(m(0.18), m(0.22), m(0.04), 32), CHROME);
-  bfoot.position.y = FLOOR_Y + m(0.02);
-  board.add(bfoot);
-  const housing = new THREE.Mesh(new THREE.BoxGeometry(m(0.74), m(0.56), m(0.06)), new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 0.2, metalness: 0.5 }));
-  housing.position.y = FLOOR_Y + m(1.45);
-  board.add(housing);
-  const screen = new THREE.Mesh(new THREE.PlaneGeometry(m(0.7), m(0.51)), new THREE.MeshBasicMaterial({ map: boardTex, toneMapped: false }));
-  screen.position.set(0, FLOOR_Y + m(1.45), m(0.031));
-  board.add(screen);
-  const cap = new THREE.Mesh(new THREE.BoxGeometry(m(0.76), m(0.03), m(0.07)), GOLD);
-  cap.position.y = FLOOR_Y + m(1.74);
-  board.add(cap);
+  boardTex.anisotropy = 16;
+  const SW = m(1.3), SH = SW * (BOARD_H / BOARD_W);
+  const SCREEN_Y = TOP + m(0.14) + SH / 2;
+  const HOUSING = new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 0.2, metalness: 0.5 });
+  const screenMat = new THREE.MeshBasicMaterial({ map: boardTex, toneMapped: false });
+  [-1, 1].forEach((side) => {
+    const board = new THREE.Group();
+    board.position.set(side * m(1.12), 0, -D - m(0.55));
+    board.rotation.y = -side * 0.32;
+    g.add(board);
+    [-1, 1].forEach((leg) => {
+      const pillar = new THREE.Mesh(new THREE.CylinderGeometry(m(0.03), m(0.04), SCREEN_Y - FLOOR_Y, 16), CHROME);
+      pillar.position.set(leg * SW * 0.32, (SCREEN_Y + FLOOR_Y) / 2, -m(0.05));
+      board.add(pillar);
+      const foot = new THREE.Mesh(new THREE.CylinderGeometry(m(0.12), m(0.15), m(0.035), 32), CHROME);
+      foot.position.set(leg * SW * 0.32, FLOOR_Y + m(0.018), -m(0.05));
+      board.add(foot);
+    });
+    const housing = new THREE.Mesh(new THREE.BoxGeometry(SW + m(0.06), SH + m(0.06), m(0.07)), HOUSING);
+    housing.position.set(0, SCREEN_Y, -m(0.035));
+    housing.castShadow = true;
+    board.add(housing);
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(SW, SH), screenMat);
+    screen.position.set(0, SCREEN_Y, m(0.002));
+    board.add(screen);
+    [1, -1].forEach((end) => {
+      const trim = new THREE.Mesh(new THREE.BoxGeometry(SW + m(0.09), m(0.025), m(0.08)), GOLD);
+      trim.position.set(0, SCREEN_Y + end * (SH / 2 + m(0.04)), -m(0.035));
+      board.add(trim);
+    });
+  });
   let boardKey = '';
   function setHistory(history, min, max) {
     const key = JSON.stringify([history, min, max]);
     if (key === boardKey) return;
     boardKey = key;
-    paintBoard(boardCanvas.getContext('2d'), boardCanvas.width, boardCanvas.height, history || [], min, max);
+    const ctx = boardCanvas.getContext('2d');
+    ctx.setTransform(BOARD_SCALE, 0, 0, BOARD_SCALE, 0, 0);
+    paintBoard(ctx, BOARD_W, BOARD_H, history || [], min, max);
     boardTex.needsUpdate = true;
   }
   setHistory([], 100, 2000);

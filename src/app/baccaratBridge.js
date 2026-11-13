@@ -165,12 +165,6 @@ function keepReadout() {
   }, 250);
 }
 
-function beadsHtml(history) {
-  const last = (history || []).slice(-14);
-  if (!last.length) return '';
-  return `<div class="bc-beads" aria-label="Last results">${last.map((m, i) => `<span class="bc-bead ${m[0]} ${i === last.length - 1 ? 'last' : ''}">${m[0]}</span>`).join('')}</div>`;
-}
-
 function statusFor(r, p) {
   const bet = B.totalBet(p);
   if (r.phase === 'results') {
@@ -201,7 +195,6 @@ export function renderBaccaratScreen() {
   const statusHtml = `
     <div class="hud-status">
       ${countdown ? `<div class="status-pill${resultClass}" id="countdownText">${countdown}</div>` : ''}
-      ${beadsHtml(r.history)}
       ${lastLog && r.phase === 'betting' ? `<div class="status-log">${lastLog}</div>` : ''}
     </div>`;
 
