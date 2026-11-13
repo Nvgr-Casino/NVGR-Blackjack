@@ -1091,8 +1091,11 @@ input:focus { outline: none; border-color: var(--accent); }
 .status-pill.rl-pill.black { background: rgba(20, 20, 20, 0.9); }
 .status-pill.rl-pill.green { background: rgba(15, 122, 60, 0.85); }
 .rl-seat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 2px rgba(255,255,255,0.2); }
-/* The board's width follows the screen's height too, so the wheel stays in view above it. */
-.dock-panel.rl-dock { max-width: min(700px, calc((58vh - 170px) * 1.88)); min-width: min(340px, 100%); padding-top: 10px; }
+/* The board's width follows the screen's height too, so the wheel stays in view above it.
+   It reads top to bottom at every size: the wide screens' one-row dock (blackjack's
+   betting bar) would squeeze the board to nothing. */
+.hud-dock .dock-panel.rl-dock { display: block; width: 100%; }
+.dock-panel.rl-dock { max-width: min(700px, calc((62vh - 170px) * 1.88)); min-width: min(340px, 100%); padding-top: 10px; }
 .rl-board-wrap { margin: 0 0 10px; }
 .rl-board { display: block; width: 100%; height: auto; border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.5); touch-action: manipulation; }
 .rl-board.locked { pointer-events: none; opacity: 0.75; }
