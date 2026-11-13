@@ -3,7 +3,11 @@ import { FLOOR_Y, m } from './scale.js';
 import { canvasTex, grain, gold, chrome, wood } from './casinoKit.js';
 import { addTableGlow } from './tableLux.js';
 import { createCardShoe, createDiscardHolder, SHOE_MOUTH } from './props.js';
-import { CARD_WIDTH, CARD_HEIGHT } from './card.js';
+import { CARD_WIDTH as CW0, CARD_HEIGHT as CH0 } from './card.js';
+// The coup's cards are laid a little larger than a blackjack table's, to
+// read across a table this size (baccaratController.js scales them so).
+export const CARD_K = 1.3;
+const CARD_WIDTH = CW0 * CARD_K, CARD_HEIGHT = CH0 * CARD_K;
 import { BACCARAT_SEATS } from '../baccarat/rules.js';
 import { FELT_COLOR, LINE_COLOR } from '../roulette/layout.js';
 
@@ -61,7 +65,7 @@ export const BACCARAT_DEALER = { position: new THREE.Vector3(0, 0, -D - m(0.06))
 // The two hands' card spots, before the dealer: the player's on the
 // dealer's right (the players' left), the banker's on the other side; the
 // third card laid sideways beside the two.
-const HAND_Z = -m(0.06);
+const HAND_Z = m(0.2);
 export function cardSpot(side, i) {
   const sx = side === 'player' ? -1 : 1;
   const step = CARD_WIDTH + m(0.02);
@@ -87,7 +91,7 @@ export const BACCARAT_LOOK = new THREE.Vector3(0, 0, m(0.05));
 export const CARDS_CENTER = new THREE.Vector3(0, TOP, HAND_Z);
 
 // ---------- the felt ----------
-const LAYOUT_W = 2048;
+const LAYOUT_W = 2560;
 const LAYOUT_H = Math.round((LAYOUT_W * (RZ + D)) / (2 * RX));
 const toCanvas = (x, z) => [((x + RX) / (2 * RX)) * LAYOUT_W, ((D + z) / (D + RZ)) * LAYOUT_H];
 const PX = LAYOUT_W / (2 * RX);   // canvas pixels a world unit
@@ -153,8 +157,8 @@ function paintLayout(ctx) {
       const [x, y] = toCanvas(c.x, c.z);
       text(label, x, y + 2, size, GOLD, rot, { spacing: 3 });
     };
-    band(BANDS.player, 'PLAYER', 34);
-    band(BANDS.banker, 'BANKER', 34);
+    band(BANDS.player, 'PLAYER', 30);
+    band(BANDS.banker, 'BANKER', 30);
     // The inner band, in three: the pairs either side of the tie.
     const cells = [[t0, t - SEG / 3, 'P PAIR', '11:1'], [t - SEG / 3, t + SEG / 3, 'TIE', '8:1'], [t + SEG / 3, t1, 'B PAIR', '11:1']];
     cells.forEach(([a, b, label, pays]) => {
@@ -199,13 +203,13 @@ function paintLayout(ctx) {
       ctx.setLineDash([]);
     });
     const c = cardSpot(side, 0).add(cardSpot(side, 1)).multiplyScalar(0.5);
-    const [x, y] = toCanvas(c.x, c.z + CARD_HEIGHT * 0.5 + m(0.07));
+    const [x, y] = toCanvas(c.x, c.z + CARD_HEIGHT * 0.5 + m(0.05));
     text(side === 'player' ? 'PLAYER' : 'BANKER', x, y, 42, GOLD, 0, { spacing: 4 });
   });
-  const [cx, cy] = toCanvas(0, m(0.3));
+  const [cx, cy] = toCanvas(0, m(0.5));
   text('BACCARAT', cx, cy, 62, GOLD, 0, { spacing: 8 });
   text('BANKER PAYS 19 TO 20', cx, cy + 46, 20, SOFT, 0, { weight: 600, font: 'Georgia, serif', spacing: 2 });
-  const [ncx, ncy] = toCanvas(0, m(0.48));
+  const [ncx, ncy] = toCanvas(0, m(0.65));
   text('NVGR CASINO', ncx, ncy, 26, SOFT, 0, { spacing: 6 });
 }
 // Fit a flat shape's UVs to 0..1 over its bounds, so the layout drawn on a
@@ -357,10 +361,10 @@ export function createBaccaratTable() {
   g.add(discard);
   // The dealer's float, let into the felt before them.
   const tray = new THREE.Mesh(new THREE.BoxGeometry(m(0.56), m(0.02), m(0.12)), new THREE.MeshStandardMaterial({ color: 0x120c08, roughness: 0.7 }));
-  tray.position.set(0, TOP + m(0.004), -D + m(0.42));
+  tray.position.set(0, TOP + m(0.004), HAND_Z);
   g.add(tray);
   const trayRim = new THREE.Mesh(new THREE.BoxGeometry(m(0.58), m(0.016), m(0.14)), CHROME);
-  trayRim.position.set(0, TOP + m(0.002), -D + m(0.42));
+  trayRim.position.set(0, TOP + m(0.002), HAND_Z);
   g.add(trayRim);
 
   // ---------- the scoreboard ----------

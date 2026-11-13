@@ -8,7 +8,7 @@ import { animate, easeInOutCubic, easeOutCubic } from '../scene/animator.js';
 import { isTallScreen } from '../scene/seats.js';
 import { m, FLOOR_Y, SEAT_TOP_Y } from '../scene/scale.js';
 import { seatStack, CHIP_H, CHIP_R } from '../scene/seatChips.js';
-import { BACCARAT_SEATS_3D as SEATS, BACCARAT_LOOK, CARDS_CENTER, betSpot, cardSpot } from '../scene/baccaratTable.js';
+import { BACCARAT_SEATS_3D as SEATS, BACCARAT_LOOK, CARDS_CENTER, CARD_K, betSpot, cardSpot } from '../scene/baccaratTable.js';
 import { revealTimes } from '../baccarat/rules.js';
 
 // The baccarat table's 3D driver: who sits where, the chips on the boxes
@@ -76,6 +76,7 @@ export function createBaccaratDriver({ scene, camera, controls, set, table, deal
       const card = hand[s][count[s]];
       const [rank, suit] = card.split('-');
       const mesh = createCard(rank, suit, { sharp: true });
+      mesh.scale.setScalar(CARD_K);
       mesh.visible = false;
       root.add(mesh);
       cards.push({ mesh, to: cardSpot(s, count[s]), third: count[s] === 2, reveal: times[i], i });
