@@ -4,6 +4,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { createTable } from './table.js';
 import { createPokerTable, POKER_SEATS_3D, POKER_DEALER } from './pokerTable.js';
 import { createRouletteTable, ROULETTE_SEATS_3D, ROULETTE_DEALER } from './rouletteTable.js';
+import { createBaccaratTable, BACCARAT_SEATS_3D, BACCARAT_DEALER } from './baccaratTable.js';
 import { playShoeShuffle } from './shuffle.js';
 import { place } from './furniture.js';
 import { updateSeatedCharacters } from './character.js';
@@ -263,6 +264,21 @@ export function initScene(canvas) {
     }));
   });
 
+  // The baccarat table and its seven chairs.
+  const baccaratSet = new THREE.Group();
+  baccaratSet.visible = false;
+  scene.add(baccaratSet);
+  const baccaratTable = createBaccaratTable();
+  glowing.push(baccaratTable);
+  baccaratTable.userData.setGlow(tableGlow);
+  baccaratSet.add(baccaratTable);
+  const baccaratChairs = new Map();
+  BACCARAT_SEATS_3D.forEach((seat) => {
+    baccaratChairs.set(seat.index, place(baccaratSet, 'dining_chair_02', {
+      x: seat.position.x, z: seat.position.z, yaw: seat.facingAngle, shadows: true,
+    }));
+  });
+
   // Drinks and the waiters who bring them (service.js).
   service = createService({ scene, blackjackSet, pokerSet, blackjackTable: table, pokerTable });
   service.prepare('blackjack');
@@ -276,7 +292,8 @@ export function initScene(canvas) {
     blackjackSet.visible = game === 'blackjack';
     pokerSet.visible = game === 'holdem';
     rouletteSet.visible = game === 'roulette';
-    dealer.position.copy(game === 'holdem' ? POKER_DEALER.position : game === 'roulette' ? ROULETTE_DEALER.position : DEALER.position);
+    baccaratSet.visible = game === 'baccarat';
+    dealer.position.copy(game === 'holdem' ? POKER_DEALER.position : game === 'roulette' ? ROULETTE_DEALER.position : game === 'baccarat' ? BACCARAT_DEALER.position : DEALER.position);
   }
 
   // ---------- the lobby's backdrop ----------
@@ -479,6 +496,7 @@ export function initScene(canvas) {
     pokerChairs,
     setPokerFelt: pokerTable.userData.setFeltTheme,
     rouletteSet, rouletteTable, rouletteChairs,
+    baccaratSet, baccaratTable, baccaratChairs,
   };
 }
 

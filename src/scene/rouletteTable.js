@@ -3,6 +3,7 @@ import { FLOOR_Y, m } from './scale.js';
 import { canvasTex, grain, gold, chrome, wood } from './casinoKit.js';
 import { addTableGlow } from './tableLux.js';
 import { createWheel } from './rouletteWheel.js';
+import { SEAT_CHIP_COLORS } from './seatChips.js';
 import { ROULETTE_SEATS, colorOf } from '../roulette/rules.js';
 import {
   BOARD_W, BOARD_H, MARGIN, ZERO_W, COLUMN_W, ROW_H, BAND_H, CELL_W, GRID_X, GRID_BOTTOM,
@@ -61,7 +62,7 @@ export const ROULETTE_LOOK = new THREE.Vector3(m(0.1), 0, 0);
 
 // Each seat's wheel chips, in a colour of its own, as roulette is played —
 // colours that stand out on the felt and on the red and black numbers.
-export const SEAT_CHIP_COLORS = ['#f2c230', '#2e8cff', '#f4f1ea', '#a65ce8', '#ff8a1c', '#22c7b8'];
+export { SEAT_CHIP_COLORS } from './seatChips.js';
 
 // ---------- the felt ----------
 function paintLayout(ctx) {
@@ -323,7 +324,7 @@ export function createRouletteTable() {
   const floatChips = new THREE.InstancedMesh(new THREE.CylinderGeometry(m(0.019), m(0.019), m(0.0038), 16), new THREE.MeshStandardMaterial({ roughness: 0.5 }), 6 * 3 * 14);
   const fc = new THREE.Color(), fmx = new THREE.Matrix4();
   let fi = 0;
-  SEAT_CHIP_COLORS.forEach((col, c) => {
+  SEAT_CHIP_COLORS.slice(0, 6).forEach((col, c) => {
     for (let row = 0; row < 3; row++) {
       for (let k = 0; k < 14; k++) {
         // Each column lies along the tray, chips on their edges.

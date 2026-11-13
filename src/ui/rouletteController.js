@@ -5,15 +5,13 @@ import { cameraOverride } from '../scene/cameraFocus.js';
 import { animate, easeInOutCubic, easeOutCubic } from '../scene/animator.js';
 import { isTallScreen } from '../scene/seats.js';
 import { m, FLOOR_Y, SEAT_TOP_Y } from '../scene/scale.js';
-import { canvasTex } from '../scene/casinoKit.js';
-import { ROULETTE_SEATS_3D as SEATS, ROULETTE_LOOK, WHEEL_CENTER, WHEEL_RADIUS, SEAT_CHIP_COLORS, spotWorld } from '../scene/rouletteTable.js';
+import { seatStack, CHIP_R, CHIP_H } from '../scene/seatChips.js';
+import { ROULETTE_SEATS_3D as SEATS, ROULETTE_LOOK, WHEEL_CENTER, WHEEL_RADIUS, spotWorld } from '../scene/rouletteTable.js';
 
 // The roulette table's 3D driver: who sits where, the chips on the layout
 // and before each seat, the camera, and the wheel. src/app/rouletteBridge.js
 // watches the room and calls these; nothing here knows the rules.
 
-const CHIP_R = 0.085;
-const CHIP_H = 0.022;
 
 export function createRouletteDriver({ scene, camera, controls, set, table }) {
   const root = new THREE.Group();
@@ -195,57 +193,7 @@ export function createRouletteDriver({ scene, camera, controls, set, table }) {
   });
 
   // ---------- chips ----------
-  // Wheel chips, a colour to each seat: a stack drawn as one cylinder, its
-  // edge striped once per chip.
-  const chipMats = new Map();
-  function chipMaterials(seatIndex, count) {
-    const key = seatIndex + ':' + count;
-    if (chipMats.has(key)) return chipMats.get(key);
-    const color = SEAT_CHIP_COLORS[seatIndex % SEAT_CHIP_COLORS.length];
-    const stripe = seatIndex === 2 ? '#1a1a1a' : '#ffffff';
-    const side = canvasTex(128, 16, (ctx, w, h) => {
-      ctx.fillStyle = color;
-      ctx.fillRect(0, 0, w, h);
-      ctx.fillStyle = stripe;
-      for (let i = 0; i < 6; i++) ctx.fillRect((i / 6) * w, 0, (w / 6) * 0.32, h);
-      ctx.fillStyle = 'rgba(0,0,0,0.4)';
-      ctx.fillRect(0, h - 2, w, 2);
-    });
-    side.wrapS = side.wrapT = THREE.RepeatWrapping;
-    side.repeat.set(1, count);
-    const top = canvasTex(128, 128, (ctx, w) => {
-      ctx.fillStyle = color;
-      ctx.fillRect(0, 0, w, w);
-      ctx.strokeStyle = stripe;
-      ctx.lineWidth = 7;
-      ctx.beginPath();
-      ctx.arc(w / 2, w / 2, w * 0.3, 0, Math.PI * 2);
-      ctx.stroke();
-      for (let i = 0; i < 8; i++) {
-        const a = (i / 8) * Math.PI * 2;
-        ctx.save();
-        ctx.translate(w / 2, w / 2);
-        ctx.rotate(a);
-        ctx.fillStyle = stripe;
-        ctx.fillRect(-6, -w / 2, 12, 16);
-        ctx.restore();
-      }
-      ctx.fillStyle = stripe;
-      ctx.font = "700 22px 'Cinzel', Georgia, serif";
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('NVGR', w / 2, w / 2 + 1);
-    });
-    const mats = [new THREE.MeshStandardMaterial({ map: side, roughness: 0.45 }), new THREE.MeshStandardMaterial({ map: top, roughness: 0.4 }), new THREE.MeshStandardMaterial({ map: top, roughness: 0.4 })];
-    chipMats.set(key, mats);
-    return mats;
-  }
-  function stackMesh(seatIndex, count) {
-    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(CHIP_R, CHIP_R, CHIP_H * count, 28), chipMaterials(seatIndex, count));
-    mesh.castShadow = true;
-    mesh.userData.count = count;
-    return mesh;
-  }
+  const stackMesh = seatStack;
   const chipGroup = new THREE.Group();
   root.add(chipGroup);
   const stacks = new Map();   // 'seat|bet' -> mesh

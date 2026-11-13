@@ -26,6 +26,7 @@ import * as OfflineBJ from './offlineBlackjack.js';
 import * as BJT from './bjTournamentSession.js';
 // Roulette tables, the same way as poker's.
 import * as Roulette from './rouletteSession.js';
+import * as Baccarat from './baccaratSession.js';
 import { isBjTournament, registering as bjRegistering, registrationLabel } from '../blackjack/tournament.js';
 import {
   STARTING_CHIPS, RESTAKE_BELOW, BETTING_SECONDS, TURN_SECONDS, MAX_PUBLIC_SEATS, MIN_PUBLIC_TABLES,
@@ -55,6 +56,8 @@ export let pokerTables = null;
 export let bjTournaments = null;
 // Roulette's tables, for its page.
 export let rouletteTables = null;
+// Baccarat's, for its page.
+export let baccaratTables = null;
 export function setLobbyGame(game) {
   lobbyGame = game;
   formError = '';
@@ -315,6 +318,8 @@ function startTick() {
       Poker.tick(r);
     } else if (r && r.game === 'roulette') {
       Roulette.tick(r);
+    } else if (r && r.game === 'baccarat') {
+      Baccarat.tick(r);
     } else if (r && isBjTournament(r) && BJT.tick(r)) {
       // The tournament's own steps: its start, the minimum bet for the
       // absent, and what follows each hand.
@@ -343,6 +348,11 @@ function tickCountdownOnly() {
   }
   if (session.room.game === 'roulette') {
     const text = Roulette.countdownText(session.room);
+    if (text) el.textContent = text;
+    return;
+  }
+  if (session.room.game === 'baccarat') {
+    const text = Baccarat.countdownText(session.room);
     if (text) el.textContent = text;
     return;
   }
@@ -375,6 +385,7 @@ export async function mutateRoom(code, fn) {
   if (session.room && session.room.offline && session.room.game === 'holdem') { Offline.mutate(fn); return; }
   // And a practice roulette table.
   if (Roulette.isPracticeRoulette(session.room)) { Roulette.practiceMutate(fn); return; }
+  if (Baccarat.isPracticeBaccarat(session.room)) { Baccarat.practiceMutate(fn); return; }
   try {
     const result = await runTransaction(ref(db, 'rooms/' + code), (current) => {
       if (current === null || current === undefined) return current;
@@ -435,6 +446,7 @@ export async function joinRoom(code) {
   // A poker table opens to watch; a seat is taken from there.
   if (snap.val().game === 'holdem') { await Poker.openPokerTable(code); return; }
   if (snap.val().game === 'roulette') { await Roulette.joinRouletteTable(code); return; }
+  if (snap.val().game === 'baccarat') { await Baccarat.joinBaccaratTable(code); return; }
   // A tournament is watched; registering is from its table.
   if (isBjTournament(snap.val())) { await BJT.watchBj(code); return; }
   const chips = (await ensureAccount(session.uid, session.name)).chips;
@@ -544,6 +556,7 @@ export async function leaveTable() {
   if (session.room && session.room.offline) {
     if (OfflineBJ.isOfflineBlackjack(session.room)) OfflineBJ.leave();
     else if (Roulette.isPracticeRoulette(session.room)) Roulette.stopPractice();
+    else if (Baccarat.isPracticeBaccarat(session.room)) Baccarat.stopPractice();
     else Offline.leavePractice();
     session.code = null; session.room = null; session.screen = 'home';
     updateHash(); render();
@@ -560,11 +573,12 @@ export async function leaveTable() {
     loadLobby();
     return;
   }
-  if (session.room && session.room.game === 'roulette') {
+  if (session.room && (session.room.game === 'roulette' || session.room.game === 'baccarat')) {
     // Stop listening first, so getting up is not taken for being removed.
     if (roomUnsub) { roomUnsub(); roomUnsub = null; }
     clearTick();
-    await Roulette.leaveRoulette(code);
+    if (session.room.game === 'baccarat') await Baccarat.leaveBaccarat(code);
+    else await Roulette.leaveRoulette(code);
     await setCurrentRoom(session.uid, null);
     session.code = null; session.room = null; session.screen = 'home';
     if (restakeIfBroke()) formNotice = RESTAKED;
@@ -670,6 +684,12 @@ export async function loadLobby() {
   }
   if (lobbyGame === 'roulette') {
     rouletteTables = await Roulette.loadRouletteTables().catch(() => []);
+    lobbyLoading = false;
+    render();
+    return;
+  }
+  if (lobbyGame === 'baccarat') {
+    baccaratTables = await Baccarat.loadBaccaratTables().catch(() => []);
     lobbyLoading = false;
     render();
     return;
