@@ -35,7 +35,7 @@ import {
   chipLadderForTable, stakesFor, TABLE_STAKES,
   processInsuranceTimeout, moveToSeat, countdownLabel, resultsPauseFor,
   applyBet, applyInsurance, applyHit, applyStand, applyDouble, applySplit, applySurrender,
-  restoreLists,
+  restoreLists, forgetChatIfEmpty,
 } from './roomLogic.js';
 
 export let session = { screen: 'loading', uid: null, name: null, photo: null, chips: 0, character: null, code: null, isAdmin: false, room: null };
@@ -417,6 +417,8 @@ export async function mutateRoom(code, fn) {
       // A blackjack room's empty lists come back missing (roomLogic.js).
       if (!current.game) restoreLists(current);
       fn(current);
+      // Nobody left at the table: its chat goes with them.
+      forgetChatIfEmpty(current);
       return current;
     });
     if (result.committed && result.snapshot.exists()) {
@@ -631,6 +633,7 @@ export async function leaveTable() {
       if (current.players) delete current.players[key];
       current.playerOrder = (current.playerOrder || []).filter((k) => k !== key);
       current.turnOrder = (current.turnOrder || []).filter((e) => e.pid !== key);
+      forgetChatIfEmpty(current);
       return current;
     }).catch(() => {});
   }

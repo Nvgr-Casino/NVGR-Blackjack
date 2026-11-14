@@ -108,6 +108,8 @@ export async function leaveRoulette(code) {
     delete current.players[key];
     current.playerOrder = (current.playerOrder || []).filter((k) => k !== key);
     if (!current.playerOrder.length) current.bettingDeadline = null;
+    // The last one out: the table's chat goes with them.
+    if (!Object.keys(current.players || {}).length) current.chat = null;
     return current;
   }).catch(() => {});
   if (typeof chips === 'number') {

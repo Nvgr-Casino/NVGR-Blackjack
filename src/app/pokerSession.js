@@ -194,6 +194,8 @@ export async function leavePoker(code) {
     if (!(r.players && r.players[key])) return r;
     if (r.tournament) T.withdraw(r, key, Date.now());
     else R.leave(r, key, Date.now());
+    // The last one out: the table's chat goes with them.
+    if (!Object.keys(r.players || {}).length) r.chat = null;
     return r;
   });
   await collectCashout(code);

@@ -210,6 +210,8 @@ export function deal(r, now) {
   if (!r.shoe || r.shoe.length < CUT_AT) {
     r.shoe = newShoe();
     r.shoeSize = r.shoe.length;
+    // A new shoe, a fresh table talk.
+    r.chat = null;
     note(r, 'A new shoe.');
   }
   r.hand = dealCoup(() => r.shoe.pop());

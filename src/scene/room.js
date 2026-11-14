@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createLobbyRoom } from './lobbyRoom.js';
 import { drawCasinoCrest } from './crest.js';
 import { FLOOR_Y, m } from './scale.js';
 import { ROOM_THEMES } from './rooms.js';
@@ -425,6 +426,8 @@ function createSkyline(half) {
  * everything static. scene.js swaps it when the table changes.
  */
 export function createRoom(tier = 3) {
+  // Tier 0 is the lobby's own plain stage (lobbyRoom.js), not a casino room.
+  if (tier === 0) return createLobbyRoom();
   const theme = ROOM_THEMES[tier] || ROOM_THEMES[3];
   const d = roomDims(theme);
   const { half: ROOM_HALF, size: ROOM_SIZE, wallH: WALL_H, ceiling: CEILING_Y } = d;

@@ -62,7 +62,15 @@ export function newShoe(decks = DECKS_IN_SHOE) {
 // card is reached once that count falls to cutCardAt.
 function cutCardDepth() { return Math.round(52 + Math.random() * 26); }
 
+// A table's chat is let go when it is done with: the moment the last
+// player leaves, and with each new shoe, so it never piles up on screen.
+export function forgetChatIfEmpty(r) {
+  if (r && !Object.keys(r.players || {}).length) r.chat = null;
+}
+
 export function shuffleShoe(r) {
+  // A new shoe, a fresh table talk.
+  r.chat = null;
   r.deck = newShoe();
   r.shoeSize = r.deck.length;
   r.cutCardAt = cutCardDepth();

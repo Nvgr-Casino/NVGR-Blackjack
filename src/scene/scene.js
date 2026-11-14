@@ -87,6 +87,11 @@ export function initScene(canvas) {
   // Plain PCF everywhere: the soft variant's extra taps cost about a quarter
   // of the frame on integrated graphics, for edges hardly anyone notices.
   renderer.shadowMap.type = THREE.PCFShadowMap;
+  // A phone draws the shadows a few times a second rather than every frame:
+  // the shadow pass draws the whole table a second time, and what casts
+  // them — figures, cards, chips — moves too little to see the difference.
+  if (lowPower) renderer.shadowMap.autoUpdate = false;
+  let shadowFrame = 0;
   // AgX rather than ACES: ACES pushes saturated colours toward neon as they
   // brighten, which is a good part of why the red felt and the gold glared.
   // AgX rolls them off toward white the way film does, so the felt stays
@@ -150,7 +155,7 @@ export function initScene(canvas) {
   // to begin with; the table's own room replaces it once the room is known
   // (setRoomTheme, from table3dBridge.js).
   let room = null;
-  let roomTier = 0;
+  let roomTier = -1;   // none yet (0 is the lobby's own room)
   let service = null;   // the waiters and cup holders, once the tables exist
   let tableGlow = 0xffc878;
   const glowing = [];
@@ -187,8 +192,8 @@ export function initScene(canvas) {
     scene.fog.near = l.fogNear ?? 18;
     scene.fog.far = l.fogFar ?? 44;
   }
-  // The Royal Flush first: it is what the lobby shows behind it (setBackdrop).
-  setRoomTheme(6);
+  // The lobby's own stage first: it is what the lobby shows (setBackdrop).
+  setRoomTheme(0);
 
   // Three tables, one shown at a time (setGame): the blackjack table with
   // its shoe, rack, discard holder, circles and five chairs, the Hold'em
@@ -549,6 +554,8 @@ export function initScene(canvas) {
   }
 
   const clock = new THREE.Clock();
+  let roomFrame = 0;
+  let roomDelta = 0;
   let lastFrame = performance.now();
   function animate() {
     requestAnimationFrame(animate);
@@ -575,6 +582,7 @@ export function initScene(canvas) {
       if (room && room.userData.update) room.userData.update(d, now);
       if (carousel.on) { stepCarousel(d); placeCarouselCamera(d); updateSeatedCharacters(d); }
       else placeBackdropCamera(d);
+      if (lowPower && ++shadowFrame % 4 === 0) renderer.shadowMap.needsUpdate = true;
       renderer.render(scene, camera);
       return;
     }
@@ -585,9 +593,15 @@ export function initScene(canvas) {
     updateDealerAnimations(delta);
     updateSeatedCharacters(delta);
     service.update(Math.min(0.1, delta));
-    // Anything in the room that moves: the sea, a fire, the lights.
-    if (room && room.userData.update) room.userData.update(Math.min(0.1, delta), now);
+    // Anything in the room that moves: the sea, a fire, the lights. A phone
+    // moves them every other frame, with the time of both.
+    roomDelta += delta;
+    if (room && room.userData.update && (!lowPower || ++roomFrame % 2 === 0)) {
+      room.userData.update(Math.min(0.1, roomDelta), now);
+      roomDelta = 0;
+    }
     if (!cameraOverride.active) controls.update();
+    if (lowPower && ++shadowFrame % 4 === 0) renderer.shadowMap.needsUpdate = true;
     renderer.render(scene, camera);
   }
   animate();

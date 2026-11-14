@@ -97,8 +97,9 @@ function render() {
     const baccarat = session.screen === 'home' && lobbyGame === 'baccarat';
     // The lobby's home page shows every game's table on the carousel.
     const carousel = session.screen === 'home' && lobbyGame === 'home';
-    // The carousel stands in the High Roller, New York at night through the glass.
-    sceneHandles.setBackdrop(backdrop, { tier: carousel ? 5 : 6, show: carousel ? 'carousel' : poker ? 'holdem' : roulette ? 'roulette' : baccarat ? 'baccarat' : 'blackjack', dealerKey: dealerKeyFor(6, 'male'), index: carouselIndex() });
+    // Behind the sign-in page and the lobby, the lobby's own plain stage
+    // (scene/lobbyRoom.js): the tables are the picture, not a room.
+    sceneHandles.setBackdrop(backdrop, { tier: 0, show: carousel ? 'carousel' : poker ? 'holdem' : roulette ? 'roulette' : baccarat ? 'baccarat' : 'blackjack', dealerKey: dealerKeyFor(6, 'male'), index: carouselIndex() });
   }
 
   if (session.screen === 'loading') {
