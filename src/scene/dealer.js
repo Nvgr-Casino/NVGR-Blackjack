@@ -129,7 +129,7 @@ function populateDealer(group, key) {
       if (!bones.hips) { console.warn('Dealer model has no hips bone.'); return; }
       standAtTable(model, bones);
       model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-      prepareFigureMaterials(model);
+      prepareFigureMaterials(model, { hero: true });
       if (spec.bowTie) addBowTie(model, bones, spec.bowTie);
       addNameBadge(model, bones);
       group.add(model);

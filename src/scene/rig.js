@@ -123,9 +123,10 @@ export function withoutRootMotion(clip, hipsBone) {
  * is the plastic sheen the figures had. Anything without its own map is set
  * to fully non-metallic and given at least a cloth-like roughness.
  */
-export function prepareFigureMaterials(model) {
-  // A phone keeps a figure's colour and lets its surface maps go.
-  lightenForPhone(model);
+export function prepareFigureMaterials(model, { hero = false } = {}) {
+  // A phone keeps a figure's colour and lets its surface maps go (all but
+  // the dealer's, whose hands and face are what the table looks at).
+  lightenForPhone(model, { hero });
   model.traverse((o) => {
     if (!o.isMesh) return;
     for (const mat of [].concat(o.material)) {
