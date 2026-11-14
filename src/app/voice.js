@@ -30,6 +30,7 @@ import { SEATS } from '../scene/seats.js';
 import { POKER_SEATS_3D } from '../scene/pokerTable.js';
 import { ROULETTE_SEATS_3D } from '../scene/rouletteTable.js';
 import { BACCARAT_SEATS_3D } from '../scene/baccaratTable.js';
+import { CRAPS_SEATS_3D } from '../scene/crapsTable.js';
 import { audio, masterOut, isSoundOn, setSoundOn, isMusicOn, setMusicOn } from '../scene/sfx.js';
 import { fullscreenButton, attachFullscreen } from './fullscreen.js';
 import { rulesButton } from './rulesGuide.js';
@@ -287,7 +288,7 @@ function hear(p, stream) {
 function seatAt(r, k) {
   const s = seatOfKey(r, k);
   if (s < 0) return null;
-  const seats = isPoker(r) ? POKER_SEATS_3D : r.game === 'roulette' ? ROULETTE_SEATS_3D : r.game === 'baccarat' ? BACCARAT_SEATS_3D : SEATS;
+  const seats = isPoker(r) ? POKER_SEATS_3D : r.game === 'roulette' ? ROULETTE_SEATS_3D : r.game === 'baccarat' ? BACCARAT_SEATS_3D : r.game === 'craps' ? CRAPS_SEATS_3D : SEATS;
   const seat = seats[s];
   return seat ? seat.position : null;
 }

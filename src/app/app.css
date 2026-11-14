@@ -200,6 +200,7 @@ input:focus { outline: none; border-color: var(--accent); }
 .theme-holdem { --t1: #8e2432; --t2: #2b0910; --glow: rgba(220, 70, 90, 0.32); }
 .theme-roulette { --t1: #4a1016; --t2: #0b0a0c; --glow: rgba(214, 64, 64, 0.3); }
 .theme-baccarat { --t1: #1c2f5e; --t2: #070b18; --glow: rgba(214, 178, 96, 0.32); }
+.theme-craps { --t1: #0d3b2a; --t2: #04100b; --glow: rgba(226, 190, 112, 0.32); }
 .theme-slots { --t1: #3a1426; --t2: #0b0508; --glow: rgba(226, 186, 104, 0.36); }
 .theme-tournaments { --t1: #4b358a; --t2: #120b29; --glow: rgba(140, 110, 230, 0.35); }
 .theme-gold { --t1: #8a6526; --t2: #231705; --glow: rgba(240, 200, 120, 0.35); }
@@ -242,7 +243,7 @@ input:focus { outline: none; border-color: var(--accent); }
   .posters { grid-template-columns: repeat(2, 1fr); }
   .posters > :last-child:nth-child(odd) { grid-column: 1 / -1; }
 }
-.poster, .promo, .banner, .feature-card, .sheet-band.theme-blackjack, .sheet-band.theme-holdem, .sheet-band.theme-roulette, .sheet-band.theme-baccarat, .sheet-band.theme-slots {
+.poster, .promo, .banner, .feature-card, .sheet-band.theme-blackjack, .sheet-band.theme-holdem, .sheet-band.theme-roulette, .sheet-band.theme-baccarat, .sheet-band.theme-slots, .sheet-band.theme-craps {
   background:
     radial-gradient(120% 90% at 85% 0%, var(--glow), transparent 60%),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96'%3E%3Cg fill='%23ffffff' fill-opacity='0.05' font-family='Georgia' font-size='24'%3E%3Ctext x='8' y='30'%3E%E2%99%A0%3C/text%3E%3Ctext x='56' y='30'%3E%E2%99%A5%3C/text%3E%3Ctext x='32' y='78'%3E%E2%99%A6%3C/text%3E%3Ctext x='80' y='78'%3E%E2%99%A3%3C/text%3E%3C/g%3E%3C/svg%3E"),
@@ -1642,4 +1643,34 @@ input:focus { outline: none; border-color: var(--accent); }
 @media (max-width: 560px) {
   .sl-feature { grid-template-columns: 1fr; }
   .sl-lines { grid-template-columns: repeat(5, 1fr); gap: 6px; }
+}
+
+/* ---------- craps (crapsBridge.js) ---------- */
+.hud-dock .dock-panel.cr-dock { display: block; width: 100%; }
+.dock-panel.cr-dock { max-width: min(760px, calc((62vh - 170px) * 2.05)); min-width: min(340px, 100%); padding-top: 10px; }
+.cr-board { display: block; width: 100%; height: auto; border-radius: 12px; user-select: none; -webkit-user-select: none; }
+.cr-board.locked { opacity: 0.55; pointer-events: none; }
+.cr-area { cursor: pointer; }
+.cr-area > rect { transition: fill 0.15s ease; }
+.cr-area:hover > rect { fill: rgba(255, 236, 190, 0.08); }
+.cr-area.off { opacity: 0.38; }
+.cr-area.win > rect { fill: rgba(255, 214, 110, 0.22); stroke: #ffe39a; stroke-width: 9; }
+.cr-other { stroke: rgba(0,0,0,0.5); stroke-width: 3; pointer-events: none; }
+.cr-chip, .cr-puck { pointer-events: none; }
+.cr-shooter { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-ink); background: linear-gradient(180deg, #e7c98c, #b8914f); vertical-align: 1px; }
+.dock-actions .cr-roll { font-weight: 700; }
+.status-pill.cr-pill-on { background: rgba(244, 241, 234, 0.92); color: #141414; }
+.dock-panel.cr-result { display: flex; align-items: center; gap: 14px; max-width: 540px; }
+.cr-dice { display: inline-flex; gap: 8px; }
+.cr-die { display: inline-grid; grid-template-columns: repeat(3, 1fr); gap: 2px; width: 44px; height: 44px; padding: 6px; border-radius: 9px;
+  background: linear-gradient(160deg, #e2283f, #8e0d1d); box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 4px 10px rgba(0,0,0,0.5); }
+.cr-die i { border-radius: 50%; }
+.cr-die i.on { background: #fbf7ef; box-shadow: inset 0 1px 1px rgba(0,0,0,0.35); }
+.cr-mini { display: inline-flex; gap: 3px; vertical-align: middle; }
+.cr-mini i { font-style: normal; display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #0f5a3c; color: #fff; }
+.cr-mini i.seven { background: #b3122e; }
+.felt-dot.cr-dot { background: radial-gradient(circle at 40% 35%, #1d7a52, #0b3f2b); }
+@media (max-width: 640px) {
+  .dock-panel.cr-result { gap: 10px; }
+  .cr-die { width: 36px; height: 36px; padding: 5px; }
 }

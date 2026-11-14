@@ -5,6 +5,7 @@ import { createTable } from './table.js';
 import { createPokerTable, POKER_SEATS_3D, POKER_DEALER } from './pokerTable.js';
 import { createRouletteTable, ROULETTE_SEATS_3D, ROULETTE_DEALER } from './rouletteTable.js';
 import { createBaccaratTable, BACCARAT_SEATS_3D, BACCARAT_DEALER } from './baccaratTable.js';
+import { createCrapsTable, CRAPS_SEATS_3D, CRAPS_DEALER } from './crapsTable.js';
 import { playShoeShuffle } from './shuffle.js';
 import { place } from './furniture.js';
 import { updateSeatedCharacters } from './character.js';
@@ -293,6 +294,21 @@ export function initScene(canvas) {
     }));
   });
 
+  // The craps table and its six chairs.
+  const crapsSet = new THREE.Group();
+  crapsSet.visible = false;
+  scene.add(crapsSet);
+  const crapsTable = createCrapsTable();
+  glowing.push(crapsTable);
+  crapsTable.userData.setGlow(tableGlow);
+  crapsSet.add(crapsTable);
+  const crapsChairs = new Map();
+  CRAPS_SEATS_3D.forEach((seat) => {
+    crapsChairs.set(seat.index, place(crapsSet, 'dining_chair_02', {
+      x: seat.position.x, z: seat.position.z, yaw: seat.facingAngle, shadows: true,
+    }));
+  });
+
   // The slot salon: a bank of machines, yours in the middle (slotSalon.js).
   const slotsSet = new THREE.Group();
   slotsSet.visible = false;
@@ -316,9 +332,10 @@ export function initScene(canvas) {
     rouletteSet.visible = game === 'roulette';
     baccaratSet.visible = game === 'baccarat';
     slotsSet.visible = game === 'slots';
+    crapsSet.visible = game === 'craps';
     // The salon has no dealer.
     dealer.visible = game !== 'slots';
-    dealer.position.copy(game === 'holdem' ? POKER_DEALER.position : game === 'roulette' ? ROULETTE_DEALER.position : game === 'baccarat' ? BACCARAT_DEALER.position : DEALER.position);
+    dealer.position.copy(game === 'holdem' ? POKER_DEALER.position : game === 'roulette' ? ROULETTE_DEALER.position : game === 'baccarat' ? BACCARAT_DEALER.position : game === 'craps' ? CRAPS_DEALER.position : DEALER.position);
   }
 
   // ---------- the lobby's carousel ----------
@@ -331,11 +348,12 @@ export function initScene(canvas) {
     { game: 'blackjack', set: blackjackSet, dealer: DEALER.position },
     { game: 'holdem', set: pokerSet, dealer: POKER_DEALER.position },
     { game: 'roulette', set: rouletteSet, dealer: ROULETTE_DEALER.position },
+    { game: 'craps', set: crapsSet, dealer: CRAPS_DEALER.position },
     { game: 'baccarat', set: baccaratSet, dealer: BACCARAT_DEALER.position },
     { game: 'slots', set: slotsSet, dealer: null },
   ];
   // Guests at the tables while the carousel is up (lobbyCrowd.js).
-  const crowd = createLobbyCrowd({ blackjack: blackjackSet, holdem: pokerSet, roulette: rouletteSet, baccarat: baccaratSet });
+  const crowd = createLobbyCrowd({ blackjack: blackjackSet, holdem: pokerSet, roulette: rouletteSet, baccarat: baccaratSet, craps: crapsSet });
   const ARC_R = m(9);
   const ARC_STEP = 0.8;    // radians between neighbours: about 6 m apart
   // The arc moves on a critically damped spring: it gathers speed gently,
@@ -650,6 +668,7 @@ export function initScene(canvas) {
     rouletteSet, rouletteTable, rouletteChairs,
     baccaratSet, baccaratTable, baccaratChairs,
     slotsSet, slotsSalon,
+    crapsSet, crapsTable, crapsChairs,
     carouselTo, carouselHold,
     get carouselPos() { return carousel.pos; },
   };

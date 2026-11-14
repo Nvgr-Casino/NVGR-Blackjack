@@ -29,6 +29,7 @@ import * as BJT from './bjTournamentSession.js';
 import * as Roulette from './rouletteSession.js';
 import * as Baccarat from './baccaratSession.js';
 import * as Slots from './slotsSession.js';
+import * as Craps from './crapsSession.js';
 import { isBjTournament, registering as bjRegistering, registrationLabel } from '../blackjack/tournament.js';
 import {
   STARTING_CHIPS, RESTAKE_BELOW, BETTING_SECONDS, TURN_SECONDS, MAX_PUBLIC_SEATS, MIN_PUBLIC_TABLES,
@@ -59,6 +60,8 @@ export let pokerTables = null;
 export let bjTournaments = null;
 // Roulette's tables, for its page.
 export let rouletteTables = null;
+// Craps's, for its page.
+export let crapsTables = null;
 // Baccarat's, for its page.
 export let baccaratTables = null;
 export function setLobbyGame(game) {
@@ -345,6 +348,10 @@ function startTick() {
       Poker.tick(r);
     } else if (r && r.game === 'roulette') {
       Roulette.tick(r);
+    } else if (r && r.game === 'craps') {
+      Craps.tick(r);
+    } else if (r && r.game === 'slots') {
+      // The salon keeps its own time.
     } else if (r && r.game === 'baccarat') {
       Baccarat.tick(r);
     } else if (r && isBjTournament(r) && BJT.tick(r)) {
@@ -370,6 +377,11 @@ function tickCountdownOnly() {
   if (!el || !session.room) return;
   if (session.room.game === 'holdem') {
     const text = Poker.countdownText(session.room, safeKey(session.uid));
+    if (text) el.textContent = text;
+    return;
+  }
+  if (session.room.game === 'craps') {
+    const text = Craps.countdownText(session.room);
     if (text) el.textContent = text;
     return;
   }
@@ -412,6 +424,7 @@ export async function mutateRoom(code, fn) {
   if (session.room && session.room.offline && session.room.game === 'holdem') { Offline.mutate(fn); return; }
   // And a practice roulette table.
   if (Roulette.isPracticeRoulette(session.room)) { Roulette.practiceMutate(fn); return; }
+  if (Craps.isPracticeCraps(session.room)) { Craps.practiceMutate(fn); return; }
   if (Baccarat.isPracticeBaccarat(session.room)) { Baccarat.practiceMutate(fn); return; }
   try {
     const result = await runTransaction(ref(db, 'rooms/' + code), (current) => {
@@ -478,6 +491,7 @@ export async function joinRoom(code) {
   // A poker table opens to watch; a seat is taken from there.
   if (snap.val().game === 'holdem') { await Poker.openPokerTable(code); return; }
   if (snap.val().game === 'roulette') { await Roulette.joinRouletteTable(code); return; }
+  if (snap.val().game === 'craps') { await Craps.joinCrapsTable(code); return; }
   if (snap.val().game === 'baccarat') { await Baccarat.joinBaccaratTable(code); return; }
   // A tournament is watched; registering is from its table.
   if (isBjTournament(snap.val())) { await BJT.watchBj(code); return; }
@@ -589,6 +603,7 @@ export async function leaveTable() {
   if (session.room && session.room.offline) {
     if (OfflineBJ.isOfflineBlackjack(session.room)) OfflineBJ.leave();
     else if (Roulette.isPracticeRoulette(session.room)) Roulette.stopPractice();
+    else if (Craps.isPracticeCraps(session.room)) Craps.stopPractice();
     else if (Baccarat.isPracticeBaccarat(session.room)) Baccarat.stopPractice();
     else if (Slots.isSlots(session.room)) Slots.leave();
     else Offline.leavePractice();
@@ -610,11 +625,12 @@ export async function leaveTable() {
     loadLobby();
     return;
   }
-  if (session.room && (session.room.game === 'roulette' || session.room.game === 'baccarat')) {
+  if (session.room && (session.room.game === 'roulette' || session.room.game === 'baccarat' || session.room.game === 'craps')) {
     // Stop listening first, so getting up is not taken for being removed.
     if (roomUnsub) { roomUnsub(); roomUnsub = null; }
     clearTick();
     if (session.room.game === 'baccarat') await Baccarat.leaveBaccarat(code);
+    else if (session.room.game === 'craps') await Craps.leaveCraps(code);
     else await Roulette.leaveRoulette(code);
     await setCurrentRoom(session.uid, null);
     session.code = null; session.room = null; session.screen = 'home';
@@ -715,7 +731,13 @@ export async function loadLobby() {
   if (session.uid && restakeIfBroke()) formNotice = RESTAKED;
   lobbyLoading = true; render();
   Leaderboard.loadLeaderboard().then(render, () => {});
-  if (lobbyGame === 'home' || lobbyGame === 'leaderboard') {
+  if (lobbyGame === 'home' || lobbyGame === 'leaderboard' || lobbyGame === 'slots') {
+    lobbyLoading = false;
+    render();
+    return;
+  }
+  if (lobbyGame === 'craps') {
+    crapsTables = await Craps.loadCrapsTables().catch(() => []);
     lobbyLoading = false;
     render();
     return;

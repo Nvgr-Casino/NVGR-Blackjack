@@ -6,6 +6,7 @@ import { SEATS } from './seats.js';
 import { POKER_SEATS_3D } from './pokerTable.js';
 import { ROULETTE_SEATS_3D } from './rouletteTable.js';
 import { BACCARAT_SEATS_3D, betSpot as baccaratBetSpot } from './baccaratTable.js';
+import { CRAPS_SEATS_3D } from './crapsTable.js';
 
 // The lobby carousel's players: a few guests seated at each game's table
 // as it glides past, cards in front of them and chips out, so the floor
@@ -21,6 +22,7 @@ const CAST = {
   holdem: [[0, 'rb_bm03'], [1, 'rb_bf02'], [4, 'rb_bm01'], [5, 'rb_bf04']],
   roulette: [[1, 'rb_bf04'], [3, 'rb_bm05'], [5, 'rb_bf01']],
   baccarat: [[1, 'rb_bm02'], [2, 'rb_bf03'], [5, 'rb_bm01'], [6, 'rb_bf02']],
+  craps: [[0, 'rb_bm03'], [2, 'rb_bf04'], [5, 'rb_bm02'], [3, 'rb_bf01']],
 };
 // A phone has the memory for fewer: two guests a table, of four figures.
 const PHONE = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820;
@@ -56,7 +58,7 @@ export function createLobbyCrowd(sets) {
       (PHONE ? cast.slice(0, 2) : cast).forEach(([seatIndex, castId], k) => {
         const id = PHONE ? (PHONE_FIGURES[castId] || castId) : castId;
         const seat = game === 'blackjack' ? SEATS[seatIndex] : game === 'holdem' ? POKER_SEATS_3D[seatIndex]
-          : game === 'roulette' ? ROULETTE_SEATS_3D[seatIndex] : BACCARAT_SEATS_3D[seatIndex];
+          : game === 'roulette' ? ROULETTE_SEATS_3D[seatIndex] : game === 'craps' ? CRAPS_SEATS_3D[seatIndex] : BACCARAT_SEATS_3D[seatIndex];
         const figure = createCharacter(id);
         figure.position.copy(seat.position);
         figure.rotation.y = seat.facingAngle;
@@ -76,6 +78,9 @@ export function createLobbyCrowd(sets) {
           g.add(chips(seatIndex, 6 + k * 2, seat.stackSpot));
           g.add(chips(seatIndex, 2 + k, seat.betSpot.clone().setY(0.012)));
         } else if (game === 'roulette') {
+          g.add(chips(seatIndex, 8 + k * 3, seat.stackSpot));
+        } else if (game === 'craps') {
+          // Chips in the rail, and a bet out on the line.
           g.add(chips(seatIndex, 8 + k * 3, seat.stackSpot));
         } else {
           g.add(chips(seatIndex, 3 + k, baccaratBetSpot(seatIndex, k % 2 ? 'player' : 'banker')));

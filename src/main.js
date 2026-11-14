@@ -13,6 +13,7 @@ import { mountTable3D, syncRoomToScene, renderTableScreen, attachTableScreen, re
 import { mountPoker3D, syncPokerToScene, renderPokerScreen, attachPokerScreen, leavePokerView } from './app/pokerBridge.js';
 import { mountRoulette3D, syncRouletteToScene, renderRouletteScreen, attachRouletteScreen, leaveRouletteView } from './app/rouletteBridge.js';
 import { mountSlots3D, syncSlotsToScene, renderSlotsScreen, attachSlotsScreen, leaveSlotsView } from './app/slotsBridge.js';
+import { mountCraps3D, syncCrapsToScene, renderCrapsScreen, attachCrapsScreen, leaveCrapsView } from './app/crapsBridge.js';
 import { mountBaccarat3D, syncBaccaratToScene, renderBaccaratScreen, attachBaccaratScreen, leaveBaccaratView } from './app/baccaratBridge.js';
 import { renderAuth, attachAuth } from './app/screens/auth.js';
 import { renderHome, attachHome, setLobbyScene, carouselIndex } from './app/screens/home.js';
@@ -86,6 +87,7 @@ function render() {
     else if (shownGame === 'roulette') leaveRouletteView();
     else if (shownGame === 'baccarat') leaveBaccaratView();
     else if (shownGame === 'slots') leaveSlotsView();
+    else if (shownGame === 'craps') leaveCrapsView();
     else hideBlackjackTable();
     resetTableDiffState();
     clearService();
@@ -97,11 +99,12 @@ function render() {
     const poker = session.screen === 'home' && (lobbyGame === 'holdem' || lobbyGame === 'tournaments');
     const roulette = session.screen === 'home' && lobbyGame === 'roulette';
     const baccarat = session.screen === 'home' && lobbyGame === 'baccarat';
+    const craps = session.screen === 'home' && lobbyGame === 'craps';
     // The lobby's home page shows every game's table on the carousel.
     const carousel = session.screen === 'home' && lobbyGame === 'home';
     // Behind the sign-in page and the lobby, the lobby's own plain stage
     // (scene/lobbyRoom.js): the tables are the picture, not a room.
-    sceneHandles.setBackdrop(backdrop, { tier: 0, show: carousel ? 'carousel' : poker ? 'holdem' : roulette ? 'roulette' : baccarat ? 'baccarat' : 'blackjack', dealerKey: dealerKeyFor(6, 'male'), index: carouselIndex() });
+    sceneHandles.setBackdrop(backdrop, { tier: 0, show: carousel ? 'carousel' : poker ? 'holdem' : roulette ? 'roulette' : baccarat ? 'baccarat' : craps ? 'craps' : 'blackjack', dealerKey: dealerKeyFor(6, 'male'), index: carouselIndex() });
   }
 
   if (session.screen === 'loading') {
@@ -155,6 +158,21 @@ function render() {
       return;
     }
     if (shownGame === 'slots') { leaveSlotsView(); shownGame = null; }
+    if (session.room && session.room.game === 'craps') {
+      if (shownGame !== 'craps') {
+        if (shownGame === 'holdem') leavePokerView();
+        else if (shownGame === 'roulette') leaveRouletteView();
+        else if (shownGame === 'baccarat') leaveBaccaratView();
+        else hideBlackjackTable();
+        resetTableDiffState();
+        shownGame = 'craps';
+      }
+      root.innerHTML = renderCrapsScreen();
+      attachCrapsScreen();
+      syncCrapsToScene(session.room, myKey);
+      return;
+    }
+    if (shownGame === 'craps') { leaveCrapsView(); shownGame = null; }
     if (session.room && session.room.game === 'baccarat') {
       if (shownGame !== 'baccarat') {
         if (shownGame === 'holdem') leavePokerView();
@@ -245,6 +263,7 @@ async function boot() {
   mountRoulette3D(sceneHandles);
   mountBaccarat3D(sceneHandles);
   mountSlots3D(sceneHandles);
+  mountCraps3D(sceneHandles);
   setLobbyScene(sceneHandles);
   mountService(sceneHandles);
   setOnChange(render);

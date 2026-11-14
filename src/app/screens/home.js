@@ -23,6 +23,8 @@ import { ROULETTE_SEATS, colorOf } from '../../roulette/rules.js';
 import * as Baccarat from '../baccaratSession.js';
 import { BACCARAT_SEATS } from '../../baccarat/rules.js';
 import * as Slots from '../slotsSession.js';
+import * as Craps from '../crapsSession.js';
+import { CRAPS_SEATS } from '../../craps/rules.js';
 import * as Offline from '../offlinePoker.js';
 import * as Leaderboard from '../leaderboard.js';
 import { feltTheme } from '../../scene/table.js';
@@ -158,6 +160,7 @@ const FLOOR = [
   { id: 'blackjack', kicker: 'Table game · five seats', name: 'Blackjack', line: 'Beat the dealer to 21 · blackjack pays 3 to 2' },
   { id: 'holdem', kicker: 'Poker · six seats', name: "Texas Hold'em", line: 'No-limit cash games, practice and tournaments' },
   { id: 'roulette', kicker: 'Table game · six seats', name: 'Roulette', line: 'European wheel, one zero · straight up pays 35 to 1' },
+  { id: 'craps', kicker: 'Dice · six seats', name: 'Craps', line: 'Pass Line, odds at true odds, the field and the hard ways' },
   { id: 'baccarat', kicker: 'Table game · seven seats', name: 'Baccarat', line: 'Punto Banco · Banker pays 19 to 20, Tie 8 to 1' },
   { id: 'slots', kicker: 'High Limit Salon · slots', name: 'Crown Jewels', line: 'Five reels, ten lines · five NVGR wilds pay 1,000 a line' },
 ];
@@ -323,6 +326,7 @@ function attachStage() {
       else if (id === 'holdem') await Poker.playPokerNow();
       else if (id === 'roulette') await Roulette.playRouletteNow();
       else if (id === 'slots') await Slots.startSlots();
+      else if (id === 'craps') await Craps.playCrapsNow();
       else await Baccarat.playBaccaratNow();
     } catch (e) { /* the page says what went wrong */ }
     if (S.session.screen !== 'table') Curtain.lift(0);
@@ -473,6 +477,72 @@ function rouletteSheet(t) {
       <div class="sheet-status"><span class="status-title">At the table</span><div class="status-line"><span class="seat-faces">${seatsHtml(t.seats || [], ROULETTE_SEATS)}</span></div></div>
       <div class="sheet-actions">
         <button class="btn btn-primary" data-join-roulette="${esc(t.code)}" ${full ? 'disabled' : ''}>${full ? 'Table full' : 'Take a seat'}</button>
+      </div>
+    </div>`;
+}
+
+// ---------- 2c+. craps ----------
+
+const crapsRolls = (history, n) => `<span class="cr-mini">${history.slice(0, n).map((x) => `<i class="${x === 7 ? 'seven' : ''}">${x}</i>`).join('')}</span>`;
+
+function crapsRow(t) {
+  const full = t.count >= CRAPS_SEATS;
+  return `
+    <li><button class="row" data-sheet="craps" data-key="${esc(t.code)}">
+      <span class="felt-dot cr-dot"></span>
+      <span class="row-main">
+        <span class="row-title">${esc(ROOM_NAMES[t.tier - 1])}</span>
+        <span class="row-sub">${stakesLabel(t.minBet, t.maxBet)} · ${t.point ? 'point ' + t.point : 'coming out'}${t.history.length ? ' · ' + crapsRolls(t.history, 5) : ''}</span>
+      </span>
+      <span class="pill ${full ? 'muted' : t.count ? 'live' : ''}">${full ? 'Full' : `${t.count}/${CRAPS_SEATS}`}</span>
+      ${chevron}
+    </button></li>`;
+}
+
+function crapsPage() {
+  const tables = S.crapsTables;
+  let list;
+  if (S.lobbyLoading && !tables) list = '<div class="empty-state">Loading tables…</div>';
+  else if (!tables || !tables.length) list = '<div class="empty-state">No open tables right now. Play now and one will be set up for you.</div>';
+  else list = `<ul class="rows">${tables.map(crapsRow).join('')}</ul>`;
+  return `
+    ${banner('craps', {
+      kicker: 'Dice · six seats',
+      title: 'Craps',
+      line: 'Pass Line pays even money · odds at true odds · the field, the hard ways and the propositions',
+      actions: '<button class="btn btn-primary btn-lg" id="crapsNowBtn">Play now</button><button class="btn btn-ghost" data-sheet="join" data-key="craps">Join or host</button>',
+    })}
+    <section class="list-section">${listHead('Tables')}${list}</section>
+    <section class="feature-card theme-craps">
+      <div class="feature-text">
+        <span class="kicker">Practice</span>
+        <h2 class="feature-title">The dice to yourself</h2>
+        <p class="feature-line">Learn the come-out, the point and the odds at your own pace. Practice chips: your balance stays as it is.</p>
+      </div>
+      <div class="feature-form">
+        <label class="field-inline"><span>Stakes</span><select id="crPracticeStakes">${TABLE_STAKES.map((st, i) => `<option value="${i}">${esc(ROOM_NAMES[i])} · ${short(st.min)} / ${short(st.max)}</option>`).join('')}</select></label>
+        <button class="btn btn-primary btn-lg" id="crPracticeBtn">Roll for practice</button>
+      </div>
+    </section>`;
+}
+
+function crapsSheet(t) {
+  const full = t.count >= CRAPS_SEATS;
+  return `
+    <div class="sheet-band theme-craps">
+      <span class="tt-room">Craps · table ${esc(t.code)}</span>
+      <h2 class="ls-title">${esc(ROOM_NAMES[t.tier - 1])}</h2>
+    </div>
+    <div class="sheet-body">
+      <div class="facts">
+        ${fact('Bets', stakesLabel(t.minBet, t.maxBet))}
+        ${fact('Seated', `${t.count} of ${CRAPS_SEATS}`)}
+        ${fact('Point', t.point ? String(t.point) : 'Coming out')}
+        ${fact('Last rolls', t.history.length ? crapsRolls(t.history, 6) : 'None yet')}
+      </div>
+      <div class="sheet-status"><span class="status-title">At the table</span><div class="status-line"><span class="seat-faces">${seatsHtml(t.seats || [], CRAPS_SEATS)}</span></div></div>
+      <div class="sheet-actions">
+        <button class="btn btn-primary" data-join-craps="${esc(t.code)}" ${full ? 'disabled' : ''}>${full ? 'Table full' : 'Take a seat'}</button>
       </div>
     </div>`;
 }
@@ -863,10 +933,10 @@ function bjSheet(t) {
 function joinSheet(game) {
   const stakes = POKER_STAKES.map((st, i) => `<option value="${i}">${esc(ROOM_NAMES[i])} · ${short(st.sb)} / ${short(st.bb)}</option>`).join('');
   const rlStakes = TABLE_STAKES.map((st, i) => `<option value="${i}">${esc(ROOM_NAMES[i])} · ${short(st.min)} / ${short(st.max)}</option>`).join('');
-  const theme = game === 'holdem' || game === 'roulette' || game === 'baccarat' ? game : 'blackjack';
+  const theme = game === 'holdem' || game === 'roulette' || game === 'baccarat' || game === 'craps' ? game : 'blackjack';
   return `
     <div class="sheet-band theme-${theme}">
-      <span class="tt-room">${game === 'holdem' ? "Texas Hold'em" : game === 'roulette' ? 'Roulette' : game === 'baccarat' ? 'Baccarat' : 'Blackjack'}</span>
+      <span class="tt-room">${game === 'holdem' ? "Texas Hold'em" : game === 'roulette' ? 'Roulette' : game === 'baccarat' ? 'Baccarat' : game === 'craps' ? 'Craps' : 'Blackjack'}</span>
       <h2 class="ls-title">Join or host</h2>
     </div>
     <div class="sheet-body">
@@ -884,6 +954,8 @@ function joinSheet(game) {
           ? `<div class="join-inline"><select id="rouletteStakes" aria-label="Stakes">${rlStakes}</select><button class="btn" id="rouletteHostBtn">Create</button></div>`
           : game === 'baccarat'
             ? `<div class="join-inline"><select id="baccaratStakes" aria-label="Stakes">${rlStakes}</select><button class="btn" id="baccaratHostBtn">Create</button></div>`
+          : game === 'craps'
+            ? `<div class="join-inline"><select id="crapsStakes" aria-label="Stakes">${rlStakes}</select><button class="btn" id="crapsHostBtn">Create</button></div>`
             : '<button class="btn btn-block" id="hostBtn">Create a private table</button>'}
     </div>`;
 }
@@ -895,6 +967,7 @@ function sheetHtml() {
   else if (sheet.kind === 'poker') { const t = ((S.pokerTables && S.pokerTables.tables) || []).find((x) => x.code === sheet.key); if (t) inner = pokerSheet(t); }
   else if (sheet.kind === 'bj') { const t = (S.lobbyTables || []).find((x) => x.code === sheet.key); if (t) inner = bjSheet(t); }
   else if (sheet.kind === 'roulette') { const t = (S.rouletteTables || []).find((x) => x.code === sheet.key); if (t) inner = rouletteSheet(t); }
+  else if (sheet.kind === 'craps') { const t = (S.crapsTables || []).find((x) => x.code === sheet.key); if (t) inner = crapsSheet(t); }
   else if (sheet.kind === 'baccarat') { const t = (S.baccaratTables || []).find((x) => x.code === sheet.key); if (t) inner = baccaratSheet(t); }
   else if (sheet.kind === 'join') inner = joinSheet(sheet.key);
   if (!inner) return '';
@@ -909,7 +982,7 @@ function sheetHtml() {
 
 // ---------- the page ----------
 
-const PAGES = { home: homePage, blackjack: blackjackPage, holdem: holdemPage, roulette: roulettePage, baccarat: baccaratPage, slots: slotsPage, tournaments: tournamentsPage, leaderboard: leaderboardPage };
+const PAGES = { home: homePage, blackjack: blackjackPage, holdem: holdemPage, roulette: roulettePage, baccarat: baccaratPage, slots: slotsPage, craps: crapsPage, tournaments: tournamentsPage, leaderboard: leaderboardPage };
 
 export function renderHome() {
   if (S.lobbyGame === 'home' || !PAGES[S.lobbyGame]) return `${homePage()}${sheetHtml()}`;
@@ -972,6 +1045,16 @@ export function attachHome() {
   on('playNowBtn', S.playNow);
   on('pokerNowBtn', Poker.playPokerNow);
   on('rouletteNowBtn', Roulette.playRouletteNow);
+  on('crapsNowBtn', Craps.playCrapsNow);
+  on('crPracticeBtn', () => {
+    const sel = document.getElementById('crPracticeStakes');
+    Craps.startPractice(sel ? Number(sel.value) : 0);
+  });
+  on('crapsHostBtn', () => {
+    const sel = document.getElementById('crapsStakes');
+    sheet = null;
+    Craps.hostCrapsTable(sel ? Number(sel.value) : 0);
+  });
   on('rlPracticeBtn', () => {
     const sel = document.getElementById('rlPracticeStakes');
     Roulette.startPractice(sel ? Number(sel.value) : 0);
@@ -1044,6 +1127,7 @@ export function attachHome() {
   all('[data-open-poker]', (el) => { el.onclick = () => { sheet = null; Poker.openPokerTable(el.dataset.openPoker); }; });
   all('[data-join-table]', (el) => { el.onclick = () => { sheet = null; S.joinSpecificPublicTable(el.dataset.joinTable); }; });
   all('[data-join-roulette]', (el) => { el.onclick = () => { sheet = null; Roulette.joinRouletteTable(el.dataset.joinRoulette); }; });
+  all('[data-join-craps]', (el) => { el.onclick = () => { sheet = null; Craps.joinCrapsTable(el.dataset.joinCraps); }; });
   all('[data-join-baccarat]', (el) => { el.onclick = () => { sheet = null; Baccarat.joinBaccaratTable(el.dataset.joinBaccarat); }; });
 
   const code = document.getElementById('joinCode');
