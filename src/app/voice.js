@@ -32,6 +32,7 @@ import { ROULETTE_SEATS_3D } from '../scene/rouletteTable.js';
 import { BACCARAT_SEATS_3D } from '../scene/baccaratTable.js';
 import { audio, masterOut, isSoundOn, setSoundOn, isMusicOn, setMusicOn } from '../scene/sfx.js';
 import * as Social from './social.js';
+import { fullscreenButton, attachFullscreen } from './fullscreen.js';
 import * as S from './session.js';
 
 const ICE = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
@@ -441,7 +442,7 @@ export function attachMusicButton() {
 
 /** The Sound and Music switches, and the Mic button where there's anyone to talk to. */
 export function voiceButtons(r) {
-  const sound = musicButton() + `<button class="hud-btn hud-icon ${isSoundOn() ? '' : 'off'}" id="soundToggleBtn" title="${isSoundOn() ? 'Sound on — tap to turn off' : 'Sound off — tap to turn on'}" aria-label="Sound ${isSoundOn() ? 'on' : 'off'}">${isSoundOn() ? ICON_SOUND : ICON_SOUND_OFF}</button>`;
+  const sound = fullscreenButton() + musicButton() + `<button class="hud-btn hud-icon ${isSoundOn() ? '' : 'off'}" id="soundToggleBtn" title="${isSoundOn() ? 'Sound on — tap to turn off' : 'Sound off — tap to turn on'}" aria-label="Sound ${isSoundOn() ? 'on' : 'off'}">${isSoundOn() ? ICON_SOUND : ICON_SOUND_OFF}</button>`;
   if (!voiceAvailable(r)) return `<span class="hud-voice">${sound}</span>`;
   const on = micState === 'on';
   const title = micState === 'denied' ? 'The mic is blocked for this site — allow it in the browser settings, then tap to try again'
@@ -462,6 +463,7 @@ export function voiceBadge(k) {
 
 export function attachVoice() {
   attachMusicButton();
+  attachFullscreen();
   const sound = document.getElementById('soundToggleBtn');
   if (sound) sound.onclick = () => { setSoundOn(!isSoundOn()); peers.forEach((p) => { if (!p.gain && p.el) p.el.muted = !isSoundOn() || muted.has(p.key); }); S.refresh(); };
   const micBtn = document.getElementById('micToggleBtn');

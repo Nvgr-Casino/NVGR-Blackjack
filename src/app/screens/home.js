@@ -29,6 +29,7 @@ import { characterPortraitDataURL, defaultCharacterFor } from '../../scene/chara
 import { brandMark, esc } from '../uiHelpers.js';
 import * as S from '../session.js';
 import * as Curtain from '../curtain.js';
+import { fullscreenButton, attachFullscreen } from '../fullscreen.js';
 import * as Social from '../social.js';
 
 const SKYLINE = import.meta.env.BASE_URL + 'assets/skyline/night_skyline_ny_4k.webp';
@@ -193,6 +194,7 @@ function homePage() {
           <span class="stage-line" id="stageLine">${esc(g.line)}</span>
         </div>
         <div class="stage-corner">
+          ${fullscreenButton('stage-chip')}
           <button class="stage-chip" id="signOutBtn" title="Sign out" aria-label="Sign out">${ICON.exit}</button>
         </div>
       </header>
@@ -278,6 +280,7 @@ let dragging = false;
 function attachStage() {
   const stage = document.getElementById('stage');
   if (!stage) return;
+  attachFullscreen();
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
   on('stagePrev', () => glideTo(carouselTarget - 1));
   on('stageNext', () => glideTo(carouselTarget + 1));
