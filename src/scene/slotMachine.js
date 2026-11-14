@@ -578,15 +578,18 @@ function paintWins(d, wins, scatter, phase, game) {
   const COLORS = ['#ffd36e', '#ff6b7f', '#6fd3ff', '#8dffa8', '#d39bff', '#ffa45c', '#ff8ad8', '#9ae6ff', '#ffe98a', '#b4ff6e'];
   const cellCenter = ([reel, row]) => [(reel + 0.5) * colW, (row + 0.5) * rowH];
   const show = phase === null ? wins : wins.filter((_, i) => i === phase % Math.max(1, wins.length));
-  show.forEach((win) => {
-    const color = COLORS[win.line % COLORS.length];
-    // The whole line, faint, then the winning cells framed.
-    const pts = game.lines[win.line].map((row, reel) => [(reel + 0.5) * colW, (row + 0.5) * rowH]);
-    ctx.save();
-    ctx.strokeStyle = color; ctx.lineWidth = h * 0.014; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-    ctx.shadowColor = color; ctx.shadowBlur = h * 0.04; ctx.globalAlpha = 0.9;
-    ctx.beginPath(); ctx.moveTo(0, pts[0][1]); pts.forEach(([x, y]) => ctx.lineTo(x, y)); ctx.lineTo(w, pts[pts.length - 1][1]); ctx.stroke();
-    ctx.restore();
+  show.forEach((win, n) => {
+    // A ways win has no line: its symbols are framed where they lie.
+    const color = COLORS[(win.line >= 0 ? win.line : n) % COLORS.length];
+    if (win.line >= 0) {
+      // The whole line, faint, then the winning cells framed.
+      const pts = game.lines[win.line].map((row, reel) => [(reel + 0.5) * colW, (row + 0.5) * rowH]);
+      ctx.save();
+      ctx.strokeStyle = color; ctx.lineWidth = h * 0.014; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      ctx.shadowColor = color; ctx.shadowBlur = h * 0.04; ctx.globalAlpha = 0.9;
+      ctx.beginPath(); ctx.moveTo(0, pts[0][1]); pts.forEach(([x, y]) => ctx.lineTo(x, y)); ctx.lineTo(w, pts[pts.length - 1][1]); ctx.stroke();
+      ctx.restore();
+    }
     win.cells.forEach((c) => {
       const [x, y] = cellCenter(c);
       ctx.save();
@@ -675,6 +678,117 @@ function paintHoldSpin(d, game, view, bet, pots, now) {
   };
   pill(view.banner);
   d.tex.needsUpdate = true;
+}
+
+
+// ---------- the prize wheel (Royal Wheel) ----------
+// A wheel standing on the cabinet in place of the arched topper: a disc of
+// twenty coloured segments with their prizes, in a lacquer and gold ring of
+// lights, a gold pointer at the top. Spun, it runs five turns and more and
+// slows onto the segment drawn, ticking as each passes the pointer.
+const WHEEL_COLS = ['#5a1a7a', '#b8142a', '#1b3f8a', '#0d6a40', '#c8901e'];
+function wheelTexture(game) {
+  const segs = game.wheel.segments;
+  const n = segs.length, step = (Math.PI * 2) / n;
+  return canvasTexture(1024, 1024, (ctx, w) => {
+    const c = w / 2, R = w / 2 - 4;
+    TRIM = 'gold';
+    segs.forEach((seg, i) => {
+      const a = -Math.PI / 2 + i * step;
+      ctx.beginPath(); ctx.moveTo(c, c); ctx.arc(c, c, R, a - step / 2, a + step / 2); ctx.closePath();
+      const big = seg.v >= 100;
+      const g = ctx.createRadialGradient(c, c, 60, c, c, R);
+      const col = big ? '#e8c060' : WHEEL_COLS[i % WHEEL_COLS.length];
+      g.addColorStop(0, big ? '#fff3cc' : '#120612'); g.addColorStop(0.35, col); g.addColorStop(1, big ? '#8a5a12' : '#140414');
+      ctx.fillStyle = g; ctx.fill();
+      ctx.strokeStyle = goldStops(ctx.createLinearGradient(0, 0, w, w)); ctx.lineWidth = 6; ctx.stroke();
+      // The prize, along the segment, reading outward.
+      ctx.save(); ctx.translate(c, c); ctx.rotate(a);
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      ctx.font = FONT(900, seg.v >= 1000 ? 58 : 66);
+      ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+      const label = seg.v + '×';
+      ctx.strokeText(label, R - 40, 0);
+      ctx.fillStyle = big ? '#3a2208' : '#fff3d6'; ctx.fillText(label, R - 40, 0);
+      ctx.restore();
+    });
+    // The pegs round the edge, between the segments.
+    for (let i = 0; i < n; i++) {
+      const a = -Math.PI / 2 + (i + 0.5) * step;
+      ctx.fillStyle = goldStops(ctx.createLinearGradient(c - 20, c - 20, c + 20, c + 20));
+      ctx.beginPath(); ctx.arc(c + Math.cos(a) * (R - 16), c + Math.sin(a) * (R - 16), 12, 0, Math.PI * 2); ctx.fill();
+    }
+    // The hub.
+    ctx.fillStyle = goldStops(ctx.createLinearGradient(c - 120, c - 120, c + 120, c + 120));
+    ctx.beginPath(); ctx.arc(c, c, 120, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2a0a3a'; ctx.beginPath(); ctx.arc(c, c, 100, 0, Math.PI * 2); ctx.fill();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = FONT(900, 44); ctx.fillStyle = goldStops(ctx.createLinearGradient(0, c - 30, 0, c + 30));
+    ctx.fillText('ROYAL', c, c - 18); ctx.font = FONT(700, 30); ctx.fillText('WHEEL', c, c + 26);
+  });
+}
+function buildWheel(M, game, mats) {
+  const R = 0.36, cy = HOUSING_Y1 + 0.43, cz = HOUSING_FRONT - 0.08;
+  const group = new THREE.Group();
+  group.position.set(0, cy, cz);
+  M.add(group);
+  const back = new THREE.Mesh(new THREE.CylinderGeometry(R + 0.04, R + 0.04, 0.07, 64), mats.lacquer);
+  back.rotation.x = Math.PI / 2;
+  group.add(back);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(R + 0.03, 0.014, 12, 96), mats.gold);
+  ring.position.z = 0.036;
+  group.add(ring);
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(R, 96), new THREE.MeshStandardMaterial({ map: wheelTexture(game), roughness: 0.35, metalness: 0.1, emissive: 0xffffff, emissiveIntensity: 0.25 }));
+  disc.material.emissiveMap = disc.material.map;
+  disc.position.z = 0.037;
+  group.add(disc);
+  // The ring of lights.
+  const bulbs = [];
+  const bulbGeo = new THREE.SphereGeometry(0.009, 10, 8);
+  for (let i = 0; i < 32; i++) {
+    const a = (i / 32) * Math.PI * 2;
+    const b = new THREE.Mesh(bulbGeo, new THREE.MeshBasicMaterial({ color: 0xfff0c0, toneMapped: false }));
+    b.position.set(Math.cos(a) * (R + 0.03), Math.sin(a) * (R + 0.03), 0.05);
+    group.add(b);
+    bulbs.push(b);
+  }
+  // The pointer at the top.
+  const ptr = new THREE.Shape();
+  ptr.moveTo(-0.03, 0.03); ptr.lineTo(0.03, 0.03); ptr.lineTo(0, -0.045); ptr.closePath();
+  const pointer = new THREE.Mesh(new THREE.ExtrudeGeometry(ptr, { depth: 0.014, bevelEnabled: true, bevelThickness: 0.003, bevelSize: 0.003, bevelSegments: 2 }), mats.gold);
+  pointer.position.set(0, R + 0.01, 0.045);
+  group.add(pointer);
+  // The stand beneath it, down to the housing.
+  const stand = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.09, 0.1), mats.lacquer);
+  stand.position.set(0, -R - 0.03, -0.01);
+  group.add(stand);
+  const n = game.wheel.segments.length, step = (Math.PI * 2) / n;
+  let spin = null;
+  let angle = 0;
+  return {
+    spin(index, { onTick, onDone, ms = 6500 } = {}) {
+      const from = angle;
+      const to = Math.ceil(from / (Math.PI * 2)) * Math.PI * 2 + 5 * Math.PI * 2 + index * step;
+      spin = { from, to, t0: performance.now(), ms, onTick, onDone, last: Math.floor(from / step) };
+    },
+    update(now) {
+      if (spin) {
+        const u = Math.min(1, (now - spin.t0) / spin.ms);
+        const e = 1 - Math.pow(1 - u, 4);
+        angle = spin.from + (spin.to - spin.from) * e;
+        disc.rotation.z = angle;
+        const seg = Math.floor((angle + step / 2) / step);
+        if (seg !== spin.last) { spin.last = seg; if (spin.onTick) spin.onTick(); pointer.rotation.z = 0.25; }
+        pointer.rotation.z *= 0.8;
+        if (u >= 1) { const done = spin.onDone; spin = null; if (done) setTimeout(done, 0); }
+      }
+      // The lights chase while it turns, and breathe while it rests.
+      bulbs.forEach((b, i) => {
+        const k = spin ? (Math.floor(now / 60) + i) % 4 === 0 ? 1 : 0.35 : 0.55 + 0.45 * Math.sin(now / 400 + i * 0.6);
+        b.material.color.setRGB(1 * k, 0.94 * k, 0.75 * k);
+      });
+    },
+  };
 }
 
 // What every machine wears alike, painted once for the whole bank.
@@ -857,6 +971,12 @@ export function createSlotMachine({ full = false, game: gameId = DEFAULT_GAME } 
   const face = new THREE.Mesh(faceGeo, topper.mat);
   face.position.z = HOUSING_FRONT - 0.004;
   M.add(face);
+  // A wheel machine has its prize wheel where the arched sign would be.
+  let wheelApi = null;
+  if (game.wheel) {
+    [topperBody, rim, face].forEach((o) => { o.visible = false; });
+    wheelApi = buildWheel(M, game, mats);
+  }
   let topperBet = 100;
   let topperPots = null;
   paintTopper(topper, topperBet, game, topperPots);
@@ -1072,6 +1192,7 @@ export function createSlotMachine({ full = false, game: gameId = DEFAULT_GAME } 
     if (lights.mode === 'win' && since > 6) lights = { mode: 'idle', since: now };
     spin.material[1].emissiveIntensity = spinning ? 0.35 : 0.65 + 0.25 * Math.sin(now / 420);
     if (feature && !feature.cleared) featureFrame(now);
+    if (wheelApi) wheelApi.update(now);
     // Cycle through the winning lines one at a time after the first showing.
     if (winState && winLayer) {
       const el = (now - winState.since) / 1000;
@@ -1162,6 +1283,6 @@ export function createSlotMachine({ full = false, game: gameId = DEFAULT_GAME } 
   // Rest on given stops at once (no spin).
   function rest(stops) { reels.forEach((r, i) => r.setPosition(stops[i])); }
 
-  root.userData = { game, setPots, holdSpin, update, spinTo, showWins, setMeters, setBet, pullHandle, pressButton, rest, buttons: Object.values(buttons), get spinning() { return !!spinning; } };
+  root.userData = { game, setPots, holdSpin, spinWheel: (i, o) => wheelApi && wheelApi.spin(i, o), update, spinTo, showWins, setMeters, setBet, pullHandle, pressButton, rest, buttons: Object.values(buttons), get spinning() { return !!spinning; } };
   return root;
 }

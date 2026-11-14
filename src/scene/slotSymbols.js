@@ -70,6 +70,18 @@ function ground(ctx, W, H) {
     for (let x = 6; x < W; x += 9) ctx.fillRect(x, 0, 1, H);
     return;
   }
+  if (STYLE === 'lapis') {
+    // Lapis lazuli: deep blue, flecked with gold.
+    g.addColorStop(0, '#040a20'); g.addColorStop(0.18, '#0c1e52'); g.addColorStop(0.5, '#14307a'); g.addColorStop(0.82, '#0c1e52'); g.addColorStop(1, '#040a20');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    let seed = 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let k = 0; k < 120; k++) {
+      ctx.fillStyle = `rgba(230,196,120,${0.08 + rnd() * 0.18})`;
+      ctx.beginPath(); ctx.arc(rnd() * W, rnd() * H, 0.8 + rnd() * 1.8, 0, Math.PI * 2); ctx.fill();
+    }
+    return;
+  }
   if (STYLE === 'crimson') {
     // Red silk, shaded at the edges, a fine gold lattice woven through.
     g.addColorStop(0, '#2a0306'); g.addColorStop(0.18, '#5a0a12'); g.addColorStop(0.5, '#7a1018'); g.addColorStop(0.82, '#5a0a12'); g.addColorStop(1, '#2a0306');
@@ -1033,6 +1045,204 @@ function drawJadeRoyal(ctx, ch) {
   flourish(ctx, S / 2, S / 2 + 168, 120);
 }
 
+
+// ---------- Royal Wheel ----------
+// The wheel symbol: a small prize wheel in gold, SPIN across it.
+function drawWheelSymbol(ctx) {
+  const c = S / 2, R = 190;
+  halo(ctx, c, c, 240, [255, 200, 90], 0.3);
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 20; ctx.shadowOffsetY = 8;
+  ctx.fillStyle = goldGrad(ctx, c - R, c - R, c + R, c + R);
+  ctx.beginPath(); ctx.arc(c, c, R, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  const cols = ['#7a2aa8', '#c4203a', '#1b4fa8', '#0f7a4a', '#d8a030', '#7a2aa8', '#c4203a', '#1b4fa8', '#0f7a4a', '#d8a030', '#7a2aa8', '#c4203a'];
+  cols.forEach((col, i) => {
+    const a0 = (i / cols.length) * Math.PI * 2, a1 = ((i + 1) / cols.length) * Math.PI * 2;
+    ctx.beginPath(); ctx.moveTo(c, c); ctx.arc(c, c, R - 18, a0, a1); ctx.closePath();
+    const g = ctx.createRadialGradient(c, c, 20, c, c, R);
+    g.addColorStop(0, col); g.addColorStop(1, '#100410');
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = goldGrad(ctx, c - R, c - R, c + R, c + R); ctx.lineWidth = 3; ctx.stroke();
+  });
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2;
+    ctx.fillStyle = '#fff6d6'; ctx.beginPath(); ctx.arc(c + Math.cos(a) * (R - 9), c + Math.sin(a) * (R - 9), 5, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.fillStyle = goldGrad(ctx, c - 60, c - 60, c + 60, c + 60);
+  ctx.beginPath(); ctx.arc(c, c, 58, 0, Math.PI * 2); ctx.fill();
+  // The pointer at the top.
+  ctx.fillStyle = goldGrad(ctx, c - 30, c - R - 30, c + 30, c - R + 30);
+  ctx.beginPath(); ctx.moveTo(c - 26, c - R - 20); ctx.lineTo(c + 26, c - R - 20); ctx.lineTo(c, c - R + 34); ctx.closePath(); ctx.fill();
+  letter(ctx, 'SPIN', c, c + 20, 52, null, { spacing: 4, weight: 900 });
+}
+
+// ---------- Pharaoh's Gold ----------
+const LAPIS = { deep: [4, 10, 40], dark: [12, 34, 110], mid: [30, 70, 190], light: [110, 150, 240], white: [220, 232, 255] };
+const TURQ = { deep: [0, 40, 40], dark: [0, 100, 100], mid: [20, 170, 170], light: [110, 230, 220], white: [220, 255, 250] };
+// The Eye of Horus, in gold, on a lapis plate: the wild.
+function drawEye(ctx) {
+  const c = S / 2;
+  halo(ctx, c, c, 250, [255, 200, 90], 0.4);
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 24; ctx.shadowOffsetY = 10;
+  ctx.fillStyle = goldGrad(ctx, 0, 40, 0, S - 40);
+  ctx.beginPath(); ctx.roundRect(40, 40, S - 80, S - 80, 30); ctx.fill(); ctx.restore();
+  const p = ctx.createRadialGradient(c - 60, c - 80, 20, c, c, 260);
+  p.addColorStop(0, '#2a4aa8'); p.addColorStop(1, '#06102e');
+  ctx.fillStyle = p; ctx.beginPath(); ctx.roundRect(54, 54, S - 108, S - 108, 22); ctx.fill();
+  const gold = goldGrad(ctx, 100, 140, 420, 360);
+  ctx.strokeStyle = gold; ctx.fillStyle = gold; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // The brow.
+  ctx.lineWidth = 22;
+  ctx.beginPath(); ctx.moveTo(110, 170); ctx.quadraticCurveTo(250, 110, 402, 168); ctx.stroke();
+  // The eye's outline, its tail sweeping back.
+  ctx.lineWidth = 16;
+  ctx.beginPath(); ctx.moveTo(120, 238); ctx.quadraticCurveTo(250, 160, 380, 236); ctx.quadraticCurveTo(250, 300, 120, 238); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(380, 236); ctx.lineTo(430, 236); ctx.stroke();
+  // The iris.
+  ctx.beginPath(); ctx.arc(250, 234, 40, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#0a1640'; ctx.beginPath(); ctx.arc(250, 234, 18, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.beginPath(); ctx.arc(240, 224, 7, 0, Math.PI * 2); ctx.fill();
+  // The falcon's markings beneath: the drop and the spiral.
+  ctx.strokeStyle = gold; ctx.lineWidth = 16;
+  ctx.beginPath(); ctx.moveTo(220, 278); ctx.lineTo(200, 360); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(290, 272); ctx.quadraticCurveTo(330, 330, 300, 366); ctx.quadraticCurveTo(270, 396, 250, 360); ctx.quadraticCurveTo(240, 336, 270, 330); ctx.stroke();
+  letter(ctx, 'WILD', c, S - 76, 50, null, { spacing: 14, weight: 900 });
+}
+// A golden pyramid under a rising sun: the scatter.
+function drawPyramid(ctx) {
+  const c = S / 2;
+  halo(ctx, c, c - 20, 250, [255, 210, 120], 0.45);
+  // The sun's rays behind it.
+  ctx.save(); ctx.translate(c, c - 30);
+  for (let k = 0; k < 18; k++) {
+    ctx.rotate(Math.PI / 9);
+    const g = ctx.createLinearGradient(0, 0, 0, -230);
+    g.addColorStop(0, 'rgba(255,220,140,0.5)'); g.addColorStop(1, 'rgba(255,220,140,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(10, 0); ctx.lineTo(0, -230); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+  const apex = [c, 80], left = [c - 200, 360], right = [c + 200, 360], front = [c + 40, 380];
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 24; ctx.shadowOffsetY = 12;
+  ctx.fillStyle = goldGrad(ctx, left[0], 80, front[0], 380);
+  ctx.beginPath(); ctx.moveTo(...apex); ctx.lineTo(...left); ctx.lineTo(...front); ctx.closePath(); ctx.fill(); ctx.restore();
+  ctx.fillStyle = goldGrad(ctx, front[0], 80, right[0], 380, 0.7);
+  ctx.beginPath(); ctx.moveTo(...apex); ctx.lineTo(...front); ctx.lineTo(...right); ctx.closePath(); ctx.fill();
+  // Courses of stone, finely lined.
+  ctx.strokeStyle = 'rgba(90,56,14,0.35)'; ctx.lineWidth = 2;
+  for (let k = 1; k < 9; k++) {
+    const t = k / 9;
+    const l = [apex[0] + (left[0] - apex[0]) * t, apex[1] + (left[1] - apex[1]) * t];
+    const f = [apex[0] + (front[0] - apex[0]) * t, apex[1] + (front[1] - apex[1]) * t];
+    const r = [apex[0] + (right[0] - apex[0]) * t, apex[1] + (right[1] - apex[1]) * t];
+    ctx.beginPath(); ctx.moveTo(...l); ctx.lineTo(...f); ctx.lineTo(...r); ctx.stroke();
+  }
+  // The capstone, bright.
+  ctx.fillStyle = '#fff6d6';
+  ctx.beginPath(); ctx.moveTo(...apex); ctx.lineTo(apex[0] - 22, apex[1] + 32); ctx.lineTo(apex[0] + 6, apex[1] + 36); ctx.closePath(); ctx.fill();
+  glint(ctx, apex[0], apex[1] + 6, 46);
+  letter(ctx, 'FREE SPINS', c, S - 46, 40, null, { spacing: 6, weight: 900 });
+}
+// A scarab of lapis, its wings and legs in gold.
+function drawScarab(ctx) {
+  const c = S / 2;
+  halo(ctx, c, c, 230, LAPIS.mid, 0.3);
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 20; ctx.shadowOffsetY = 10;
+  // Wings outspread.
+  [-1, 1].forEach((sd) => {
+    ctx.fillStyle = goldGrad(ctx, c, c - 60, c + sd * 240, c + 60);
+    ctx.beginPath(); ctx.moveTo(c + sd * 40, c - 10); ctx.quadraticCurveTo(c + sd * 200, c - 120, c + sd * 236, c - 20); ctx.quadraticCurveTo(c + sd * 180, c + 20, c + sd * 40, c + 40); ctx.closePath(); ctx.fill();
+  });
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(90,56,14,0.5)'; ctx.lineWidth = 3;
+  [-1, 1].forEach((sd) => { for (let k = 1; k < 5; k++) { ctx.beginPath(); ctx.moveTo(c + sd * 50, c + 10 - k * 6); ctx.quadraticCurveTo(c + sd * (110 + k * 26), c - 40 - k * 10, c + sd * (150 + k * 20), c - 10 - k * 6); ctx.stroke(); } });
+  // Legs.
+  ctx.strokeStyle = goldGrad(ctx, c - 120, c, c + 120, c + 160); ctx.lineWidth = 9; ctx.lineCap = 'round';
+  [[-1, 60], [1, 60], [-1, 110], [1, 110]].forEach(([sd, y]) => { ctx.beginPath(); ctx.moveTo(c + sd * 40, c + y - 20); ctx.lineTo(c + sd * 110, c + y); ctx.lineTo(c + sd * 130, c + y + 30); ctx.stroke(); });
+  // The body: lapis shell, gold-edged.
+  const body = ctx.createRadialGradient(c - 30, c - 10, 10, c, c + 40, 120);
+  body.addColorStop(0, rgb(LAPIS.light)); body.addColorStop(0.5, rgb(LAPIS.mid)); body.addColorStop(1, rgb(LAPIS.deep));
+  ctx.fillStyle = body; ctx.beginPath(); ctx.ellipse(c, c + 50, 74, 110, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = goldGrad(ctx, c - 74, c - 60, c + 74, c + 160); ctx.lineWidth = 7; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(c, c - 20); ctx.lineTo(c, c + 158); ctx.stroke();
+  // The head and the sun it pushes.
+  ctx.fillStyle = goldGrad(ctx, c - 50, c - 70, c + 50, c - 20);
+  ctx.beginPath(); ctx.ellipse(c, c - 40, 46, 30, 0, 0, Math.PI * 2); ctx.fill();
+  const sun = ctx.createRadialGradient(c - 10, c - 120, 4, c, c - 110, 46);
+  sun.addColorStop(0, '#ffd2a0'); sun.addColorStop(0.5, '#d8402a'); sun.addColorStop(1, '#6a1008');
+  ctx.fillStyle = sun; ctx.beginPath(); ctx.arc(c, c - 112, 42, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = goldGrad(ctx, c - 42, c - 154, c + 42, c - 70); ctx.lineWidth = 5; ctx.stroke();
+  glint(ctx, c - 30, c + 10, 26, 0.8);
+}
+// The ankh in gold, turquoise set in its loop.
+function drawAnkh(ctx) {
+  const c = S / 2;
+  halo(ctx, c, c, 230, [255, 200, 90], 0.3);
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.65)'; ctx.shadowBlur = 22; ctx.shadowOffsetY = 10;
+  const g = goldGrad(ctx, c - 120, 60, c + 120, 460);
+  ctx.strokeStyle = g; ctx.lineWidth = 46; ctx.lineCap = 'butt';
+  ctx.beginPath(); ctx.ellipse(c, 150, 70, 92, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.moveTo(c - 32, 236); ctx.lineTo(c + 32, 236); ctx.lineTo(c + 44, 460); ctx.lineTo(c - 44, 460); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(c - 170, 236); ctx.lineTo(c + 170, 236); ctx.lineTo(c + 180, 296); ctx.lineTo(c - 180, 296); ctx.closePath(); ctx.fill();
+  ctx.restore();
+  const t = ctx.createRadialGradient(c - 20, 140, 6, c, 150, 60);
+  t.addColorStop(0, rgb(TURQ.light)); t.addColorStop(1, rgb(TURQ.dark));
+  ctx.fillStyle = t; ctx.beginPath(); ctx.ellipse(c, 150, 40, 62, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,246,214,0.6)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(c - 164, 244); ctx.lineTo(c + 164, 244); ctx.stroke();
+  glint(ctx, c - 40, 110, 34, 0.9);
+}
+// A blue lotus, open, its petals edged in gold.
+function drawLotus(ctx) {
+  const c = S / 2;
+  halo(ctx, c, c, 230, LAPIS.light, 0.25);
+  const petal = (a, len, w, col0, col1) => {
+    ctx.save(); ctx.translate(c, c + 120); ctx.rotate(a);
+    const g = ctx.createLinearGradient(0, 0, 0, -len);
+    g.addColorStop(0, col0); g.addColorStop(1, col1);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(w, -len * 0.55, 0, -len); ctx.quadraticCurveTo(-w, -len * 0.55, 0, 0); ctx.fill();
+    ctx.strokeStyle = 'rgba(230,196,120,0.75)'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.restore();
+  };
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 8;
+  [-1.15, 1.15, -0.8, 0.8].forEach((a) => petal(a, 230, 70, '#1a2a6a', '#5a8aea'));
+  ctx.restore();
+  [-0.42, 0.42].forEach((a) => petal(a, 270, 72, '#2a3a8a', '#8ab2ff'));
+  petal(0, 300, 78, '#3a4aa8', '#b8d0ff');
+  // The gold heart and the stem's cup.
+  ctx.fillStyle = goldGrad(ctx, c - 80, c + 100, c + 80, c + 150);
+  ctx.beginPath(); ctx.ellipse(c, c + 128, 96, 26, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#2c5a2a'; ctx.fillRect(c - 8, c + 150, 16, 90);
+}
+// The sun disc, gold, held between two serpents' coils.
+function drawSunDisc(ctx) {
+  const c = S / 2;
+  halo(ctx, c, c, 240, [255, 150, 70], 0.35);
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 22; ctx.shadowOffsetY = 10;
+  const sun = ctx.createRadialGradient(c - 50, c - 60, 10, c, c, 150);
+  sun.addColorStop(0, '#ffe2a0'); sun.addColorStop(0.45, '#e2902a'); sun.addColorStop(1, '#7a2a08');
+  ctx.fillStyle = sun; ctx.beginPath(); ctx.arc(c, c - 10, 140, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  ctx.strokeStyle = goldGrad(ctx, c - 150, c - 150, c + 150, c + 150); ctx.lineWidth = 14;
+  ctx.beginPath(); ctx.arc(c, c - 10, 140, 0, Math.PI * 2); ctx.stroke();
+  // Two cobras rising either side.
+  [-1, 1].forEach((sd) => {
+    ctx.strokeStyle = goldGrad(ctx, c + sd * 200, c - 100, c + sd * 140, c + 200); ctx.lineWidth = 22; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(c + sd * 110, c + 190); ctx.quadraticCurveTo(c + sd * 210, c + 120, c + sd * 170, c + 20); ctx.quadraticCurveTo(c + sd * 150, c - 60, c + sd * 190, c - 110); ctx.stroke();
+    ctx.fillStyle = goldGrad(ctx, c + sd * 220, c - 160, c + sd * 160, c - 90);
+    ctx.beginPath(); ctx.ellipse(c + sd * 192, c - 124, 26, 36, sd * 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#c4203a'; ctx.beginPath(); ctx.arc(c + sd * 192, c - 132, 7, 0, Math.PI * 2); ctx.fill();
+  });
+  glint(ctx, c - 60, c - 80, 36);
+}
+// The royals in gold over lapis enamel.
+function drawEgyptRoyal(ctx, ch) {
+  const pal = { A: LAPIS, K: TURQ, Q: LAPIS, J: TURQ }[ch];
+  halo(ctx, S / 2, S / 2, 220, pal.mid, 0.2);
+  if (ch === 'Q') letter(ctx, ch, S / 2 - 40, S / 2 + 100, 270, pal);
+  else letter(ctx, ch, S / 2, S / 2 + 118, 330, pal);
+  flourish(ctx, S / 2, S / 2 + 168, 120);
+}
+
 // Paints one symbol, centred in its cell (W by H symbol units).
 function paint(ctx, sym, logo, W, H) {
   ground(ctx, W, H);
@@ -1066,6 +1276,14 @@ function paint(ctx, sym, logo, W, H) {
   else if (sym === 'pJ') drawPlatinumRoyal(ctx, 'J');
   else if (sym === 'p10') drawPlatinumRoyal(ctx, '10');
   else if (sym === 'pwild') drawPandaWild(ctx);
+  else if (sym === 'wheelsym') drawWheelSymbol(ctx);
+  else if (sym === 'eye') drawEye(ctx);
+  else if (sym === 'pyramid') drawPyramid(ctx);
+  else if (sym === 'scarab') drawScarab(ctx);
+  else if (sym === 'ankh') drawAnkh(ctx);
+  else if (sym === 'lotus') drawLotus(ctx);
+  else if (sym === 'sundisc') drawSunDisc(ctx);
+  else if (sym === 'eA' || sym === 'eK' || sym === 'eQ' || sym === 'eJ') drawEgyptRoyal(ctx, sym[1]);
   else if (sym === 'pearl') drawPearl(ctx);
   else if (sym === 'ingot') drawIngot(ctx);
   else if (sym === 'lantern') drawLantern(ctx);

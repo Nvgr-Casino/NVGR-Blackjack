@@ -138,6 +138,10 @@ export function spin() {
     const seed = seedPots(g);
     feature.jackpots.forEach((k) => { if (k === 'major' || k === 'grand') pots[k] = seed[k]; });
   }
+  const rnd = () => { const b = new Uint32Array(1); globalThis.crypto.getRandomValues(b); return b[0] / 4294967296; };
+  let wheel = null, free = null;
+  if (result.wheel && g.wheel) { wheel = g.spinWheel(rnd); wheel.amount = wheel.prize * state.bet; result.total += wheel.amount; }
+  if (result.free && g.freeSpins) { free = g.playFreeSpins(state.bet, rnd); result.total += free.amount; }
   if (pots) {
     pots.major = Math.round((pots.major + g.jackpots.major.grow) * 1000) / 1000;
     pots.grand = Math.round((pots.grand + g.jackpots.grand.grow) * 1000) / 1000;
@@ -145,13 +149,13 @@ export function spin() {
   }
   state.chips -= state.bet;
   state.spinning = true;
-  state.pending = { stops, result, feature, bet: state.bet };
+  state.pending = { stops, result, feature, wheel, free, bet: state.bet };
   state.last = null;
   state.spins += 1;
   // What the account holds now: the stake gone and the win in.
   save(state.chips + result.total);
   publish();
-  return { stops, result, feature };
+  return { stops, result, feature, wheel, free };
 }
 /** The reels have landed: the win goes on the meter. */
 export function settle() {

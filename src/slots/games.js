@@ -138,10 +138,80 @@ export const JADE_PANDA = makeGame({
   look: { ground: 'crimson', lacquer: 0x0b3324, trim: 'gold', led: [0.55, 1, 0.66], accent: '#c4203a', title: 'JADE PANDA', showcase: ['pwild', 'ingot', 'lantern', 'jade'] },
 });
 
-// Jade Panda joins the salon once its Hold & Spin has been seen on the floor.
-export const PANDA_READY = false;
-export const GAMES = { crownjewels: CROWN_JEWELS, imperialsevens: IMPERIAL_SEVENS, highroller: HIGH_ROLLER, ...(PANDA_READY ? { jadepanda: JADE_PANDA } : {}) };
-export const GAME_LIST = PANDA_READY ? [CROWN_JEWELS, JADE_PANDA, IMPERIAL_SEVENS, HIGH_ROLLER] : [CROWN_JEWELS, IMPERIAL_SEVENS, HIGH_ROLLER];
+// ---------- Royal Wheel ----------
+// A classic three-reel machine with a prize wheel on its topper. The wheel
+// symbol on the third reel's middle row spins the wheel for a prize of up
+// to a thousand times the bet. The Diamond wild doubles a line win. Royal
+// purple lacquer and gold; ivory reel strips.
+export const ROYAL_WHEEL = makeGame({
+  id: 'royalwheel',
+  name: 'Royal Wheel',
+  tagline: 'Three reels · five lines · a prize wheel up to 500× the bet',
+  symbols: ['dwild', 'seven_r', 'seven_b', 'seven_g', 'bar3', 'bar2', 'bar1', 'cherry', 'blank', 'wheelsym'],
+  names: { dwild: 'Diamond Wild', seven_r: 'Ruby Seven', seven_b: 'Sapphire Seven', seven_g: 'Gold Seven', bar3: 'Triple Bar', bar2: 'Double Bar', bar1: 'Bar', cherry: 'Cherries', blank: 'Blank', wheelsym: 'Spin the Wheel' },
+  wild: 'dwild', scatter: null, wildMultiplier: 2,
+  wildNote: 'Stands in for any symbol but the wheel. One in a win doubles it; two make it four times.',
+  lines: FIVE_LINES,
+  pays: { dwild: [800], seven_r: [150], seven_b: [80], seven_g: [60], bar3: [40], bar2: [20], bar1: [10], cherry: [15] },
+  groups: [
+    { id: 'any7', name: 'Any three Sevens', members: ['seven_r', 'seven_b', 'seven_g'], pays: [25] },
+    { id: 'anybar', name: 'Any three Bars', members: ['bar1', 'bar2', 'bar3'], pays: [5] },
+  ],
+  partial: { cherry: { 1: 2, 2: 4 } },
+  wheel: {
+    symbol: 'wheelsym', reel: 2, row: 1,
+    note: 'On the middle row of the third reel, it spins the wheel on the topper for a prize, as a multiple of your bet.',
+    // The wheel's twenty segments, in order round it; `w` is how likely each is.
+    segments: [
+      { v: 5, w: 1 }, { v: 15, w: 1 }, { v: 4, w: 1 }, { v: 25, w: 0.6 }, { v: 6, w: 1 }, { v: 50, w: 0.25 }, { v: 4, w: 1 }, { v: 8, w: 1 }, { v: 500, w: 0.012 }, { v: 5, w: 1 },
+      { v: 10, w: 1 }, { v: 4, w: 1 }, { v: 20, w: 0.8 }, { v: 6, w: 1 }, { v: 100, w: 0.06 }, { v: 5, w: 1 }, { v: 8, w: 1 }, { v: 4, w: 1 }, { v: 30, w: 0.4 }, { v: 10, w: 1 },
+    ],
+  },
+  counts: [
+    // dwild r7 b7 g7 bar3 bar2 bar1 cherry blank wheel
+    [1, 1, 1, 2, 2, 3, 4, 3, 20, 0],
+    [1, 1, 2, 2, 2, 3, 4, 3, 19, 0],
+    [1, 1, 1, 2, 2, 3, 4, 3, 20, 1],
+  ],
+  look: { ground: 'ivory', lacquer: 0x2a0a3a, trim: 'gold', led: [1, 0.78, 0.4], accent: '#7a2aa8', title: 'ROYAL WHEEL', showcase: ['wheelsym', 'seven_r', 'seven_g', 'bar3'] },
+});
+
+// ---------- Pharaoh's Gold ----------
+// 243 ways to win: no lines; a symbol pays for a run of reels from the left
+// that show it anywhere. The Eye of Horus is wild on the middle reels; three
+// or more Pyramids anywhere pay and start ten free spins at three times the
+// win, with five more for three more Pyramids. Bronze lacquer and gold; the
+// reels on lapis.
+export const PHARAOHS_GOLD = makeGame({
+  id: 'pharaohsgold',
+  name: "Pharaoh's Gold",
+  tagline: '243 ways · free spins at 3× · the Eye of Horus wild',
+  symbols: ['eye', 'pyramid', 'scarab', 'ankh', 'lotus', 'sundisc', 'eA', 'eK', 'eQ', 'eJ'],
+  names: { eye: 'Eye of Horus', pyramid: 'Golden Pyramid', scarab: 'Scarab', ankh: 'Ankh', lotus: 'Lotus', sundisc: 'Sun Disc', eA: 'Ace', eK: 'King', eQ: 'Queen', eJ: 'Jack' },
+  wild: 'eye', scatter: 'pyramid',
+  wildNote: 'Wild on the middle three reels: it stands in for every symbol but the Pyramid.',
+  scatterNote: 'Three or more anywhere pay on your whole bet and start ten free spins, every win three times over.',
+  ways: true, betUnit: 25,
+  lines: TEN_LINES,
+  pays: {
+    eye: [20, 80, 300], scarab: [20, 80, 300], ankh: [15, 50, 200], lotus: [10, 30, 120], sundisc: [8, 25, 100],
+    eA: [5, 15, 60], eK: [4, 12, 50], eQ: [3, 11, 45], eJ: [3, 9, 32],
+  },
+  scatterPays: [2, 10, 50],
+  freeSpins: { spins: 10, multiplier: 3, retrigger: 5 },
+  counts: [
+    // eye pyramid scarab ankh lotus sun A K Q J
+    [0, 1, 2, 3, 3, 4, 5, 5, 6, 6],
+    [2, 1, 2, 3, 3, 4, 5, 5, 6, 6],
+    [2, 2, 2, 3, 3, 4, 5, 5, 6, 6],
+    [2, 1, 2, 3, 3, 4, 5, 5, 6, 6],
+    [0, 1, 2, 3, 3, 4, 5, 5, 6, 6],
+  ],
+  look: { ground: 'lapis', lacquer: 0x2a1a0a, trim: 'gold', led: [1, 0.72, 0.32], accent: '#1b4fa8', title: "PHARAOH'S GOLD", showcase: ['pyramid', 'scarab', 'ankh', 'eye'] },
+});
+
+export const GAMES = { crownjewels: CROWN_JEWELS, jadepanda: JADE_PANDA, pharaohsgold: PHARAOHS_GOLD, royalwheel: ROYAL_WHEEL, imperialsevens: IMPERIAL_SEVENS, highroller: HIGH_ROLLER };
+export const GAME_LIST = [CROWN_JEWELS, JADE_PANDA, PHARAOHS_GOLD, ROYAL_WHEEL, IMPERIAL_SEVENS, HIGH_ROLLER];
 /** The jackpots at their seeds, as multiples of the bet. */
 export const seedPots = (game) => (game.jackpots ? Object.fromEntries(Object.entries(game.jackpots).map(([k, v]) => [k, v.seed])) : null);
 export const DEFAULT_GAME = 'crownjewels';

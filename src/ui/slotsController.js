@@ -27,7 +27,8 @@ export function createSlotsDriver({ scene, camera, controls, renderer, set, salo
     const aspect = camera.aspect;
     const tall = aspect < 1;
     // The box to show, in the machine's own metres.
-    const y0 = tall ? 0.86 : 0.74, y1 = tall ? 1.84 : 1.86;
+    const wheel = !!salon.userData.machine.userData.game.wheel;
+    const y0 = tall ? 0.86 : 0.74, y1 = wheel ? (tall ? 2.48 : 2.5) : (tall ? 1.84 : 1.86);
     const halfW = tall ? 0.39 : 0.6;
     // How much of the screen's height the dock covers.
     const dock = tall ? 0.3 : 0.17;
@@ -115,6 +116,7 @@ export function createSlotsDriver({ scene, camera, controls, renderer, set, salo
     currentGame: () => salon.userData.machine.userData.game.id,
     setPots: (pots) => api().setPots(pots),
     holdSpin: (play, opts) => api().holdSpin(play, opts),
+    spinWheel: (i, opts) => api().spinWheel(i, opts),
     spinTo: (stops, opts) => api().spinTo(stops, opts),
     rest: (stops) => api().rest(stops),
     showWins: (wins, scatter) => api().showWins(wins, scatter),

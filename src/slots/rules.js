@@ -103,11 +103,36 @@ export function makeGame(def) {
     });
     return best;
   }
+  // 243 ways: a symbol pays for a run of reels from the left that each show
+  // it (or the wild) anywhere, times the number of ways the run can be made.
+  function waysWins(grid, bet) {
+    const unit = bet / (def.betUnit || 25);
+    const wins = [];
+    const paying = Object.keys(def.pays).filter((sym) => sym !== wild);
+    const seen = new Set();
+    paying.concat([wild]).forEach((sym) => {
+      let run = 0, ways = 1;
+      const cells = [];
+      for (let reel = 0; reel < reels; reel++) {
+        const rowsHit = [0, 1, 2].filter((row) => grid[reel][row] === sym || (sym !== wild && grid[reel][row] === wild));
+        if (!rowsHit.length) break;
+        run++; ways *= rowsHit.length;
+        rowsHit.forEach((row) => cells.push([reel, row]));
+      }
+      if (run < minCount || seen.has(sym)) return;
+      // All-wild runs only when nothing better uses those wilds.
+      if (sym === wild && wins.length) return;
+      seen.add(sym);
+      const pay = payFor(sym, run);
+      if (pay) wins.push({ line: -1, symbol: sym, count: run, ways, amount: Math.round(pay * ways * unit), cells });
+    });
+    return wins;
+  }
   function evaluate(stops, bet) {
     const grid = windowOf(stops);
     const lineBet = bet / lines.length;
-    const wins = [];
-    lines.forEach((rowsOn, line) => {
+    const wins = def.ways ? waysWins(grid, bet) : [];
+    if (!def.ways) lines.forEach((rowsOn, line) => {
       const r = linePay(rowsOn.map((row, reel) => grid[reel][row]));
       if (r) wins.push({ line, symbol: r.symbol, count: r.count, amount: Math.round(r.pay * lineBet), cells: rowsOn.slice(0, r.count).map((row, reel) => [reel, row]) });
     });
@@ -117,6 +142,13 @@ export function makeGame(def) {
       const cells = [];
       grid.forEach((col, reel) => col.forEach((s, row) => { if (s === def.feature.orb) cells.push([reel, row]); }));
       if (cells.length >= def.feature.trigger) feature = { cells };
+    }
+    // A wheel symbol in view on its reel starts the wheel.
+    let wheel = null;
+    if (def.wheel) {
+      const reel = def.wheel.reel;
+      const row = def.wheel.row ?? grid[reel].indexOf(def.wheel.symbol);
+      if (row >= 0 && grid[reel][row] === def.wheel.symbol) wheel = { reel, row };
     }
     let scat = null;
     if (scatter) {
@@ -128,7 +160,40 @@ export function makeGame(def) {
       }
     }
     const total = wins.reduce((a, x) => a + x.amount, 0) + (scat ? scat.amount : 0);
-    return { grid, wins, scatter: scat, feature, total };
+    // Enough scatters start free spins, on a machine that has them.
+    let free = null;
+    if (def.freeSpins && scat && scat.count >= 3) free = { spins: def.freeSpins.spins };
+    return { grid, wins, scatter: scat, feature, wheel, free, total };
+  }
+  // ---------- the wheel ----------
+  // Where the wheel stops: one of its segments, by weight; returns the
+  // segment's index and its prize (a multiple of the bet).
+  function spinWheel(rand) {
+    const segs = def.wheel.segments;
+    const sum = segs.reduce((a, x) => a + x.w, 0);
+    let x = rand() * sum;
+    for (let i = 0; i < segs.length; i++) { if ((x -= segs[i].w) < 0) return { index: i, prize: segs[i].v }; }
+    return { index: 0, prize: segs[0].v };
+  }
+  // ---------- free spins ----------
+  // The run of free games, decided at once: each spin's stops and what it
+  // paid (times the multiplier), more spins on three more scatters.
+  function playFreeSpins(bet, rand) {
+    const fs = def.freeSpins;
+    const draw = (n) => Math.floor(rand() * n);
+    const spins = [];
+    let left = fs.spins, amount = 0;
+    while (left > 0 && spins.length < 100) {
+      left--;
+      const stops = drawStops(draw);
+      const r = evaluate(stops, bet);
+      const won = Math.round(r.total * fs.multiplier);
+      const extra = r.free ? fs.retrigger : 0;
+      left += extra;
+      amount += won;
+      spins.push({ stops, wins: r.wins, scatter: r.scatter, amount: won, extra, left });
+    }
+    return { spins, amount, multiplier: fs.multiplier };
   }
   // ---------- Hold & Spin ----------
   // The pearls that started it lock where they are, each with a prize; the
@@ -169,8 +234,8 @@ export function makeGame(def) {
   }
   const drawStops = (rand = cryptoInt) => strips.map((s) => rand(s.length));
   // The top prize on a line, at a bet: the machine's jackpot.
-  const jackpot = (bet) => (def.jackpots ? def.jackpots.grand.seed * bet : Math.max(...def.pays[wild]) * (bet / lines.length));
+  const jackpot = (bet) => (def.jackpots ? def.jackpots.grand.seed * bet : def.wheel ? Math.max(...def.wheel.segments.map((x) => x.v)) * bet : Math.max(...def.pays[wild]) * (bet / (def.ways ? def.betUnit || 25 : lines.length)));
   const nameOf = (sym) => (def.names && def.names[sym]) || (groups.find((g) => g.id === sym) || {}).name || sym;
 
-  return { ...def, strips, reels, rows, windowOf, linePay, evaluate, drawStops, jackpot, nameOf, minCount, holdSpin };
+  return { ...def, strips, reels, rows, windowOf, linePay, evaluate, drawStops, jackpot, nameOf, minCount, holdSpin, spinWheel, playFreeSpins };
 }

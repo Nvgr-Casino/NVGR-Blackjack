@@ -22,7 +22,7 @@ const SPACING = m(CAB_W + 0.03) / ARC;   // radians between machines
 const BACK = -m(0.15);                   // your machine's back, from the origin
 const GUESTS = PHONE ? [[0, 'rb_bf01']] : [[0, 'rb_bf02'], [3, 'rb_bm02']];
 // Which game stands where, either side of yours.
-const NEIGHBOURS = PHONE ? { 0: 'highroller', 2: 'imperialsevens' } : { 0: 'imperialsevens', 1: 'highroller', 3: 'crownjewels', 4: 'imperialsevens' };
+const NEIGHBOURS = PHONE ? { 0: 'jadepanda', 2: 'imperialsevens' } : { 0: 'imperialsevens', 1: 'jadepanda', 3: 'highroller', 4: 'crownjewels' };
 
 // Where machine i stands and which way it faces.
 function slot(i) {

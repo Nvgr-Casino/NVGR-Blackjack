@@ -61,10 +61,12 @@ function doSpin() {
       const finish = () => {
         animating = false;
         Slots.settle();
-        present(drawn.result, Slots.current(), drawn.feature);
+        present(drawn.result, Slots.current(), drawn.feature || (drawn.free ? { jackpots: [] } : null));
         const now = Slots.current();
         if (now && now.toppedUp) toast('Out of chips — the house has topped you back up to 100,000');
       };
+      if (drawn.wheel) { runWheel(drawn, finish); return; }
+      if (drawn.free) { runFreeSpins(drawn, finish); return; }
       if (!drawn.feature) { finish(); return; }
       // Hold & Spin: any line wins shown first, then the board.
       if (drawn.result.wins.length) driver.showWins(drawn.result.wins, null);
@@ -81,6 +83,54 @@ function doSpin() {
       }, 1700);
     },
   });
+}
+
+// The wheel: any line wins first, then the wheel on the topper spins to its
+// prize, ticking past the pointer.
+function runWheel(drawn, finish) {
+  if (drawn.result.wins.length) driver.showWins(drawn.result.wins, null);
+  featureStart();
+  showBanner('feature', 0, 0, 'Spin the Wheel', 'For up to 500 times your bet');
+  setTimeout(() => {
+    hideBanner();
+    driver.spinWheel(drawn.wheel.index, { onTick: () => countTick(), onDone: () => setTimeout(finish, 700) });
+  }, 1500);
+}
+// Free spins: the reels play on their own, each win at the multiplier,
+// counted on a plaque over the machine.
+let freePlaque = null;
+function plaque(text) {
+  if (!freePlaque) { freePlaque = document.createElement('div'); freePlaque.className = 'sl-free'; document.body.appendChild(freePlaque); }
+  freePlaque.innerHTML = text;
+  requestAnimationFrame(() => freePlaque && freePlaque.classList.add('on'));
+}
+function hidePlaque() { if (freePlaque) { freePlaque.remove(); freePlaque = null; } }
+function runFreeSpins(drawn, finish) {
+  const { spins, multiplier } = drawn.free;
+  driver.showWins([], drawn.result.scatter);
+  featureStart();
+  showBanner('feature', 0, 0, `${spins.length >= 10 ? 10 : spins.length} Free Spins`, `Every win ${multiplier} times over`);
+  let won = 0, total = 10, k = 0;
+  const next = () => {
+    if (k >= spins.length) { setTimeout(() => { hidePlaque(); finish(); }, 900); return; }
+    const sp = spins[k++];
+    plaque(`<span>Free spin <b>${k}</b> of <b>${total}</b></span><span>${multiplier}× · won <b>${fmt(won)}</b></span>`);
+    spinStart();
+    driver.spinTo(sp.stops, {
+      quick: true,
+      onReelStop: (i) => reelStop(i, i === Slots.gameNow().reels - 1),
+      onDone: () => {
+        stopRun();
+        driver.showWins(sp.wins, sp.scatter);
+        won += sp.amount;
+        if (sp.extra) { total += sp.extra; toast(`${sp.extra} more free spins`); featureStart(); }
+        if (sp.amount) winSound(R.winTier(sp.amount, Slots.current().bet) || 'win');
+        plaque(`<span>Free spin <b>${k}</b> of <b>${total}</b></span><span>${multiplier}× · won <b>${fmt(won)}</b></span>`);
+        setTimeout(next, sp.amount ? 1300 : 650);
+      },
+    });
+  };
+  setTimeout(() => { hideBanner(); next(); }, 1800);
 }
 
 // The win: the lines on the reels, the WIN meter counting up, the bells,
@@ -178,6 +228,7 @@ export function leaveSlotsView() {
   hideBanner();
   closePays();
   closeMachines();
+  hidePlaque();
   animating = false;
   shownFor = null;
   winShown = 0;
@@ -200,7 +251,7 @@ export function renderSlotsScreen() {
         <button class="hud-btn" id="leaveBtn">← Leave</button>
         <div class="hud-table">
           <span class="hud-code">${esc(game.name)}</span>
-          <span class="hud-sub">High Limit Salon · ${game.lines.length} lines</span>
+          <span class="hud-sub">High Limit Salon · ${game.ways ? "243 ways" : game.lines.length + " lines"}</span>
         </div>
       </div>
       <div class="hud-right">${voiceButtons(r)}</div>
@@ -211,7 +262,7 @@ export function renderSlotsScreen() {
         <div class="sl-meter"><span>Balance</span><b id="slBalance">${fmt(r.chips)}</b></div>
         <div class="sl-bet">
           <button class="sl-step" id="slBetDown" ${!busy && canDown ? '' : 'disabled'} aria-label="Lower bet">−</button>
-          <div class="sl-bet-val"><span>Bet</span><b>${fmt(r.bet)}</b><small>${game.lines.length} lines × ${short(lineBet)}</small></div>
+          <div class="sl-bet-val"><span>Bet</span><b>${fmt(r.bet)}</b><small>${game.ways ? "243 ways" : game.lines.length + " lines × " + short(lineBet)}</small></div>
           <button class="sl-step" id="slBetUp" ${!busy && canUp ? '' : 'disabled'} aria-label="Raise bet">+</button>
         </div>
         <button class="sl-spin ${busy ? 'spinning' : ''}" id="slSpinBtn" ${r.chips < r.bet && !busy ? 'disabled' : ''} aria-label="Spin"><span>${busy ? '' : 'SPIN'}</span></button>
@@ -251,12 +302,12 @@ window.addEventListener('keydown', (e) => {
 const BANNER = { great: 'Great win', big: 'Big win', mega: 'Mega win' };
 let banner = null;
 let bannerTimer = null;
-function showBanner(tier, amount, ms, title = null) {
+function showBanner(tier, amount, ms, title = null, sub = 'Six pearls · three respins') {
   hideBanner();
   banner = document.createElement('div');
   banner.className = `sl-banner tier-${tier}`;
   const feature = tier === 'feature';
-  banner.innerHTML = `<div class="sl-banner-inner"><span class="sl-banner-title">${esc(title || BANNER[tier])}</span>${feature ? '<span class="sl-banner-sub">Six pearls · three respins</span>' : '<span class="sl-banner-amount" id="slBannerAmount">0</span>'}</div>${'<i></i>'.repeat(tier === 'great' || feature ? 14 : 32)}`;
+  banner.innerHTML = `<div class="sl-banner-inner"><span class="sl-banner-title">${esc(title || BANNER[tier])}</span>${feature ? `<span class="sl-banner-sub">${esc(sub)}</span>` : '<span class="sl-banner-amount" id="slBannerAmount">0</span>'}</div>${'<i></i>'.repeat(tier === 'great' || feature ? 14 : 32)}`;
   banner.querySelectorAll('i').forEach((i) => {
     i.style.left = Math.random() * 100 + '%';
     i.style.animationDelay = Math.random() * 1.6 + 's';
@@ -331,13 +382,15 @@ function openPays() {
   if (!r) return;
   const game = gameOf(r.gameId);
   const lineBet = r.bet / game.lines.length;
+  const unitBet = game.ways ? r.bet / game.betUnit : lineBet;
   const pay = (arr, unit) => arr.map((x, k) => `<span><em>${countLabel(game, k)}</em> ${fmt(x * unit)}</span>`).join('');
-  const row = (sym) => `<div class="sl-pay"><img src="${symbolUrl(game, sym)}" alt="${esc(game.nameOf(sym))}"><div class="sl-pay-text"><b>${esc(game.nameOf(sym))}</b>${pay(game.pays[sym], lineBet)}${game.partial && game.partial[sym] ? Object.entries(game.partial[sym]).map(([n, x]) => `<span><em>${n}×</em> ${fmt(x * lineBet)}</span>`).join('') : ''}</div></div>`;
+  const row = (sym) => `<div class="sl-pay"><img src="${symbolUrl(game, sym)}" alt="${esc(game.nameOf(sym))}"><div class="sl-pay-text"><b>${esc(game.nameOf(sym))}</b>${pay(game.pays[sym], unitBet)}${game.partial && game.partial[sym] ? Object.entries(game.partial[sym]).map(([n, x]) => `<span><em>${n}×</em> ${fmt(x * lineBet)}</span>`).join('') : ''}</div></div>`;
   const features = [`<div class="sl-pay big"><img src="${symbolUrl(game, game.wild)}" alt="Wild"><div class="sl-pay-text"><b>${esc(game.nameOf(game.wild))}</b><span class="note">${esc(game.wildNote || '')}</span>${pay(game.pays[game.wild], lineBet)}</div></div>`];
   if (game.scatter) features.push(`<div class="sl-pay big"><img src="${symbolUrl(game, game.scatter)}" alt="Scatter"><div class="sl-pay-text"><b>${esc(game.nameOf(game.scatter))}</b><span class="note">${esc(game.scatterNote || '')}</span>${game.scatterPays.map((x, k) => `<span><em>${k + 3}×</em> ${fmt(x * r.bet)}</span>`).join('')}</div></div>`);
+  if (game.wheel) features.push(`<div class="sl-pay big"><img src="${symbolUrl(game, game.wheel.symbol)}" alt="Wheel"><div class="sl-pay-text"><b>${esc(game.nameOf(game.wheel.symbol))}</b><span class="note">${esc(game.wheel.note)}</span><span>Prizes from ${fmt(Math.min(...game.wheel.segments.map((x) => x.v)) * r.bet)} to ${fmt(Math.max(...game.wheel.segments.map((x) => x.v)) * r.bet)}</span></div></div>`);
   if (game.feature) features.push(`<div class="sl-pay big"><img src="${symbolUrl(game, game.feature.orb)}" alt="Bonus"><div class="sl-pay-text"><b>${esc(game.nameOf(game.feature.orb))}</b><span class="note">${esc(game.feature.note)}</span></div></div>`);
   const groups = (game.groups || []).map((g) => `<div class="sl-pay"><div class="sl-pay-text"><b>${esc(g.name)}</b><span class="note">${g.members.map((m) => esc(game.nameOf(m))).join(', ')}, in any order</span>${pay(g.pays, lineBet)}</div></div>`).join('');
-  const symbols = game.symbols.filter((x) => x !== game.wild && x !== game.scatter && x !== 'blank' && (!game.feature || x !== game.feature.orb));
+  const symbols = game.symbols.filter((x) => x !== game.wild && x !== game.scatter && x !== 'blank' && (!game.feature || x !== game.feature.orb) && (!game.wheel || x !== game.wheel.symbol));
   pays = document.createElement('div');
   pays.className = 'rg-overlay';
   pays.innerHTML = `
@@ -345,14 +398,14 @@ function openPays() {
       <header class="rg-head">
         <span class="rg-kicker">${esc(game.name)} · bet ${fmt(r.bet)}</span>
         <h2>Pay table</h2>
-        <p class="rg-lede">Wins on a line pay left to right, from the first reel, at your bet of ${fmt(lineBet)} a line.</p>
+        <p class="rg-lede">${game.ways ? `243 ways: a symbol pays for a run of reels from the left that show it anywhere, times the ways it can be made, at ${fmt(r.bet / game.betUnit)} a way.` : `Wins on a line pay left to right, from the first reel, at your bet of ${fmt(lineBet)} a line.`}</p>
         <button class="rg-close" aria-label="Close">×</button>
       </header>
       <div class="rg-body">
         <section class="sl-feature">${features.join('')}</section>
         ${game.jackpots ? `<section><h3>Jackpots</h3><div class="sl-pay-grid">${jackpotRows(game, r)}</div></section>` : ''}
         <section><h3>Symbols</h3><div class="sl-pay-grid">${symbols.map(row).join('')}${groups}</div></section>
-        <section><h3>The ${game.lines.length === 10 ? 'ten' : 'five'} lines</h3><div class="sl-lines ${game.reels === 3 ? 'three' : ''}">${game.lines.map(lineSvg).join('')}</div></section>
+        ${game.ways ? '' : `<section><h3>The ${game.lines.length === 10 ? 'ten' : 'five'} lines</h3><div class="sl-lines ${game.reels === 3 ? 'three' : ''}">${game.lines.map(lineSvg).join('')}</div></section>`}
       </div>
       <footer class="rg-foot"><button class="btn btn-primary" data-rg-close>Back to the reels</button></footer>
     </div>`;

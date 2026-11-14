@@ -1,6 +1,6 @@
 // The salon's machines: their pay tables read right, and each one's
 // long-run return where it should be. Run: node tests/slots-rules.test.mjs
-import { GAME_LIST, CROWN_JEWELS as CJ, IMPERIAL_SEVENS as IS, HIGH_ROLLER as HR, JADE_PANDA as JP, seedPots } from '../src/slots/games.js';
+import { GAME_LIST, CROWN_JEWELS as CJ, IMPERIAL_SEVENS as IS, HIGH_ROLLER as HR, JADE_PANDA as JP, ROYAL_WHEEL as RW, PHARAOHS_GOLD as PG, seedPots } from '../src/slots/games.js';
 
 let failed = 0;
 const check = (name, ok) => { console.log((ok ? 'PASS ' : 'FAIL ') + name); if (!ok) failed++; };
@@ -49,6 +49,22 @@ check('six pearls trigger the feature', (() => {
   return !!JP.evaluate(stops, 100).feature;
 })());
 
+// Royal Wheel and Pharaoh's Gold.
+check('the wheel symbol on the middle of reel three spins the wheel', (() => {
+  const i = RW.strips[2].indexOf('wheelsym');
+  const stops = [0, 0, (i - 1 + RW.strips[2].length) % RW.strips[2].length];
+  return !!RW.evaluate(stops, 100).wheel;
+})());
+check('a wheel spin lands on a segment', (() => { const w = RW.spinWheel(() => 0.5); return w.index >= 0 && w.prize > 0; })());
+check('243 ways: a run of reels showing a symbol pays, times its ways', (() => {
+  // Stops that put a scarab in view on the first three reels.
+  const stops = [0, 1, 2, 3, 4].map((reel) => (PG.strips[reel].indexOf('scarab') - 1 + PG.strips[reel].length) % PG.strips[reel].length);
+  const r = PG.evaluate(stops, 2500);
+  const w = r.wins.find((x) => x.symbol === 'scarab');
+  return !!w && w.count >= 3 && w.ways >= 1 && w.amount === PG.pays.scarab[w.count - 3] * w.ways * 100;
+})());
+check('free spins run and pay', (() => { let a = 1; const r = () => { a = (a * 16807) % 2147483647; return a / 2147483647; }; const f = PG.playFreeSpins(100, r); return f.spins.length >= 10 && f.multiplier === 3; })());
+
 // The returns, by simulation with a seeded generator.
 GAME_LIST.forEach((g) => {
   // mulberry32: a generator good enough not to bias the result.
@@ -62,6 +78,8 @@ GAME_LIST.forEach((g) => {
     const r = g.evaluate(g.drawStops(rand), 10);
     let w = r.total;
     if (r.feature) { features++; w += g.holdSpin(r.feature.cells, 10, p, rnd).amount; }
+    if (r.wheel) { features++; w += g.spinWheel(rnd).prize * 10; }
+    if (r.free) { features++; w += g.playFreeSpins(10, rnd).amount; }
     back += w;
     if (w) hits++;
     top = Math.max(top, w / 10);

@@ -1703,3 +1703,15 @@ input:focus { outline: none; border-color: var(--accent); }
 
 .sl-banner-sub { margin-top: 10px; font-family: var(--brand); font-weight: 700; font-size: clamp(16px, 2.6vw, 24px); letter-spacing: 0.24em; text-transform: uppercase; color: #f6e3b4; text-shadow: 0 2px 10px rgba(0,0,0,0.6); }
 .sl-banner.tier-feature { background: radial-gradient(ellipse at 50% 45%, rgba(60,6,14,0.6), rgba(0,0,0,0.35) 70%); pointer-events: none; }
+
+/* The free spins plaque over the machine. */
+.sl-free {
+  position: fixed; left: 50%; top: calc(64px + env(safe-area-inset-top, 0px)); z-index: 30; transform: translate(-50%, -8px);
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 20px; border-radius: 14px;
+  background: linear-gradient(180deg, rgba(40,26,10,0.95), rgba(14,9,4,0.95)); border: 1px solid rgba(226,190,112,0.7);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5), 0 0 24px rgba(255,190,80,0.25);
+  font-family: var(--brand); letter-spacing: 0.08em; color: #f6e3b4; text-transform: uppercase; font-size: 13px;
+  opacity: 0; transition: opacity 0.25s ease, transform 0.25s ease; pointer-events: none;
+}
+.sl-free.on { opacity: 1; transform: translate(-50%, 0); }
+.sl-free b { color: #ffd88e; font-size: 16px; }
