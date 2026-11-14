@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { FLOOR_Y, m } from './scale.js';
 import { marble } from './casinoKit.js';
-import { crown } from './royalFlush.js';
+import { LOGO_URL } from '../app/uiHelpers.js';
 
 // The lobby's own room: not a casino room but a stage for the games. A
 // dark, polished floor with fine gold rings inlaid along the arc the
@@ -90,43 +90,62 @@ function backdropTexture() {
 }
 
 const GOLD = new THREE.MeshStandardMaterial({ color: 0xd8b25e, roughness: 0.22, metalness: 0.95, emissive: 0x2a1c06, emissiveIntensity: 0.45 });
+// The house's crest, as a luxury hotel shows its emblem: a tall slab of
+// black marble framed in gold, the NVGR crest set into its face and lit,
+// on a low two-step base of the same marble banded in gold.
 function monument(room, x, z) {
   const BLACK = marble('#0c0b0e', '#5a5866', { veins: 16 });
-  const steps = [[m(2.6), m(0.18)], [m(2.0), m(0.18)], [m(1.3), m(1.25)]];
   let y = FLOOR_Y;
-  steps.forEach(([w, h], i) => {
-    const block = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), BLACK);
-    block.position.set(x, y + h / 2, z);
-    block.castShadow = block.receiveShadow = true;
-    room.add(block);
-    // A gold band round the top of each step.
-    const band = new THREE.Mesh(new THREE.BoxGeometry(w + m(0.04), m(0.05), w + m(0.04)), GOLD);
-    band.position.set(x, y + h - m(0.025), z);
+  [[m(3.0), m(0.16)], [m(2.5), m(0.16)]].forEach(([w, h]) => {
+    const step = new THREE.Mesh(new THREE.BoxGeometry(w, h, w * 0.5), BLACK);
+    step.position.set(x, y + h / 2, z);
+    step.receiveShadow = true;
+    room.add(step);
+    const band = new THREE.Mesh(new THREE.BoxGeometry(w + m(0.03), m(0.035), w * 0.5 + m(0.03)), GOLD);
+    band.position.set(x, y + h - m(0.018), z);
     room.add(band);
-    if (i === 2) {
-      // The house's name in gold on the column's face.
-      const plate = new THREE.Mesh(new THREE.BoxGeometry(w * 0.7, m(0.22), m(0.02)), GOLD);
-      plate.position.set(x, y + h * 0.55, z + w / 2 + m(0.012));
-      room.add(plate);
-    }
     y += h;
   });
-  const c = crown(m(0.95));
-  c.position.set(x, y, z);
-  // A statue: cast all in gold — the velvet, the ermine and the pearls too —
-  // with only the jewels kept in colour.
-  c.traverse((o) => {
-    if (!o.isMesh) return;
-    o.castShadow = true;
-    if (!(o.material && o.material.clearcoat)) o.material = GOLD;
+  // The slab.
+  const W = m(2.0), H = m(2.9), D = m(0.32);
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(W, H, D), BLACK);
+  slab.position.set(x, y + H / 2, z);
+  slab.castShadow = slab.receiveShadow = true;
+  room.add(slab);
+  // A gold frame round its face, and a fine inner line.
+  const frame = (w, h, t, dz) => {
+    [[w, t, 0, h / 2 - t / 2], [w, t, 0, -h / 2 + t / 2], [t, h, w / 2 - t / 2, 0], [t, h, -w / 2 + t / 2, 0]].forEach(([fw, fh, fx, fy]) => {
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(fw, fh, m(0.03)), GOLD);
+      bar.position.set(x + fx, y + H / 2 + fy, z + D / 2 + dz);
+      room.add(bar);
+    });
+  };
+  frame(W + m(0.06), H + m(0.06), m(0.07), m(0.01));
+  frame(W - m(0.26), H - m(0.26), m(0.02), m(0.012));
+  // The crest, glowing softly on the marble.
+  const crest = new THREE.Mesh(
+    new THREE.PlaneGeometry(W * 0.8, W * 0.8),
+    new THREE.MeshBasicMaterial({ transparent: true, toneMapped: false, depthWrite: false, opacity: 0 }),
+  );
+  crest.position.set(x, y + H * 0.56, z + D / 2 + m(0.02));
+  room.add(crest);
+  new THREE.TextureLoader().load(LOGO_URL, (t) => {
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 8;
+    crest.material.map = t;
+    crest.material.opacity = 1;
+    crest.material.needsUpdate = true;
   });
-  room.add(c);
-  // Its own warm light from above and in front.
-  const spot = new THREE.SpotLight(0xffe2b0, 260, m(14), 0.42, 0.6, 1.6);
-  spot.position.set(x, y + m(5), z + m(4));
-  spot.target.position.set(x, y + m(0.6), z);
+  // A gold cap along the top.
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(W + m(0.16), m(0.08), D + m(0.12)), GOLD);
+  cap.position.set(x, y + H + m(0.04), z);
+  room.add(cap);
+  // Lit from above and in front, and a soft gleam across its face.
+  const spot = new THREE.SpotLight(0xffe2b0, 220, m(14), 0.4, 0.7, 1.6);
+  spot.position.set(x, y + H + m(3), z + m(4));
+  spot.target.position.set(x, y + H * 0.5, z);
   room.add(spot, spot.target);
-  return (dt) => { c.rotation.y += dt * 0.18; };
+  return () => {};
 }
 
 export function createLobbyRoom() {
@@ -152,12 +171,9 @@ export function createLobbyRoom() {
   wall.position.y = (CEILING + FLOOR_Y) / 2 + 2;
   room.add(wall);
 
-  // The centrepiece: the house's crown, cast large in gold, on a stepped
-  // plinth of black marble banded in gold, at the centre of the tables'
-  // arc — so whichever table is in the middle, it stands behind the dealer.
-  // It turns slowly in a light of its own.
-  const turn = monument(room, 0, -ARC_R);
-  room.userData.update = (dt) => turn(dt);
+  // The centrepiece, at the centre of the tables' arc — so whichever table
+  // is in the middle, it stands behind the dealer.
+  monument(room, 0, -ARC_R);
 
   return room;
 }
