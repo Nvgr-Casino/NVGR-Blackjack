@@ -9,7 +9,7 @@ import * as R from '../roulette/rules.js';
 import { BOARD_W, BOARD_H, AREA_BETS, LINE_BETS, areaRect, spotOf, numberFill, FELT_COLOR, LINE_COLOR } from '../roulette/layout.js';
 import { SEAT_CHIP_COLORS } from '../scene/rouletteTable.js';
 import { chipButtonDataURL } from '../scene/chip.js';
-import { rouletteSpinSound, preloadRouletteSounds, winChime, croupierSay, isSoundOn, setSoundOn } from '../scene/sfx.js';
+import { rouletteSpinSound, preloadRouletteSounds, winChime, croupierSay, isSoundOn } from '../scene/sfx.js';
 import { spinPlan, seedFor } from '../roulette/spinPlan.js';
 import { characterPortraitDataURL, defaultCharacterFor } from '../scene/character.js';
 import { dealerKeyFor } from '../scene/dealer.js';
@@ -18,7 +18,8 @@ import { esc, HUD_ICONS } from './uiHelpers.js';
 import { playerCardAttrs, playerCardSheet, attachPlayerCard } from './playerCard.js';
 import * as S from './session.js';
 import * as Roulette from './rouletteSession.js';
-import { musicButton, attachMusicButton } from './voice.js';
+import { syncVoice, voiceButtons, voiceBadge, attachVoice } from './voice.js';
+import { seatPickerHtml, attachSeatPicker, closeSeatPicker } from './seatPicker.js';
 
 let driver = null;
 let scene = null;
@@ -121,6 +122,7 @@ export function syncRouletteToScene(room, myKey) {
   driver.setHistory((room.history || []).slice(0, 16), room.minBet || 100, room.maxBet || 2000);
   frameWheel(room);
   moments(room, me);
+  syncVoice(room);
   if (room.phase === 'spinning' && room.result) {
     driver.spinTo(room.result.number, room.spinAt);
     driver.showDolly(null);
@@ -134,6 +136,7 @@ export function syncRouletteToScene(room, myKey) {
 }
 
 export function leaveRouletteView() {
+  closeSeatPicker();
   if (!driver) return;
   clearTimeout(backTimer);
   heard = { table: null, spinAt: null, resultsAt: null, round: null };
@@ -177,7 +180,9 @@ function boardSvg(r, myKey, open) {
   // The lines between them: splits, streets, corners, six lines.
   LINE_BETS.forEach((id) => {
     const s = spotOf(id);
-    parts.push(`<circle class="rl-line" data-bet="${id}" cx="${s.x}" cy="${s.y}" r="30"/>`);
+    // Small, so a tap on a number near its edge is that number, not the
+    // split or street on its line.
+    parts.push(`<circle class="rl-line" data-bet="${id}" cx="${s.x}" cy="${s.y}" r="20"/>`);
   });
   // Everyone else's chips, small, in their seat's colour; yours on top.
   players(r).forEach((k) => {
@@ -236,6 +241,7 @@ export function renderRouletteScreen() {
           <span class="player-name">${esc(p.name)}${isMe ? ' <span class="you">(you)</span>' : ''}</span>
           <span class="player-status">${esc(statusFor(r, p))}${r.phase === 'betting' && p.idle ? ` (${p.idle}/${R.MAX_IDLE_SPINS} missed)` : ''}</span>
         </div>
+        ${voiceBadge(key)}
         <span class="player-chips">${p.chips.toLocaleString()}</span>
       </div>`;
   }).join('');
@@ -309,6 +315,10 @@ export function renderRouletteScreen() {
     r.isPublic ? 'Public · ' + players(r).length + '/' + R.ROULETTE_SEATS : 'Private',
   ].join(' · ');
 
+  // Moving seat is for between rounds: not with chips down, nor while
+  // the coup is under way.
+  const busy = r.phase === 'spinning';
+  const seatHtml = seatPickerHtml(r, myKey, R.ROULETTE_SEATS, !busy && !(me && R.totalBet(me)), busy ? 'Wait for this round to finish' : 'Take your chips off the table first');
   return `
     <div class="hud-top">
       <div class="hud-left">
@@ -319,10 +329,10 @@ export function renderRouletteScreen() {
         </div>
       </div>
       <div class="hud-right">
-        ${!r.isPublic ? `<button class="hud-btn" id="rlInviteBtn" data-invite="${esc(inviteUrl)}">Invite</button>` : ''}
+        ${!r.isPublic && !r.offline ? `<button class="hud-btn" id="rlInviteBtn" data-invite="${esc(inviteUrl)}">Invite</button>` : ''}
+        ${seatHtml}
         ${chatBtn}
-        ${musicButton()}
-        <button class="hud-btn hud-icon ${isSoundOn() ? '' : 'off'}" id="rlSoundBtn" title="${isSoundOn() ? 'Sound on — tap to turn off' : 'Sound off — tap to turn on'}" aria-label="Sound ${isSoundOn() ? 'on' : 'off'}">${isSoundOn() ? SOUND_ON : SOUND_OFF}</button>
+        ${voiceButtons(r)}
       </div>
     </div>
     ${S.connLost ? '<div class="conn-banner">Connection lost — reconnecting…</div>' : ''}
@@ -333,13 +343,47 @@ export function renderRouletteScreen() {
     <div class="hud-dock">${dock}</div>`;
 }
 
-const SOUND_ON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
-const SOUND_OFF = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M17 9l5 6M22 9l-5 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+
+// What a bet is called, so the player sees exactly what they've put a chip
+// on: a chip on a line is a split, a street or a corner, and pays
+// accordingly.
+function betName(id) {
+  const OUT = { red: 'Red', black: 'Black', even: 'Even', odd: 'Odd', low: '1 to 18', high: '19 to 36' };
+  if (OUT[id]) return OUT[id];
+  const [kind, arg] = id.split(':');
+  const nums = R.numbersFor(id) || [];
+  const pays = ` (${Math.round(36 / Math.max(1, nums.length)) - 1} to 1)`;
+  if (kind === 'n') return `Straight up ${arg}${pays}`;
+  if (kind === 's') return `Split ${nums.join(' / ')}${pays}`;
+  if (kind === 't') return `Street ${nums[0]}–${nums[nums.length - 1]}${pays}`;
+  if (kind === 'c') return `Corner ${nums.join(', ')}${pays}`;
+  if (kind === 'l') return `Six line ${nums[0]}–${nums[nums.length - 1]}${pays}`;
+  if (kind === 'd') return `${['1st', '2nd', '3rd'][Number(arg) - 1]} 12 (2 to 1)`;
+  if (kind === 'col') return `Column ${arg} (2 to 1)`;
+  return id;
+}
+let toastTimer = null;
+function betToast(text) {
+  let el = document.getElementById('rlBetToast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'rlBetToast';
+    el.className = 'rl-bet-toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  el.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('on'), 1600);
+}
 
 export function attachRouletteScreen() {
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
-  attachMusicButton();
-  on('rlSoundBtn', () => { setSoundOn(!isSoundOn()); if (!isSoundOn() && window.speechSynthesis) window.speechSynthesis.cancel(); S.refresh(); });
+  attachVoice();
+  // Muting the table hushes the croupier's voice too.
+  const snd = document.getElementById('soundToggleBtn');
+  if (snd) { const was = snd.onclick; snd.onclick = (e) => { if (isSoundOn() && window.speechSynthesis) window.speechSynthesis.cancel(); was(e); }; }
+  attachSeatPicker((seat) => Roulette.moveSeat(seat));
   on('leaveBtn', S.leaveTable);
   on('rlUndoBtn', Roulette.undo);
   on('rlClearBtn', Roulette.clear);
@@ -350,7 +394,10 @@ export function attachRouletteScreen() {
   if (board) {
     board.onclick = (e) => {
       const hit = e.target.closest('[data-bet]');
-      if (hit && chipValue) Roulette.bet(hit.getAttribute('data-bet'), chipValue);
+      if (!hit || !chipValue) return;
+      const id = hit.getAttribute('data-bet');
+      Roulette.bet(id, chipValue);
+      betToast(`${betName(id)} · ${chipValue.toLocaleString()}`);
     };
   }
   const invite = document.getElementById('rlInviteBtn');

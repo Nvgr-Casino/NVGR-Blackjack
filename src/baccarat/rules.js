@@ -149,6 +149,14 @@ export function addPlayer(r, key, name, chips, character) {
   return true;
 }
 
+export function moveSeat(r, key, seat) {
+  const p = r.players && r.players[key];
+  if (!p || seat < 0 || seat >= BACCARAT_SEATS) return false;
+  if (live(r).some((k) => k !== key && r.players[k].seat === seat)) return false;
+  p.seat = seat;
+  return true;
+}
+
 export const totalBet = (p) => Object.values((p && p.bets) || {}).reduce((a, b) => a + b, 0);
 export const anyBets = (r) => live(r).some((k) => totalBet(r.players[k]) > 0);
 export const bettingOpen = (r, now) => r.phase === 'betting' && (!r.bettingDeadline || now < r.bettingDeadline);

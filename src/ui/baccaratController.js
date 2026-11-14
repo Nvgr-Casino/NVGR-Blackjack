@@ -152,8 +152,10 @@ export function createBaccaratDriver({ scene, camera, controls, set, table, deal
         if (!model) return;
         const seat = SEATS[seatIndex];
         head.copy(seat.position).addScaledVector(seat.outward, -m(0.2)).setY(SEAT_TOP_Y + m(0.72));
-        let hidden = seatIndex === mySeat || camera.position.distanceTo(head) < m(0.35);
-        if (!hidden) {
+        // Your own figure is in view too, just before the camera; only the
+        // others are hidden when one stands between the camera and the table.
+        let hidden = camera.position.distanceTo(head) < m(0.35);
+        if (!hidden && seatIndex !== mySeat) {
           seg.set(camera.position, controls.target);
           seg.closestPointToPoint(head, true, near);
           hidden = near.distanceTo(head) < m(0.2);
@@ -165,7 +167,9 @@ export function createBaccaratDriver({ scene, camera, controls, set, table, deal
   };
 
   // ---------- camera ----------
-  const VIEWS = { wide: { back: m(0.5), height: m(2.0) }, tall: { back: m(1.6), height: m(2.9) } };
+  // A little behind and above your own chair, so you see yourself seated
+  // at the table with the others.
+  const VIEWS = { wide: { back: m(1.1), height: m(2.2) }, tall: { back: m(1.9), height: m(3.0) } };
   let viewSeat;
   let shown = false;
   let cardFocus = false;

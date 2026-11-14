@@ -52,7 +52,7 @@ const SEAT_T = Array.from({ length: BACCARAT_SEATS }, (_, i) => -1.2 + (i / (BAC
 export const BACCARAT_SEATS_3D = SEAT_T.map((t, index) => {
   const rim = onCurve(t);
   const outward = new THREE.Vector3(Math.sin(t) / RX, 0, Math.cos(t) / RZ).normalize();
-  const position = rim.clone().addScaledVector(outward, m(0.6));
+  const position = rim.clone().addScaledVector(outward, m(0.5));
   return {
     index, t, position, outward,
     facingAngle: Math.atan2(-outward.x, -outward.z),

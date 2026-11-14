@@ -117,4 +117,11 @@ ok(B.handTotal(['7-S', '8-H']) === 5 && B.handTotal(['K-S', '9-H']) === 9 && B.h
   ok(!r.players.b, 'a seat that never bets is given up');
 }
 
+{
+  const r = B.newBaccaratRoom({ code: 'BAC5', minBet: 100, maxBet: 5000 });
+  B.addPlayer(r, 'a', 'Ann', 3000, null);
+  B.addPlayer(r, 'b', 'Bob', 3000, null);
+  ok(!B.moveSeat(r, 'a', r.players.b.seat) && B.moveSeat(r, 'a', 6) && r.players.a.seat === 6 && !B.moveSeat(r, 'a', 7), 'move to a free seat, not a taken or missing one');
+}
+
 console.log(fails ? fails + ' FAILED' : 'ALL PASSED');

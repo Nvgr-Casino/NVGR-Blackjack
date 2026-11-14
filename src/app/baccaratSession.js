@@ -124,6 +124,7 @@ export const undo = () => S.mutateRoom(S.session.code, (r) => { R.undoBet(r, min
 export const clear = () => S.mutateRoom(S.session.code, (r) => { R.clearBets(r, mine(), now()); });
 export const repeat = () => S.mutateRoom(S.session.code, (r) => { R.repeatBets(r, mine(), now()); });
 export const double = () => S.mutateRoom(S.session.code, (r) => { R.doubleBets(r, mine(), now()); });
+export const moveSeat = (seat) => S.mutateRoom(S.session.code, (r) => { R.moveSeat(r, mine(), seat); });
 
 // ---------- the clock ----------
 // Called every second by the session's tick. Only a step that is due goes

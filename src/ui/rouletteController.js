@@ -76,8 +76,10 @@ export function createRouletteDriver({ scene, camera, controls, set, table }) {
         if (!model) return;
         const seat = SEATS[seatIndex];
         head.copy(seat.position).addScaledVector(seat.outward, -m(0.2)).setY(SEAT_TOP_Y + m(0.72));
-        let hidden = seatIndex === mySeat || camera.position.distanceTo(head) < m(0.35);
-        if (!hidden) {
+        // Your own figure is in view too, just before the camera; only the
+        // others are hidden when one stands between the camera and the table.
+        let hidden = camera.position.distanceTo(head) < m(0.35);
+        if (!hidden && seatIndex !== mySeat) {
           seg.set(camera.position, controls.target);
           seg.closestPointToPoint(head, true, near);
           hidden = near.distanceTo(head) < m(0.2);
@@ -89,7 +91,9 @@ export function createRouletteDriver({ scene, camera, controls, set, table }) {
   };
 
   // ---------- camera ----------
-  const VIEWS = { wide: { back: m(0.55), height: m(2.0), lean: 0.25 }, tall: { back: m(1.5), height: m(2.9), lean: 0.1 } };
+  // A little behind and above your own chair, so you see yourself seated
+  // at the table with the others.
+  const VIEWS = { wide: { back: m(1.15), height: m(2.2), lean: 0.25 }, tall: { back: m(1.9), height: m(3.0), lean: 0.1 } };
   let viewSeat;            // the seat whose view it is (null: watching)
   let shown = false;       // whether any view has been set yet
   let wheelFocus = false;  // swooped down over the wheel

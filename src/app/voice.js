@@ -28,6 +28,8 @@ import { safeKey } from './roomLogic.js';
 import { seatOfKey } from './service.js';
 import { SEATS } from '../scene/seats.js';
 import { POKER_SEATS_3D } from '../scene/pokerTable.js';
+import { ROULETTE_SEATS_3D } from '../scene/rouletteTable.js';
+import { BACCARAT_SEATS_3D } from '../scene/baccaratTable.js';
 import { audio, masterOut, isSoundOn, setSoundOn, isMusicOn, setMusicOn } from '../scene/sfx.js';
 import * as Social from './social.js';
 import * as S from './session.js';
@@ -280,7 +282,8 @@ function hear(p, stream) {
 function seatAt(r, k) {
   const s = seatOfKey(r, k);
   if (s < 0) return null;
-  const seat = (isPoker(r) ? POKER_SEATS_3D : SEATS)[s];
+  const seats = isPoker(r) ? POKER_SEATS_3D : r.game === 'roulette' ? ROULETTE_SEATS_3D : r.game === 'baccarat' ? BACCARAT_SEATS_3D : SEATS;
+  const seat = seats[s];
   return seat ? seat.position : null;
 }
 

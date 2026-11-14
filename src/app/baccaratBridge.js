@@ -8,13 +8,14 @@ import * as B from '../baccarat/rules.js';
 import { SEAT_CHIP_COLORS } from '../scene/seatChips.js';
 import { chipButtonDataURL } from '../scene/chip.js';
 import { cardFaceUrl } from '../scene/card.js';
-import { winChime, croupierSay, isSoundOn, setSoundOn } from '../scene/sfx.js';
+import { winChime, croupierSay, isSoundOn } from '../scene/sfx.js';
 import { characterPortraitDataURL, defaultCharacterFor } from '../scene/character.js';
 import { dealerKeyFor } from '../scene/dealer.js';
 import { safeKey, roomName, stakesTier, stakesFor, stakesLabel, chipLadderForTable } from './roomLogic.js';
 import { esc, HUD_ICONS } from './uiHelpers.js';
 import { playerCardAttrs, playerCardSheet, attachPlayerCard } from './playerCard.js';
-import { musicButton, attachMusicButton } from './voice.js';
+import { syncVoice, voiceButtons, voiceBadge, attachVoice } from './voice.js';
+import { seatPickerHtml, attachSeatPicker, closeSeatPicker } from './seatPicker.js';
 import * as S from './session.js';
 import * as Baccarat from './baccaratSession.js';
 
@@ -115,9 +116,11 @@ export function syncBaccaratToScene(room, myKey) {
   driver.setHand(room.phase === 'dealing' || room.phase === 'results' ? room.hand : null, room.dealAt);
   frameCards(room);
   moments(room, me);
+  syncVoice(room);
 }
 
 export function leaveBaccaratView() {
+  closeSeatPicker();
   if (!driver) return;
   clearTimeout(backTimer);
   heard = { table: null, dealAt: null, resultsAt: null, round: null };
@@ -178,8 +181,6 @@ function statusFor(r, p) {
 // ---------- the screen ----------
 let chipValue = null;
 let chipTable = null;
-const SOUND_ON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
-const SOUND_OFF = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M17 9l5 6M22 9l-5 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
 
 export function renderBaccaratScreen() {
   const r = S.session.room;
@@ -209,6 +210,7 @@ export function renderBaccaratScreen() {
           <span class="player-name">${esc(p.name)}${isMe ? ' <span class="you">(you)</span>' : ''}</span>
           <span class="player-status">${esc(statusFor(r, p))}${r.phase === 'betting' && p.idle ? ` (${p.idle}/${B.MAX_IDLE} missed)` : ''}</span>
         </div>
+        ${voiceBadge(key)}
         <span class="player-chips">${p.chips.toLocaleString()}</span>
       </div>`;
   }).join('');
@@ -293,6 +295,10 @@ export function renderBaccaratScreen() {
   const sub = ['Baccarat · ' + stakesLabel(min, max), r.isPublic ? 'Public · ' + players(r).length + '/' + B.BACCARAT_SEATS : 'Private'].join(' · ');
   if (r.phase === 'dealing') keepReadout();
 
+  // Moving seat is for between rounds: not with chips down, nor while
+  // the coup is under way.
+  const busy = r.phase === 'dealing';
+  const seatHtml = seatPickerHtml(r, myKey, B.BACCARAT_SEATS, !busy && !(me && B.totalBet(me)), busy ? 'Wait for this round to finish' : 'Take your chips off the table first');
   return `
     <div class="hud-top">
       <div class="hud-left">
@@ -304,9 +310,9 @@ export function renderBaccaratScreen() {
       </div>
       <div class="hud-right">
         ${!r.isPublic && !r.offline ? `<button class="hud-btn" id="bcInviteBtn" data-invite="${esc(inviteUrl)}">Invite</button>` : ''}
+        ${seatHtml}
         ${chatBtn}
-        ${musicButton()}
-        <button class="hud-btn hud-icon ${isSoundOn() ? '' : 'off'}" id="bcSoundBtn" title="${isSoundOn() ? 'Sound on — tap to turn off' : 'Sound off — tap to turn on'}" aria-label="Sound ${isSoundOn() ? 'on' : 'off'}">${isSoundOn() ? SOUND_ON : SOUND_OFF}</button>
+        ${voiceButtons(r)}
       </div>
     </div>
     ${S.connLost ? '<div class="conn-banner">Connection lost — reconnecting…</div>' : ''}
@@ -324,8 +330,11 @@ export function attachBaccaratScreen() {
   on('bcClearBtn', Baccarat.clear);
   on('bcRepeatBtn', Baccarat.repeat);
   on('bcDoubleBtn', Baccarat.double);
-  attachMusicButton();
-  on('bcSoundBtn', () => { setSoundOn(!isSoundOn()); if (!isSoundOn() && window.speechSynthesis) window.speechSynthesis.cancel(); S.refresh(); });
+  attachVoice();
+  // Muting the table hushes the croupier's voice too.
+  const snd = document.getElementById('soundToggleBtn');
+  if (snd) { const was = snd.onclick; snd.onclick = (e) => { if (isSoundOn() && window.speechSynthesis) window.speechSynthesis.cancel(); was(e); }; }
+  attachSeatPicker((seat) => Baccarat.moveSeat(seat));
   document.querySelectorAll('[data-bc-chip]').forEach((b) => { b.onclick = () => { chipValue = Number(b.dataset.bcChip); S.refresh(); }; });
   document.querySelectorAll('[data-bc-bet]').forEach((b) => { b.onclick = () => { if (chipValue) Baccarat.bet(b.dataset.bcBet, chipValue); }; });
   const invite = document.getElementById('bcInviteBtn');
