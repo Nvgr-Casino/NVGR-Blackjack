@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { FLOOR_Y, m } from './scale.js';
+import { marble } from './casinoKit.js';
+import { crown } from './royalFlush.js';
 
 // The lobby's own room: not a casino room but a stage for the games. A
 // dark, polished floor with fine gold rings inlaid along the arc the
@@ -87,6 +89,46 @@ function backdropTexture() {
   return t;
 }
 
+const GOLD = new THREE.MeshStandardMaterial({ color: 0xd8b25e, roughness: 0.22, metalness: 0.95, emissive: 0x2a1c06, emissiveIntensity: 0.45 });
+function monument(room, x, z) {
+  const BLACK = marble('#0c0b0e', '#5a5866', { veins: 16 });
+  const steps = [[m(2.6), m(0.18)], [m(2.0), m(0.18)], [m(1.3), m(1.25)]];
+  let y = FLOOR_Y;
+  steps.forEach(([w, h], i) => {
+    const block = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), BLACK);
+    block.position.set(x, y + h / 2, z);
+    block.castShadow = block.receiveShadow = true;
+    room.add(block);
+    // A gold band round the top of each step.
+    const band = new THREE.Mesh(new THREE.BoxGeometry(w + m(0.04), m(0.05), w + m(0.04)), GOLD);
+    band.position.set(x, y + h - m(0.025), z);
+    room.add(band);
+    if (i === 2) {
+      // The house's name in gold on the column's face.
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(w * 0.7, m(0.22), m(0.02)), GOLD);
+      plate.position.set(x, y + h * 0.55, z + w / 2 + m(0.012));
+      room.add(plate);
+    }
+    y += h;
+  });
+  const c = crown(m(0.95));
+  c.position.set(x, y, z);
+  // A statue: cast all in gold — the velvet, the ermine and the pearls too —
+  // with only the jewels kept in colour.
+  c.traverse((o) => {
+    if (!o.isMesh) return;
+    o.castShadow = true;
+    if (!(o.material && o.material.clearcoat)) o.material = GOLD;
+  });
+  room.add(c);
+  // Its own warm light from above and in front.
+  const spot = new THREE.SpotLight(0xffe2b0, 260, m(14), 0.42, 0.6, 1.6);
+  spot.position.set(x, y + m(5), z + m(4));
+  spot.target.position.set(x, y + m(0.6), z);
+  room.add(spot, spot.target);
+  return (dt) => { c.rotation.y += dt * 0.18; };
+}
+
 export function createLobbyRoom() {
   const room = new THREE.Group();
   room.userData.theme = LOBBY_THEME;
@@ -109,6 +151,13 @@ export function createLobbyRoom() {
   );
   wall.position.y = (CEILING + FLOOR_Y) / 2 + 2;
   room.add(wall);
+
+  // The centrepiece: the house's crown, cast large in gold, on a stepped
+  // plinth of black marble banded in gold, at the centre of the tables'
+  // arc — so whichever table is in the middle, it stands behind the dealer.
+  // It turns slowly in a light of its own.
+  const turn = monument(room, 0, -ARC_R);
+  room.userData.update = (dt) => turn(dt);
 
   return room;
 }

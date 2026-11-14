@@ -365,7 +365,7 @@ const ERMINE = new THREE.MeshStandardMaterial({ color: 0xf4f0e8, roughness: 0.9 
 
 // A crown: a band of gold set with stones, points tipped with pearls, two
 // arches crossing over a cap of red velvet, an orb and cross on top.
-function crown(r) {
+export function crown(r) {
   const g = new THREE.Group();
   const h = r * 0.7;
   const band = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.92, h, 48, 1, true), ROYAL_GOLD);
