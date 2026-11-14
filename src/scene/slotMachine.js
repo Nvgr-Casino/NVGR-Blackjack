@@ -324,8 +324,9 @@ const logoLoaded = new Promise((res) => {
 });
 const fmt = (n) => Math.round(n).toLocaleString('en-US');
 
-function paintTopper(d, bet, game) {
+function paintTopper(d, bet, game, pots) {
   TRIM = game.look.trim;
+  if (game.jackpots) { paintJackpotTopper(d, bet, game, pots); return; }
   const { ctx, canvas } = d;
   const w = canvas.width, h = canvas.height;
   ctx.clearRect(0, 0, w, h);
@@ -366,6 +367,56 @@ function paintTopper(d, bet, game) {
   ctx.fillStyle = g;
   ctx.fillText(fmt(game.jackpot(bet)), w / 2, py + ph * 0.66);
   ctx.shadowBlur = 0;
+  d.tex.needsUpdate = true;
+}
+// A jackpot machine's topper: the crest, the Grand across the middle, and
+// the Major, Minor and Mini beneath, each a meter that counts up.
+function paintJackpotTopper(d, bet, game, pots) {
+  const { ctx, canvas } = d;
+  const w = canvas.width, h = canvas.height;
+  const P = pots || Object.fromEntries(Object.entries(game.jackpots).map(([k, v]) => [k, v.seed]));
+  ctx.clearRect(0, 0, w, h);
+  const bg = ctx.createRadialGradient(w / 2, h * 0.3, 10, w / 2, h * 0.4, w * 0.75);
+  bg.addColorStop(0, '#0f4a34'); bg.addColorStop(0.6, '#072619'); bg.addColorStop(1, '#020806');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+  ctx.save(); ctx.translate(w / 2, h * 0.5);
+  for (let k = -14; k <= 14; k++) {
+    const a = -Math.PI / 2 + k * 0.1;
+    const g = ctx.createLinearGradient(0, 0, Math.cos(a) * h, Math.sin(a) * h);
+    g.addColorStop(0, 'rgba(232,190,110,0.14)'); g.addColorStop(1, 'rgba(232,190,110,0)');
+    ctx.strokeStyle = g; ctx.lineWidth = k % 2 ? 2 : 5;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * h * 1.1, Math.sin(a) * h * 1.1); ctx.stroke();
+  }
+  ctx.restore();
+  if (logoImage) { const sz = h * 0.4; ctx.drawImage(logoImage, w / 2 - sz / 2, h * 0.04, sz, sz); }
+  const panel = (x, y, pw, ph, label, value, big, color) => {
+    ctx.fillStyle = goldStops(ctx.createLinearGradient(0, y, 0, y + ph));
+    ctx.beginPath(); ctx.roundRect(x - 5, y - 5, pw + 10, ph + 10, 14); ctx.fill();
+    const g = ctx.createLinearGradient(0, y, 0, y + ph);
+    g.addColorStop(0, color[0]); g.addColorStop(1, color[1]);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(x, y, pw, ph, 10); ctx.fill();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = FONT(700, ph * (big ? 0.22 : 0.26));
+    if ('letterSpacing' in ctx) ctx.letterSpacing = big ? '10px' : '4px';
+    ctx.fillStyle = '#f6e3b4';
+    ctx.fillText(label, x + pw / 2, y + ph * (big ? 0.26 : 0.3));
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '2px';
+    // The figure as large as fits the panel.
+    let size = ph * (big ? 0.46 : 0.36);
+    ctx.font = FONT(900, size);
+    ctx.shadowColor = 'rgba(255,170,60,0.6)'; ctx.shadowBlur = big ? 18 : 10;
+    ctx.fillStyle = goldStops(ctx.createLinearGradient(0, y + ph * 0.45, 0, y + ph * 0.9));
+    const v = fmt(value);
+    const maxW = pw * 0.9;
+    for (let k = 0; k < 12 && ctx.measureText(v).width > maxW; k++) { size *= 0.9; ctx.font = FONT(900, size); }
+    ctx.fillText(v, x + pw / 2, y + ph * (big ? 0.68 : 0.7));
+    ctx.shadowBlur = 0;
+  };
+  panel(w * 0.1, h * 0.46, w * 0.8, h * 0.24, 'GRAND', P.grand * bet, true, ['#7a0e1e', '#2a0308']);
+  const sw = w * 0.25, gap = w * 0.025;
+  [['MAJOR', P.major, ['#6a1a8a', '#22062e']], ['MINOR', P.minor, ['#0f5a8a', '#04182a']], ['MINI', P.mini, ['#1a7a3a', '#052a12']]].forEach(([label, v, col], i) => {
+    panel(w * 0.1 + i * (sw + gap) + gap * 0.5, h * 0.75, sw, h * 0.2, label, v * bet, false, col);
+  });
   d.tex.needsUpdate = true;
 }
 function paintTitle(d, game) {
@@ -556,6 +607,76 @@ function paintWins(d, wins, scatter, phase, game) {
   d.tex.needsUpdate = true;
 }
 
+// The Hold & Spin board, drawn over the reels: crimson silk, a gold grid,
+// the pearls held with their prizes, the empty places spinning, the
+// respins left, and the total as it is counted.
+const PRIZE_NAME = { mini: 'MINI', minor: 'MINOR', major: 'MAJOR', grand: 'GRAND' };
+function paintHoldSpin(d, game, view, bet, pots, now) {
+  const { ctx, canvas } = d;
+  const w = canvas.width, h = canvas.height;
+  const cols = game.reels, rows = 3, cw = w / cols, ch = h / rows;
+  ctx.clearRect(0, 0, w, h);
+  const bg = ctx.createLinearGradient(0, 0, 0, h);
+  bg.addColorStop(0, 'rgba(46,4,10,0.97)'); bg.addColorStop(0.5, 'rgba(78,8,16,0.97)'); bg.addColorStop(1, 'rgba(36,3,8,0.97)');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = 'rgba(230,190,110,0.45)'; ctx.lineWidth = 3;
+  for (let c = 1; c < cols; c++) { ctx.beginPath(); ctx.moveTo(c * cw, 0); ctx.lineTo(c * cw, h); ctx.stroke(); }
+  for (let r = 1; r < rows; r++) { ctx.beginPath(); ctx.moveTo(0, r * ch); ctx.lineTo(w, r * ch); ctx.stroke(); }
+  const R = Math.min(cw, ch) * 0.36;
+  const orb = (cell, prize, lit, pop) => {
+    const col = Math.floor(cell / rows), row = cell % rows;
+    const x = (col + 0.5) * cw, y = (row + 0.5) * ch;
+    const k = pop;
+    const r = R * (0.6 + 0.4 * k);
+    const jack = typeof prize !== 'number';
+    ctx.save();
+    ctx.shadowColor = lit ? 'rgba(255,230,140,0.95)' : 'rgba(0,0,0,0.6)'; ctx.shadowBlur = lit ? 30 : 12;
+    const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.08, x, y, r);
+    if (jack) { g.addColorStop(0, '#e2ffee'); g.addColorStop(0.35, '#4fd08e'); g.addColorStop(1, '#0a4a2c'); }
+    else { g.addColorStop(0, '#fffbe8'); g.addColorStop(0.35, '#ffd977'); g.addColorStop(1, '#8a5a12'); }
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = goldStops(ctx.createLinearGradient(x - r, y - r, x + r, y + r)); ctx.lineWidth = r * 0.1;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const label = jack ? PRIZE_NAME[prize] : fmt(prize * bet);
+    ctx.font = FONT(900, r * (jack ? 0.42 : label.length > 6 ? 0.36 : 0.46));
+    ctx.lineWidth = r * 0.1; ctx.strokeStyle = 'rgba(40,16,0,0.85)'; ctx.strokeText(label, x, y + r * 0.04);
+    ctx.fillStyle = jack ? '#fff3cc' : '#ffffff'; ctx.fillText(label, x, y + r * 0.04);
+  };
+  // The empty places, spinning: soft pearls flickering past.
+  for (let cell = 0; cell < cols * rows; cell++) {
+    if (view.held.has(cell)) continue;
+    const col = Math.floor(cell / rows), row = cell % rows;
+    const x = (col + 0.5) * cw, y = (row + 0.5) * ch;
+    if (view.spinning) {
+      ctx.save(); ctx.beginPath(); ctx.rect(col * cw + 4, row * ch + 4, cw - 8, ch - 8); ctx.clip();
+      const off = ((now / 70 + cell * 37) % 1) * ch * 2;
+      ctx.globalAlpha = 0.28;
+      for (let k = -1; k < 2; k++) { ctx.fillStyle = '#ffd977'; ctx.beginPath(); ctx.ellipse(x, y - ch + off + k * ch, R * 0.7, R * 0.95, 0, 0, Math.PI * 2); ctx.fill(); }
+      ctx.restore();
+    } else {
+      ctx.fillStyle = 'rgba(255,220,150,0.06)'; ctx.beginPath(); ctx.arc(x, y, R * 0.7, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  view.held.forEach((v, cell) => orb(cell, v.prize, v.lit, v.pop));
+  // The count of respins, or the total being counted.
+  const pill = (text) => {
+    ctx.font = FONT(900, h * 0.075);
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '6px';
+    const tw = ctx.measureText(text).width + h * 0.12;
+    ctx.fillStyle = 'rgba(10,2,4,0.82)';
+    ctx.beginPath(); ctx.roundRect(w / 2 - tw / 2, h * 0.02, tw, h * 0.11, h * 0.05); ctx.fill();
+    ctx.strokeStyle = goldStops(ctx.createLinearGradient(0, 0, w, 0)); ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = goldStops(ctx.createLinearGradient(0, h * 0.03, 0, h * 0.12));
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(text, w / 2 + 3, h * 0.08);
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+  };
+  pill(view.banner);
+  d.tex.needsUpdate = true;
+}
+
 // What every machine wears alike, painted once for the whole bank.
 const dressed = new Map();
 function decorOf(game) {
@@ -737,8 +858,9 @@ export function createSlotMachine({ full = false, game: gameId = DEFAULT_GAME } 
   face.position.z = HOUSING_FRONT - 0.004;
   M.add(face);
   let topperBet = 100;
-  paintTopper(topper, topperBet, game);
-  logoLoaded.then(() => paintTopper(topper, topperBet, game));
+  let topperPots = null;
+  paintTopper(topper, topperBet, game, topperPots);
+  logoLoaded.then(() => paintTopper(topper, topperBet, game, topperPots));
 
   // The belly glass, lit, in a gold frame; speakers and the note and ticket
   // slots either side.
@@ -882,6 +1004,7 @@ export function createSlotMachine({ full = false, game: gameId = DEFAULT_GAME } 
     });
     spinning = { start: now, plans, landed: stops.map(() => false), onReelStop, onDone };
     winState = null;
+    feature = null;
     if (winLayer) paintWins(winLayer, [], null, null, game);
     lights = { mode: 'spin', since: now };
   }
@@ -948,6 +1071,7 @@ export function createSlotMachine({ full = false, game: gameId = DEFAULT_GAME } 
     ledMat.color.setRGB(lr * k, lg * k, lb * k);
     if (lights.mode === 'win' && since > 6) lights = { mode: 'idle', since: now };
     spin.material[1].emissiveIntensity = spinning ? 0.35 : 0.65 + 0.25 * Math.sin(now / 420);
+    if (feature && !feature.cleared) featureFrame(now);
     // Cycle through the winning lines one at a time after the first showing.
     if (winState && winLayer) {
       const el = (now - winState.since) / 1000;
@@ -961,7 +1085,72 @@ export function createSlotMachine({ full = false, game: gameId = DEFAULT_GAME } 
     if (wins.length || scatter) lights = { mode: 'win', since: performance.now() };
   }
   function setMeters(values) { paintMeters(meters, values, game.look.trim); }
-  function setBet(bet) { if (bet !== topperBet) { topperBet = bet; paintTopper(topper, bet, game); } }
+  function setBet(bet) { if (bet !== topperBet) { topperBet = bet; paintTopper(topper, bet, game, topperPots); } }
+  // A jackpot machine's meters: the jackpots now, as multiples of the bet.
+  function setPots(pots) {
+    if (!game.jackpots) return;
+    const key = JSON.stringify(pots);
+    if (key === JSON.stringify(topperPots)) return;
+    topperPots = pots;
+    paintTopper(topper, topperBet, game, topperPots);
+  }
+  // ---------- Hold & Spin ----------
+  // `play` is the feature already decided (rules.holdSpin): the pearls it
+  // started with and each respin's new ones. Shown on the screen behind the
+  // glass, in time: the board, the respins, the count.
+  let feature = null;
+  const INTRO = 1100, RESPIN = 1150, LAND_AT = 820, TALLY = 140;
+  function holdSpin(play, { bet, pots, onLand, onTally, onDone } = {}) {
+    if (!winLayer) { if (onDone) onDone(); return; }
+    winState = null;
+    feature = { play, bet, pots, t0: performance.now(), landed: new Set(), tallied: 0, onLand, onTally, onDone, done: false };
+    lights = { mode: 'win', since: performance.now() };
+  }
+  function featureFrame(now) {
+    const f = feature;
+    const t = now - f.t0;
+    const { play } = f;
+    const held = new Map();
+    // The starting pearls pop in one by one.
+    play.start.forEach((o, i) => {
+      const at = 200 + i * 90;
+      if (t >= at) held.set(o.cell, { prize: o.prize, pop: Math.min(1, (t - at) / 220), lit: false });
+    });
+    let spinning = false, banner = 'HOLD & SPIN';
+    let left = 3;
+    play.steps.forEach((step, k) => {
+      const s0 = INTRO + k * RESPIN;
+      if (t >= s0 && t < s0 + LAND_AT) { spinning = true; banner = `RESPINS ${left}`; }
+      if (t >= s0 + LAND_AT) {
+        step.landed.forEach((o) => held.set(o.cell, { prize: o.prize, pop: Math.min(1, (t - s0 - LAND_AT) / 220), lit: false }));
+        left = step.respinsLeft;
+        if (!f.landed.has(k)) { f.landed.add(k); if (f.onLand) f.onLand(step.landed.length, step.landed); }
+        banner = `RESPINS ${left}`;
+      }
+    });
+    // Then the count: each pearl lights in turn and its prize is added.
+    const tallyAt = INTRO + play.steps.length * RESPIN + 300;
+    if (t >= tallyAt) {
+      const order = [...held.keys()].sort((a, b) => a - b);
+      const lit = Math.min(order.length, Math.floor((t - tallyAt) / TALLY) + 1);
+      let sum = 0;
+      order.forEach((cell, i) => {
+        if (i < lit) {
+          const v = held.get(cell); v.lit = true;
+          sum += typeof v.prize === 'number' ? v.prize : f.pots[v.prize];
+        }
+      });
+      if (lit > f.tallied) { f.tallied = lit; if (f.onTally) f.onTally(lit); }
+      if (play.grand && lit === order.length) sum += f.pots.grand;
+      banner = play.grand && lit === order.length ? `GRAND · ${fmt(sum * f.bet)}` : `TOTAL ${fmt(sum * f.bet)}`;
+      if (!f.done && t >= tallyAt + order.length * TALLY + 900) {
+        f.done = true;
+        const cb = f.onDone;
+        setTimeout(() => cb && cb(), 0);
+      }
+    }
+    paintHoldSpin(winLayer, game, { held, spinning, banner }, f.bet, f.pots, now);
+  }
   function pullHandle() { pull.t = performance.now(); }
   function pressButton(id) {
     const b = buttons[id];
@@ -973,6 +1162,6 @@ export function createSlotMachine({ full = false, game: gameId = DEFAULT_GAME } 
   // Rest on given stops at once (no spin).
   function rest(stops) { reels.forEach((r, i) => r.setPosition(stops[i])); }
 
-  root.userData = { game, update, spinTo, showWins, setMeters, setBet, pullHandle, pressButton, rest, buttons: Object.values(buttons), get spinning() { return !!spinning; } };
+  root.userData = { game, setPots, holdSpin, update, spinTo, showWins, setMeters, setBet, pullHandle, pressButton, rest, buttons: Object.values(buttons), get spinning() { return !!spinning; } };
   return root;
 }

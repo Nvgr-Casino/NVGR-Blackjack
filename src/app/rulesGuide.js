@@ -172,7 +172,6 @@ const GUIDES = {
         ['Crown Jewels', 'Five reels, ten lines. The NVGR crest is wild; three or more Diamonds anywhere pay on your whole bet.'],
         ['Imperial Sevens', 'A classic three-reel machine with five lines. The Diamond wild doubles a win, four times with two. Any three sevens or any three bars pay too, and a cherry or two at the start of a line pays a little.'],
         ['High Roller', 'Five reels, ten lines. The crest is wild; three or more Golden Chips anywhere pay on your whole bet.'],
-        ['Jade Panda', 'Five reels, ten lines, and four jackpots. Six or more Golden Pearls start Hold & Spin: the pearls lock, you get three respins, and every new pearl puts the count back to three. Pearls carry prizes or the Mini, Minor and Major; fill all fifteen places for the Grand. The Major and Grand grow with every spin.'],
       ])],
       ['Good to know', '<p>Each machine gives back about 95 per cent over the long run. Slots play on your real balance, and every spin is saved the moment you press Spin.</p>'],
     ],

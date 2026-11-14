@@ -9,8 +9,9 @@
 // win added when the reels have landed.
 
 import * as R from '../slots/rules.js';
-import { gameOf, GAMES, DEFAULT_GAME } from '../slots/games.js';
+import { gameOf, GAMES, DEFAULT_GAME, seedPots } from '../slots/games.js';
 import * as S from './session.js';
+import { STARTING_CHIPS, RESTAKE_BELOW } from './roomLogic.js';
 
 export const isSlots = (r) => !!r && r.game === 'slots';
 
@@ -19,6 +20,25 @@ let state = null;
 function lastGame() { try { const id = localStorage.getItem('nvgr-slot-game'); return GAMES[id] ? id : DEFAULT_GAME; } catch { return DEFAULT_GAME; } }
 function rememberGame(id) { try { localStorage.setItem('nvgr-slot-game', id); } catch { /* private mode */ } }
 export const gameNow = () => gameOf(state && state.gameId);
+
+// A jackpot machine's Major and Grand grow with every spin, kept in this
+// browser between visits; the Mini and Minor are fixed. All as multiples of
+// the bet, so they hold their worth at any stake.
+function loadPots(game) {
+  const seed = seedPots(game);
+  if (!seed) return null;
+  try {
+    const saved = JSON.parse(localStorage.getItem('nvgr-pots-' + game.id) || 'null');
+    if (saved && saved.major >= seed.major && saved.grand >= seed.grand) return { ...seed, major: saved.major, grand: saved.grand };
+  } catch { /* none kept */ }
+  return seed;
+}
+function savePots(game, pots) {
+  try { localStorage.setItem('nvgr-pots-' + game.id, JSON.stringify({ major: pots.major, grand: pots.grand })); } catch { /* private mode */ }
+}
+let pots = null;
+/** The jackpots on the machine now (multiples of the bet), or null. */
+export const potsNow = () => pots;
 const publish = () => { S.session.room = { ...state }; S.refresh(); };
 
 function save(chips) {
@@ -37,6 +57,7 @@ export async function startSlots(gameId = lastGame()) {
   const chips = (await S.ensureAccount(S.session.uid, S.session.name)).chips;
   const g = gameOf(gameId);
   rememberGame(g.id);
+  pots = loadPots(g);
   state = {
     code: 'SLOTS', game: 'slots', gameId: g.id, offline: true, isPublic: false,
     chips, bet: defaultBet(chips), spinning: false, pending: null, last: null,
@@ -54,6 +75,7 @@ export const current = () => state;
 export function devStart(chips = 250000, gameId = DEFAULT_GAME) {
   if (!import.meta.env.DEV) return;
   const g = gameOf(gameId);
+  pots = loadPots(g);
   state = { code: 'SLOTS', game: 'slots', gameId: g.id, offline: true, isPublic: false, chips, bet: defaultBet(chips), spinning: false, pending: null, last: null, stops: g.drawStops((n) => Math.floor(Math.random() * n)), spins: 0, auto: false };
   S.session.code = state.code;
   S.session.screen = 'table';
@@ -84,6 +106,7 @@ export function setGame(id) {
   if (!state || state.spinning || !GAMES[id] || id === state.gameId) return;
   const g = gameOf(id);
   rememberGame(id);
+  pots = loadPots(g);
   state.gameId = id;
   state.stops = g.drawStops((n) => Math.floor(Math.random() * n));
   state.last = null;
@@ -102,15 +125,33 @@ export function spin() {
   const g = gameOf(state.gameId);
   const stops = g.drawStops();
   const result = g.evaluate(stops, state.bet);
+  // Hold & Spin, decided now with the rest of the spin, on the jackpots as
+  // they stand; any jackpot won goes back to its seed, and then the Major
+  // and Grand grow by their share of this spin.
+  let feature = null;
+  if (result.feature && g.feature) {
+    const rand = () => { const b = new Uint32Array(1); globalThis.crypto.getRandomValues(b); return b[0] / 4294967296; };
+    const before = { ...pots };
+    feature = g.holdSpin(result.feature.cells, state.bet, before, rand);
+    feature.pots = before;
+    result.total += feature.amount;
+    const seed = seedPots(g);
+    feature.jackpots.forEach((k) => { if (k === 'major' || k === 'grand') pots[k] = seed[k]; });
+  }
+  if (pots) {
+    pots.major = Math.round((pots.major + g.jackpots.major.grow) * 1000) / 1000;
+    pots.grand = Math.round((pots.grand + g.jackpots.grand.grow) * 1000) / 1000;
+    savePots(g, pots);
+  }
   state.chips -= state.bet;
   state.spinning = true;
-  state.pending = { stops, result, bet: state.bet };
+  state.pending = { stops, result, feature, bet: state.bet };
   state.last = null;
   state.spins += 1;
   // What the account holds now: the stake gone and the win in.
   save(state.chips + result.total);
   publish();
-  return { stops, result };
+  return { stops, result, feature };
 }
 /** The reels have landed: the win goes on the meter. */
 export function settle() {
@@ -121,6 +162,13 @@ export function settle() {
   state.last = { win: result.total, bet, tier: R.winTier(result.total, bet), wins: result.wins, scatter: result.scatter };
   state.pending = null;
   state.spinning = false;
+  // Down to almost nothing: the house tops you straight back up, here at
+  // the machine.
+  state.toppedUp = false;
+  if (state.chips < RESTAKE_BELOW) {
+    state.chips = STARTING_CHIPS;
+    state.toppedUp = true;
+  }
   // Out of chips for this bet: down to what can still be played.
   if (state.chips < state.bet) {
     let b = R.BETS[0];

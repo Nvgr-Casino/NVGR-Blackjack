@@ -50,7 +50,10 @@ function cryptoInt(n) {
 
 /** A machine, playable, from its description. */
 export function makeGame(def) {
-  const strips = def.counts.map((c) => spread(def.symbols, c));
+  // A stacked symbol comes in runs on the strip (a count is of runs), so
+  // several can show on one reel at once, as bonus pearls do.
+  const stacks = def.stacks || {};
+  const strips = def.counts.map((c) => spread(def.symbols, c).flatMap((sym) => Array(stacks[sym] || 1).fill(sym)));
   const reels = strips.length;
   const rows = 3;
   const lines = def.lines;
@@ -108,6 +111,13 @@ export function makeGame(def) {
       const r = linePay(rowsOn.map((row, reel) => grid[reel][row]));
       if (r) wins.push({ line, symbol: r.symbol, count: r.count, amount: Math.round(r.pay * lineBet), cells: rowsOn.slice(0, r.count).map((row, reel) => [reel, row]) });
     });
+    // Enough bonus pearls anywhere start the Hold & Spin feature.
+    let feature = null;
+    if (def.feature) {
+      const cells = [];
+      grid.forEach((col, reel) => col.forEach((s, row) => { if (s === def.feature.orb) cells.push([reel, row]); }));
+      if (cells.length >= def.feature.trigger) feature = { cells };
+    }
     let scat = null;
     if (scatter) {
       const cells = [];
@@ -118,12 +128,49 @@ export function makeGame(def) {
       }
     }
     const total = wins.reduce((a, x) => a + x.amount, 0) + (scat ? scat.amount : 0);
-    return { grid, wins, scatter: scat, total };
+    return { grid, wins, scatter: scat, feature, total };
+  }
+  // ---------- Hold & Spin ----------
+  // The pearls that started it lock where they are, each with a prize; the
+  // other places respin. Three respins, and every new pearl puts the count
+  // back to three. A prize is a multiple of the bet, or a jackpot (Mini,
+  // Minor, Major); filling all fifteen places wins the Grand as well.
+  // `pots` are the jackpots now, as multiples of the bet. `rand` gives 0..1.
+  function drawPrize(rand) {
+    const table = def.feature.prizes;
+    const sum = table.reduce((a, [, w]) => a + w, 0);
+    let x = rand() * sum;
+    for (const [v, w] of table) { if ((x -= w) < 0) return v; }
+    return table[0][0];
+  }
+  function holdSpin(startCells, bet, pots, rand) {
+    const total = reels * rows;
+    const held = new Map(startCells.map(([reel, row]) => [reel * rows + row, drawPrize(rand)]));
+    const start = [...held].map(([cell, prize]) => ({ cell, prize }));
+    const steps = [];
+    let left = 3;
+    while (left > 0 && held.size < total) {
+      left--;
+      const landed = [];
+      for (let cell = 0; cell < total; cell++) {
+        if (held.has(cell)) continue;
+        if (rand() < def.feature.chance) { const prize = drawPrize(rand); held.set(cell, prize); landed.push({ cell, prize }); }
+      }
+      if (landed.length) left = 3;
+      steps.push({ landed, respinsLeft: left });
+    }
+    const grand = held.size === total;
+    const worth = (p) => (typeof p === 'number' ? p : pots[p]);
+    let win = 0;
+    const jackpots = [];
+    held.forEach((p) => { win += worth(p); if (typeof p !== 'number') jackpots.push(p); });
+    if (grand) { win += pots.grand; jackpots.push('grand'); }
+    return { start, steps, grand, jackpots, amount: Math.round(win * bet) };
   }
   const drawStops = (rand = cryptoInt) => strips.map((s) => rand(s.length));
   // The top prize on a line, at a bet: the machine's jackpot.
-  const jackpot = (bet) => Math.max(...def.pays[wild]) * (bet / lines.length);
+  const jackpot = (bet) => (def.jackpots ? def.jackpots.grand.seed * bet : Math.max(...def.pays[wild]) * (bet / lines.length));
   const nameOf = (sym) => (def.names && def.names[sym]) || (groups.find((g) => g.id === sym) || {}).name || sym;
 
-  return { ...def, strips, reels, rows, windowOf, linePay, evaluate, drawStops, jackpot, nameOf, minCount };
+  return { ...def, strips, reels, rows, windowOf, linePay, evaluate, drawStops, jackpot, nameOf, minCount, holdSpin };
 }

@@ -15,6 +15,7 @@
 // the pairs — player pair, banker pair — on the first two cards of a hand
 // being a pair (11 to 1).
 
+import { topUpIfBroke } from '../app/roomLogic.js';
 export const BACCARAT_SEATS = 7;
 export const BETTING_MS = 22000;
 export const RESULTS_MS = 6000;
@@ -241,6 +242,8 @@ export function settlePlayer(r, key) {
 export function settle(r, now) {
   if (r.phase !== 'dealing' || !r.hand) return false;
   live(r).forEach((k) => settleOne(r, k));
+  // Down to nothing: the house tops them up there and then.
+  live(r).forEach((k) => topUpIfBroke(r, r.players[k], totalBet(r.players[k])));
   const mark = { player: 'P', banker: 'B', tie: 'T' }[r.hand.winner];
   r.history = (r.history || []).concat(mark + (r.hand.ppair ? 'p' : '') + (r.hand.bpair ? 'b' : '')).slice(-HISTORY);
   r.phase = 'results';

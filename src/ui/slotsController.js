@@ -113,6 +113,8 @@ export function createSlotsDriver({ scene, camera, controls, renderer, set, salo
     /** Puts the game `id` in front of you. */
     setGame: (id) => salon.userData.setGame(id),
     currentGame: () => salon.userData.machine.userData.game.id,
+    setPots: (pots) => api().setPots(pots),
+    holdSpin: (play, opts) => api().holdSpin(play, opts),
     spinTo: (stops, opts) => api().spinTo(stops, opts),
     rest: (stops) => api().rest(stops),
     showWins: (wins, scatter) => api().showWins(wins, scatter),

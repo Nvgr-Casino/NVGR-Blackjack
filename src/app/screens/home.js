@@ -163,7 +163,7 @@ const FLOOR = [
   { id: 'roulette', kicker: 'Table game · six seats', name: 'Roulette', line: 'European wheel, one zero · straight up pays 35 to 1' },
   { id: 'craps', kicker: 'Dice · six seats', name: 'Craps', line: 'Pass Line, odds at true odds, the field and the hard ways' },
   { id: 'baccarat', kicker: 'Table game · seven seats', name: 'Baccarat', line: 'Punto Banco · Banker pays 19 to 20, Tie 8 to 1' },
-  { id: 'slots', kicker: 'High Limit Salon · slots', name: 'Slot Salon', line: 'Crown Jewels, Imperial Sevens, High Roller and more · your real balance', more: 'Machines' },
+  { id: 'slots', kicker: 'High Limit Salon · slots', name: 'Slot Salon', line: 'Crown Jewels, Imperial Sevens and High Roller · your real balance', more: 'Machines' },
 ];
 const wrapIndex = (i) => ((i % FLOOR.length) + FLOOR.length) % FLOOR.length;
 // Where the carousel is headed: a whole number that runs past the ends, so

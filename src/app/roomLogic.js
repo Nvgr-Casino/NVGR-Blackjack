@@ -13,6 +13,20 @@ export const STARTING_CHIPS = 100000;
 // bet, not a seat — so the house tops it back up to STARTING_CHIPS rather
 // than waiting for it to reach nothing.
 export const RESTAKE_BELOW = 100;
+
+// Out of chips at a table: someone who can't cover the table's minimum (or
+// has under RESTAKE_BELOW) and has nothing riding is topped straight back up
+// to the starting balance, there at the table, rather than having to go back
+// to the lobby for it. Never in a tournament, whose stacks are its own.
+// Returns whether it topped them up, logging it on the room.
+export function topUpIfBroke(r, p, onTable = 0) {
+  if (!r || !p || r.tournament) return false;
+  const floor = Math.max(RESTAKE_BELOW, r.minBet || 0);
+  if (onTable > 0 || p.chips >= floor || p.chips >= STARTING_CHIPS) return false;
+  p.chips = STARTING_CHIPS;
+  r.log = (r.log || []).concat(`The house tops ${p.name || 'a player'} back up to ${STARTING_CHIPS.toLocaleString()}.`).slice(-8);
+  return true;
+}
 export const BETTING_SECONDS = 20;
 // A player's hit/stand/double/split turn also needs a deadline — without
 // one, a player who goes silent mid-hand (closes the tab, loses
@@ -217,10 +231,7 @@ export function startRoundLogic(r) {
     p.hands = []; p.bet = 0; delete p.outcome;
     p.insurance = 0; p.insuranceDecided = false;
     // A tournament's stacks are never topped up (src/blackjack/tournament.js).
-    if (r.isPublic && !r.tournament && p.chips < RESTAKE_BELOW) {
-      p.chips = STARTING_CHIPS;
-      r.log = (r.log || []).concat(`The house tops ${p.name} back up to ${STARTING_CHIPS.toLocaleString()}.`).slice(-8);
-    }
+    topUpIfBroke(r, p);
     p.status = p.chips > 0 ? 'betting' : 'sitout';
   }
   r.turnOrder = []; r.currentTurnIndex = 0; r.dealtIn = [];

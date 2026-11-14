@@ -1,6 +1,6 @@
 // The salon's machines: their pay tables read right, and each one's
 // long-run return where it should be. Run: node tests/slots-rules.test.mjs
-import { GAME_LIST, CROWN_JEWELS as CJ, IMPERIAL_SEVENS as IS, HIGH_ROLLER as HR } from '../src/slots/games.js';
+import { GAME_LIST, CROWN_JEWELS as CJ, IMPERIAL_SEVENS as IS, HIGH_ROLLER as HR, JADE_PANDA as JP, seedPots } from '../src/slots/games.js';
 
 let failed = 0;
 const check = (name, ok) => { console.log((ok ? 'PASS ' : 'FAIL ') + name); if (!ok) failed++; };
@@ -35,20 +35,41 @@ check('a wild does not make a blank pay', S(['blank', 'dwild', 'blank']) === nul
 check('three aces pay 25', HR.linePay(['ace', 'ace', 'ace', 'pK', 'pQ']).pay === 25);
 check('wild does not stand for the golden chip', HR.linePay(['goldchip', 'wild', 'goldchip', 'pK', 'pK']) === null);
 
+// Jade Panda's Hold & Spin.
+const fixed = (() => { const v = [0.5]; let i = 0; return () => v[i++ % v.length]; })();
+const pots = seedPots(JP);
+const full = JP.holdSpin(Array.from({ length: 15 }, (_, c) => [Math.floor(c / 3), c % 3]), 100, pots, () => 0.99);
+check('a full board wins the Grand', full.grand && full.jackpots.includes('grand') && full.amount >= pots.grand * 100);
+const none = JP.holdSpin([[0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [0, 1]], 100, pots, () => 0.999);
+check('no new pearls: three respins and it ends', none.steps.length === 3 && none.steps.every((s) => !s.landed.length));
+void fixed;
+check('six pearls trigger the feature', (() => {
+  // Stops that put pearls at the top two rows of every reel.
+  const stops = JP.strips.map((s) => s.findIndex((x, i, a) => x === 'pearl' && a[(i + 1) % a.length] === 'pearl'));
+  return !!JP.evaluate(stops, 100).feature;
+})());
+
 // The returns, by simulation with a seeded generator.
 GAME_LIST.forEach((g) => {
-  let seed = 12345;
-  const rand = (n) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return Math.floor((seed / 2147483648) * n); };
+  // mulberry32: a generator good enough not to bias the result.
+  let a = 12345;
+  const rnd = () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const rand = (n) => Math.floor(rnd() * n);
+  const p = seedPots(g);
   const N = 300000;
-  let back = 0, hits = 0, top = 0;
+  let back = 0, hits = 0, top = 0, features = 0;
   for (let i = 0; i < N; i++) {
     const r = g.evaluate(g.drawStops(rand), 10);
-    back += r.total;
-    if (r.total) hits++;
-    top = Math.max(top, r.total / 10);
+    let w = r.total;
+    if (r.feature) { features++; w += g.holdSpin(r.feature.cells, 10, p, rnd).amount; }
+    back += w;
+    if (w) hits++;
+    top = Math.max(top, w / 10);
   }
-  const rtp = back / (N * 10);
-  console.log(`${g.name}: return ${(rtp * 100).toFixed(2)}%  hit rate ${(hits / N * 100).toFixed(1)}%  best ${top}x`);
+  // A growing jackpot is paid back in the end too: what it grows by a spin.
+  const grow = g.jackpots ? g.jackpots.major.grow + g.jackpots.grand.grow : 0;
+  const rtp = back / (N * 10) + grow;
+  console.log(`${g.name}: return ${(rtp * 100).toFixed(2)}%  hit rate ${(hits / N * 100).toFixed(1)}%  best ${top}x${g.feature ? `  feature 1 in ${Math.round(N / Math.max(1, features))}` : ''}`);
   check(`${g.name}: return between 93% and 98%`, rtp > 0.93 && rtp < 0.98);
   check(`${g.name}: a win on at least one spin in six`, hits / N > 0.16);
 });

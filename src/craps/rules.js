@@ -20,6 +20,7 @@
 //   field              2,3,4,9,10,11,12 on the next roll              1:1, 2 pays 2:1, 12 pays 3:1
 //   any7 anycraps yo aces acedeuce twelve   one-roll propositions     4, 7, 15, 30, 15, 30 to 1
 
+import { topUpIfBroke } from '../app/roomLogic.js';
 export const CRAPS_SEATS = 6;
 export const BETTING_MS = 15000;
 // The dice's flight, bounce off the back wall and settle (crapsDice.js).
@@ -332,6 +333,8 @@ export function settle(r, now) {
     if (r.players[k].settled) { delete r.players[k].settled; return; }
     settleOne(r, k);
   });
+  // Down to nothing, with nothing riding: the house tops them up now.
+  live(r).forEach((k) => topUpIfBroke(r, r.players[k], totalBet(r.players[k])));
   const call = callFor(r.roll);
   r.roll.call = call.text;
   r.roll.kind = call.kind;

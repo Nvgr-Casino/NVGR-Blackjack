@@ -9,7 +9,7 @@ import * as R from '../slots/rules.js';
 import { gameOf, GAME_LIST } from '../slots/games.js';
 import * as Slots from './slotsSession.js';
 import * as S from './session.js';
-import { spinStart, reelStop, winSound, countTick, buttonClick, stopRun } from '../scene/slotsSound.js';
+import { spinStart, reelStop, winSound, countTick, buttonClick, stopRun, featureStart, pearlLand, jackpotSound } from '../scene/slotsSound.js';
 import { esc } from './uiHelpers.js';
 import { voiceButtons, attachVoice } from './voice.js';
 
@@ -51,23 +51,44 @@ function doSpin() {
   animating = true;
   winShown = 0;
   meters(Slots.current(), 0);
+  // A jackpot machine's meters grow with the spin.
+  driver.setPots(Slots.potsNow());
   spinStart();
   driver.spinTo(drawn.stops, {
     onReelStop: (i) => reelStop(i, i === Slots.gameNow().reels - 1),
     onDone: () => {
-      animating = false;
       stopRun();
-      Slots.settle();
-      present(drawn.result, Slots.current());
+      const finish = () => {
+        animating = false;
+        Slots.settle();
+        present(drawn.result, Slots.current(), drawn.feature);
+        const now = Slots.current();
+        if (now && now.toppedUp) toast('Out of chips — the house has topped you back up to 100,000');
+      };
+      if (!drawn.feature) { finish(); return; }
+      // Hold & Spin: any line wins shown first, then the board.
+      if (drawn.result.wins.length) driver.showWins(drawn.result.wins, null);
+      featureStart();
+      showBanner('feature', 0, 0, 'Hold & Spin');
+      setTimeout(() => {
+        hideBanner();
+        driver.holdSpin(drawn.feature, {
+          bet: Slots.current().bet, pots: drawn.feature.pots,
+          onLand: (n) => { if (n) pearlLand(n); },
+          onTally: () => countTick(),
+          onDone: finish,
+        });
+      }, 1700);
     },
   });
 }
 
 // The win: the lines on the reels, the WIN meter counting up, the bells,
 // and for a big one, the screen's own celebration.
-function present(result, room) {
+function present(result, room, feature = null) {
   if (!room) return;
-  driver.showWins(result.wins, result.scatter);
+  // After Hold & Spin its board stays up until the next spin.
+  if (!feature) driver.showWins(result.wins, result.scatter);
   const tier = R.winTier(result.total, room.last ? room.last.bet : room.bet);
   if (!result.total) {
     meters(room, 0);
@@ -89,6 +110,9 @@ function present(result, room) {
     countTick();
     if (u >= 1) { clearInterval(countTimer); countTimer = null; winShown = total; meters(Slots.current() || room, total); }
   }, 60);
+  // A jackpot has a celebration of its own.
+  const jack = feature && ['grand', 'major', 'minor', 'mini'].find((k) => feature.jackpots.includes(k));
+  if (jack) { jackpotSound(); showBanner(jack === 'grand' || jack === 'major' ? 'mega' : 'big', total, Math.max(ms, 2600), `${jack} jackpot`); Slots.setAuto(false); return; }
   if (tier !== 'win') showBanner(tier, total, ms);
   // A big win stops the automatic play, as it does on a real machine.
   if (tier === 'big' || tier === 'mega') { Slots.setAuto(false); return; }
@@ -141,6 +165,7 @@ export function syncSlotsToScene(room) {
     winShown = room.last ? room.last.win : 0;
   }
   driver.setBet(room.bet);
+  driver.setPots(Slots.potsNow());
   // While the reels run or a win counts up, the meters are theirs.
   if (!animating && !countTimer) meters(room);
 }
@@ -226,11 +251,12 @@ window.addEventListener('keydown', (e) => {
 const BANNER = { great: 'Great win', big: 'Big win', mega: 'Mega win' };
 let banner = null;
 let bannerTimer = null;
-function showBanner(tier, amount, ms) {
+function showBanner(tier, amount, ms, title = null) {
   hideBanner();
   banner = document.createElement('div');
   banner.className = `sl-banner tier-${tier}`;
-  banner.innerHTML = `<div class="sl-banner-inner"><span class="sl-banner-title">${BANNER[tier]}</span><span class="sl-banner-amount" id="slBannerAmount">0</span></div>${'<i></i>'.repeat(tier === 'great' ? 14 : 32)}`;
+  const feature = tier === 'feature';
+  banner.innerHTML = `<div class="sl-banner-inner"><span class="sl-banner-title">${esc(title || BANNER[tier])}</span>${feature ? '<span class="sl-banner-sub">Six pearls · three respins</span>' : '<span class="sl-banner-amount" id="slBannerAmount">0</span>'}</div>${'<i></i>'.repeat(tier === 'great' || feature ? 14 : 32)}`;
   banner.querySelectorAll('i').forEach((i) => {
     i.style.left = Math.random() * 100 + '%';
     i.style.animationDelay = Math.random() * 1.6 + 's';
@@ -241,6 +267,7 @@ function showBanner(tier, amount, ms) {
   banner.onclick = hideBanner;
   document.body.appendChild(banner);
   requestAnimationFrame(() => banner && banner.classList.add('on'));
+  if (feature) return;
   const el = banner.querySelector('#slBannerAmount');
   const t0 = performance.now();
   const step = () => {

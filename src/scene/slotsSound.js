@@ -128,3 +128,30 @@ export function buttonClick() {
   hiss(c, at, { freq: 2600, q: 2, gain: 0.04, decay: 0.025 });
   tone(c, at, 1400, { gain: 0.02, decay: 0.03, type: 'triangle' });
 }
+
+/** Hold & Spin begins: a deep gong under a rising chord. */
+export function featureStart() {
+  const c = ready();
+  if (!c) return;
+  const at = c.currentTime + 0.02;
+  tone(c, at, 98, { gain: 0.16, decay: 2.4, type: 'sine', attack: 0.01 });
+  tone(c, at, 147, { gain: 0.06, decay: 1.8, type: 'triangle', attack: 0.01 });
+  hiss(c, at, { freq: 400, q: 0.6, gain: 0.08, decay: 0.6, type: 'lowpass' });
+  [523, 659, 784, 1047].forEach((f, k) => bell(c, at + 0.25 + k * 0.1, f, 0.05, 1.4));
+}
+/** Pearls landing on a respin: a bright note for each. */
+export function pearlLand(n = 1) {
+  const c = ready();
+  if (!c) return;
+  const at = c.currentTime;
+  for (let k = 0; k < Math.min(5, n); k++) bell(c, at + k * 0.07, 1175 + k * 110, 0.05, 0.8);
+  tone(c, at, 196, { gain: 0.06, decay: 0.3, type: 'triangle' });
+}
+/** A jackpot won: a long fanfare of bells. */
+export function jackpotSound() {
+  const c = ready();
+  if (!c) return;
+  const at = c.currentTime + 0.05;
+  [392, 523, 659, 784, 1047, 1319, 1568, 2093].forEach((f, k) => bell(c, at + k * 0.11, f, 0.06, 1.6));
+  [261.6, 329.6, 392, 523.2].forEach((f) => tone(c, at + 0.8, f, { gain: 0.04, decay: 3, attack: 0.5, type: 'triangle', detune: 4 }));
+}

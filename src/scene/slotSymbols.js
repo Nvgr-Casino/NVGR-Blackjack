@@ -70,6 +70,16 @@ function ground(ctx, W, H) {
     for (let x = 6; x < W; x += 9) ctx.fillRect(x, 0, 1, H);
     return;
   }
+  if (STYLE === 'crimson') {
+    // Red silk, shaded at the edges, a fine gold lattice woven through.
+    g.addColorStop(0, '#2a0306'); g.addColorStop(0.18, '#5a0a12'); g.addColorStop(0.5, '#7a1018'); g.addColorStop(0.82, '#5a0a12'); g.addColorStop(1, '#2a0306');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(230,190,110,0.07)'; ctx.lineWidth = 2;
+    for (let y = 0; y < H; y += 64) for (let x = (y / 64) % 2 ? 32 : 0; x < W + 64; x += 64) {
+      ctx.beginPath(); ctx.moveTo(x, y - 24); ctx.lineTo(x + 24, y); ctx.lineTo(x, y + 24); ctx.lineTo(x - 24, y); ctx.closePath(); ctx.stroke();
+    }
+    return;
+  }
   if (STYLE === 'velvet') {
     // Midnight blue velvet with a fine silver point.
     g.addColorStop(0, '#04050d'); g.addColorStop(0.2, '#0b1030'); g.addColorStop(0.5, '#131a44'); g.addColorStop(0.8, '#0b1030'); g.addColorStop(1, '#04050d');
@@ -800,6 +810,229 @@ function drawPlatinumRoyal(ctx, ch) {
   ctx.restore();
 }
 
+
+// ---------- Jade Panda ----------
+const JADE = { deep: [2, 30, 18], dark: [10, 78, 50], mid: [30, 150, 96], light: [120, 214, 160], white: [226, 255, 236] };
+// A panda's face, drawn in fur-soft gradients: ears, eye patches, muzzle.
+function pandaFace(ctx, cx, cy, r) {
+  const soft = (x, y, rx, ry, c0, c1, rot = 0) => {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+    const g = ctx.createRadialGradient(-rx * 0.25, -ry * 0.3, 1, 0, 0, Math.max(rx, ry));
+    g.addColorStop(0, c0); g.addColorStop(1, c1);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  };
+  // Ears, then the head.
+  soft(cx - r * 0.72, cy - r * 0.7, r * 0.34, r * 0.32, '#3a3a3e', '#0a0a0c');
+  soft(cx + r * 0.72, cy - r * 0.7, r * 0.34, r * 0.32, '#3a3a3e', '#0a0a0c');
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = r * 0.12; ctx.shadowOffsetY = r * 0.05;
+  soft(cx, cy, r, r * 0.88, '#ffffff', '#cfd2d6');
+  ctx.restore();
+  // Eye patches, tilted down and out.
+  soft(cx - r * 0.38, cy - r * 0.06, r * 0.24, r * 0.32, '#36363a', '#08080a', 0.55);
+  soft(cx + r * 0.38, cy - r * 0.06, r * 0.24, r * 0.32, '#36363a', '#08080a', -0.55);
+  // Eyes: dark with a point of light.
+  [-1, 1].forEach((sd) => {
+    ctx.fillStyle = '#f3efe4'; ctx.beginPath(); ctx.arc(cx + sd * r * 0.36, cy - r * 0.08, r * 0.085, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(cx + sd * r * 0.355, cy - r * 0.075, r * 0.06, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx + sd * r * 0.335, cy - r * 0.1, r * 0.02, 0, Math.PI * 2); ctx.fill();
+  });
+  // Muzzle, nose and mouth.
+  soft(cx, cy + r * 0.32, r * 0.34, r * 0.25, '#ffffff', '#e2e4e8');
+  ctx.fillStyle = '#111'; ctx.beginPath(); ctx.ellipse(cx, cy + r * 0.2, r * 0.11, r * 0.075, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = r * 0.03; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(cx, cy + r * 0.27); ctx.lineTo(cx, cy + r * 0.36);
+  ctx.moveTo(cx - r * 0.1, cy + r * 0.42); ctx.quadraticCurveTo(cx, cy + r * 0.38, cx, cy + r * 0.36); ctx.quadraticCurveTo(cx, cy + r * 0.38, cx + r * 0.1, cy + r * 0.42);
+  ctx.stroke();
+}
+// A bamboo stem, jointed, with two leaves.
+function bamboo(ctx, x, y0, y1, w, lean) {
+  ctx.save(); ctx.translate(x, y1); ctx.rotate(lean);
+  const h = y1 - y0;
+  const g = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
+  g.addColorStop(0, '#2c5a1a'); g.addColorStop(0.45, '#8fc24a'); g.addColorStop(1, '#2a4c14');
+  ctx.fillStyle = g; ctx.fillRect(-w / 2, -h, w, h);
+  ctx.fillStyle = '#1e3a10';
+  for (let k = 1; k < 4; k++) ctx.fillRect(-w / 2 - 2, -h * k / 4, w + 4, 5);
+  const leaf = (yy, dir) => {
+    const lg = ctx.createLinearGradient(0, yy, dir * 90, yy - 40);
+    lg.addColorStop(0, '#4f8a24'); lg.addColorStop(1, '#2a5512');
+    ctx.fillStyle = lg;
+    ctx.beginPath(); ctx.moveTo(0, yy); ctx.quadraticCurveTo(dir * 50, yy - 40, dir * 110, yy - 30); ctx.quadraticCurveTo(dir * 50, yy - 10, 0, yy); ctx.fill();
+  };
+  leaf(-h * 0.72, 1); leaf(-h * 0.5, -1);
+  ctx.restore();
+}
+// The Panda Wild: a gold medallion, jade within, bamboo and the panda.
+function drawPandaWild(ctx) {
+  const c = S / 2, R = 200;
+  halo(ctx, c, c, 250, [255, 200, 90], 0.4);
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 24; ctx.shadowOffsetY = 10;
+  ctx.fillStyle = goldGrad(ctx, c - R, c - R, c + R, c + R);
+  ctx.beginPath(); ctx.arc(c, c - 10, R, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  const jade = ctx.createRadialGradient(c - 50, c - 70, 20, c, c - 10, R - 18);
+  jade.addColorStop(0, rgb(JADE.light)); jade.addColorStop(0.55, rgb(JADE.mid)); jade.addColorStop(1, rgb(JADE.deep));
+  ctx.fillStyle = jade; ctx.beginPath(); ctx.arc(c, c - 10, R - 18, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,240,200,0.55)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(c, c - 10, R - 30, 0, Math.PI * 2); ctx.stroke();
+  ctx.save(); ctx.beginPath(); ctx.arc(c, c - 10, R - 18, 0, Math.PI * 2); ctx.clip();
+  bamboo(ctx, c - 120, c - 190, c + 190, 26, -0.12);
+  bamboo(ctx, c + 128, c - 170, c + 190, 22, 0.14);
+  pandaFace(ctx, c, c - 4, 118);
+  ctx.restore();
+  // The word on a ruby ribbon across the foot.
+  const ry = S - 78;
+  ctx.fillStyle = '#5c0b18';
+  ctx.beginPath(); ctx.moveTo(84, ry - 24); ctx.lineTo(S - 84, ry - 24); ctx.lineTo(S - 68, ry + 2); ctx.lineTo(S - 84, ry + 28); ctx.lineTo(84, ry + 28); ctx.lineTo(68, ry + 2); ctx.closePath(); ctx.fill();
+  const rg = ctx.createLinearGradient(0, ry - 24, 0, ry + 28);
+  rg.addColorStop(0, '#c4203a'); rg.addColorStop(1, '#7c0e20');
+  ctx.fillStyle = rg; ctx.fillRect(98, ry - 20, S - 196, 44);
+  ctx.strokeStyle = goldGrad(ctx, 98, 0, S - 98, 0); ctx.lineWidth = 3; ctx.strokeRect(98, ry - 20, S - 196, 44);
+  letter(ctx, 'WILD', c, ry + 16, 42, null, { spacing: 14, weight: 900 });
+}
+// A Golden Pearl: a glowing orb in a gold setting.
+function drawPearl(ctx) {
+  const c = S / 2, R = 150;
+  halo(ctx, c, c, 250, [255, 210, 110], 0.55);
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 20; ctx.shadowOffsetY = 8;
+  ctx.fillStyle = goldGrad(ctx, c - R - 30, c - R - 30, c + R + 30, c + R + 30);
+  ctx.beginPath(); ctx.arc(c, c, R + 26, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  // The setting's eight claws.
+  ctx.fillStyle = goldGrad(ctx, c - R, c - R, c + R, c + R);
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2;
+    ctx.beginPath(); ctx.arc(c + Math.cos(a) * (R + 4), c + Math.sin(a) * (R + 4), 16, 0, Math.PI * 2); ctx.fill();
+  }
+  const g = ctx.createRadialGradient(c - R * 0.35, c - R * 0.4, R * 0.08, c, c, R);
+  g.addColorStop(0, '#fffbe8'); g.addColorStop(0.3, '#ffe39a'); g.addColorStop(0.7, '#e2a73c'); g.addColorStop(1, '#8a5a12');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c, c, R, 0, Math.PI * 2); ctx.fill();
+  // A soft band of reflected light across it.
+  ctx.save(); ctx.beginPath(); ctx.arc(c, c, R, 0, Math.PI * 2); ctx.clip();
+  const band = ctx.createLinearGradient(c - R, c + R * 0.2, c + R, c + R * 0.6);
+  band.addColorStop(0, 'rgba(255,255,255,0)'); band.addColorStop(0.5, 'rgba(255,255,255,0.22)'); band.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = band; ctx.fillRect(c - R, c - R, R * 2, R * 2);
+  ctx.restore();
+  glint(ctx, c - 58, c - 64, 52); glint(ctx, c + 60, c + 56, 22, 0.7);
+}
+// A gold ingot: the boat-shaped sycee with its rounded crown.
+function drawIngot(ctx) {
+  const c = S / 2;
+  halo(ctx, c, c + 10, 240, [255, 196, 90], 0.32);
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.65)'; ctx.shadowBlur = 24; ctx.shadowOffsetY = 12;
+  ctx.fillStyle = goldGrad(ctx, 0, c - 40, 0, c + 140);
+  ctx.beginPath();
+  ctx.moveTo(c - 210, c - 10);
+  ctx.quadraticCurveTo(c - 190, c + 120, c, c + 128);
+  ctx.quadraticCurveTo(c + 190, c + 120, c + 210, c - 10);
+  ctx.quadraticCurveTo(c + 150, c + 30, c, c + 30);
+  ctx.quadraticCurveTo(c - 150, c + 30, c - 210, c - 10);
+  ctx.fill(); ctx.restore();
+  // The raised ends, curling up.
+  [-1, 1].forEach((sd) => {
+    ctx.fillStyle = goldGrad(ctx, c + sd * 210, c - 60, c + sd * 120, c + 40);
+    ctx.beginPath(); ctx.moveTo(c + sd * 212, c - 12); ctx.quadraticCurveTo(c + sd * 222, c - 70, c + sd * 168, c - 52); ctx.quadraticCurveTo(c + sd * 150, c + 6, c + sd * 120, c + 22); ctx.closePath(); ctx.fill();
+  });
+  // The crown in the middle.
+  const dome = ctx.createRadialGradient(c - 30, c - 80, 10, c, c - 30, 120);
+  dome.addColorStop(0, '#fff3cc'); dome.addColorStop(0.45, '#e9bd62'); dome.addColorStop(1, '#8a5a18');
+  ctx.fillStyle = dome; ctx.beginPath(); ctx.ellipse(c, c - 20, 120, 92, 0, Math.PI, 0); ctx.quadraticCurveTo(c, c + 40, c - 120, c - 20); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,246,214,0.7)'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.ellipse(c, c - 20, 112, 84, 0, Math.PI * 1.15, Math.PI * 1.6); ctx.stroke();
+  glint(ctx, c - 40, c - 86, 40); glint(ctx, c + 150, c + 10, 22, 0.8);
+}
+// A red silk lantern, gold caps and a tassel.
+function drawLantern(ctx) {
+  const c = S / 2;
+  halo(ctx, c, c, 230, [255, 90, 60], 0.32);
+  const top = c - 150, bot = c + 120, rx = 150;
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 22; ctx.shadowOffsetY = 10;
+  const body = ctx.createRadialGradient(c - 40, c - 40, 20, c, c - 10, 200);
+  body.addColorStop(0, '#ff7a5a'); body.addColorStop(0.4, '#d8182c'); body.addColorStop(1, '#5a0410');
+  ctx.fillStyle = body; ctx.beginPath(); ctx.ellipse(c, (top + bot) / 2, rx, (bot - top) / 2, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  // The ribs of the frame.
+  ctx.strokeStyle = 'rgba(80,0,10,0.55)'; ctx.lineWidth = 4;
+  [-0.75, -0.42, 0, 0.42, 0.75].forEach((k) => { ctx.beginPath(); ctx.ellipse(c, (top + bot) / 2, rx * Math.abs(k) + 2, (bot - top) / 2, 0, k < 0 ? Math.PI / 2 : -Math.PI / 2, k < 0 ? Math.PI * 1.5 : Math.PI / 2); ctx.stroke(); });
+  // The glow within.
+  const glow = ctx.createRadialGradient(c, c, 10, c, c, 110);
+  glow.addColorStop(0, 'rgba(255,220,140,0.55)'); glow.addColorStop(1, 'rgba(255,220,140,0)');
+  ctx.fillStyle = glow; ctx.beginPath(); ctx.ellipse(c, (top + bot) / 2, rx, (bot - top) / 2, 0, 0, Math.PI * 2); ctx.fill();
+  // Gold caps.
+  [[top, -1], [bot, 1]].forEach(([y, sd]) => {
+    ctx.fillStyle = goldGrad(ctx, c - 80, y - 20, c + 80, y + 20);
+    ctx.beginPath(); ctx.roundRect(c - 78, y - (sd < 0 ? 26 : 4), 156, 30, 8); ctx.fill();
+  });
+  ctx.fillStyle = goldGrad(ctx, c - 8, top - 70, c + 8, top);
+  ctx.fillRect(c - 5, top - 70, 10, 46);
+  // The tassel.
+  ctx.fillStyle = goldGrad(ctx, c - 14, bot + 26, c + 14, bot + 60);
+  ctx.beginPath(); ctx.arc(c, bot + 40, 14, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#b8141f'; ctx.lineWidth = 3;
+  for (let k = -5; k <= 5; k++) { ctx.beginPath(); ctx.moveTo(c + k * 2, bot + 50); ctx.lineTo(c + k * 4, bot + 120); ctx.stroke(); }
+  letter(ctx, '福', c, c + 34, 110, null, { weight: 900 });
+}
+// A carved jade disc, a gold cord through it.
+function drawJadeDisc(ctx) {
+  const c = S / 2, R = 190, r0 = 62;
+  halo(ctx, c, c, 240, JADE.mid, 0.3);
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 22; ctx.shadowOffsetY = 10;
+  const g = ctx.createRadialGradient(c - 70, c - 80, 20, c, c, R);
+  g.addColorStop(0, rgb(JADE.white)); g.addColorStop(0.3, rgb(JADE.light)); g.addColorStop(0.7, rgb(JADE.mid)); g.addColorStop(1, rgb(JADE.dark));
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c, c, R, 0, Math.PI * 2); ctx.arc(c, c, r0, 0, Math.PI * 2, true); ctx.fill('evenodd'); ctx.restore();
+  // Carved rings and a band of raised grain.
+  ctx.strokeStyle = rgb(JADE.deep, 0.5); ctx.lineWidth = 4;
+  [R - 18, r0 + 20].forEach((rr) => { ctx.beginPath(); ctx.arc(c, c, rr, 0, Math.PI * 2); ctx.stroke(); });
+  ctx.fillStyle = rgb(JADE.deep, 0.35);
+  for (let k = 0; k < 28; k++) for (let j = 0; j < 3; j++) {
+    const a = (k / 28) * Math.PI * 2 + j * 0.06, rr = r0 + 40 + j * 28;
+    ctx.beginPath(); ctx.arc(c + Math.cos(a) * rr, c + Math.sin(a) * rr, 5, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(c, c, R - 6, Math.PI * 1.05, Math.PI * 1.55); ctx.stroke();
+  // The cord, knotted at the top.
+  ctx.strokeStyle = goldGrad(ctx, c - 30, c - R - 40, c + 30, c - R + 20); ctx.lineWidth = 9;
+  ctx.beginPath(); ctx.moveTo(c - 26, c - R + 6); ctx.quadraticCurveTo(c, c - R - 60, c + 26, c - R + 6); ctx.stroke();
+  glint(ctx, c - 90, c - 110, 40);
+}
+// A folding fan of red silk, gold ribs and a gold rivet.
+function drawFan(ctx) {
+  const c = S / 2, pivot = [c, c + 150], R = 300, a0 = -Math.PI * 0.9, a1 = -Math.PI * 0.1;
+  halo(ctx, c, c, 240, [255, 90, 70], 0.25);
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 20; ctx.shadowOffsetY = 10;
+  const folds = 14;
+  for (let k = 0; k < folds; k++) {
+    const t0 = a0 + ((a1 - a0) * k) / folds, t1 = a0 + ((a1 - a0) * (k + 1)) / folds;
+    ctx.beginPath(); ctx.moveTo(pivot[0] + Math.cos(t0) * 90, pivot[1] + Math.sin(t0) * 90);
+    ctx.lineTo(pivot[0] + Math.cos(t0) * R, pivot[1] + Math.sin(t0) * R);
+    ctx.arc(pivot[0], pivot[1], R, t0, t1);
+    ctx.lineTo(pivot[0] + Math.cos(t1) * 90, pivot[1] + Math.sin(t1) * 90);
+    ctx.closePath();
+    ctx.fillStyle = k % 2 ? '#a50f22' : '#d01c30'; ctx.fill();
+  }
+  ctx.restore();
+  // A gold band painted along the edge, and a plum branch across.
+  ctx.strokeStyle = goldGrad(ctx, c - R, c - R, c + R, c); ctx.lineWidth = 14;
+  ctx.beginPath(); ctx.arc(pivot[0], pivot[1], R - 22, a0, a1); ctx.stroke();
+  ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(pivot[0], pivot[1], R - 46, a0, a1); ctx.stroke();
+  ctx.strokeStyle = '#3a1a0a'; ctx.lineWidth = 6;
+  ctx.beginPath(); ctx.moveTo(c - 150, c + 20); ctx.quadraticCurveTo(c - 40, c - 60, c + 120, c - 40); ctx.stroke();
+  [[c - 100, c - 18], [c - 30, c - 48], [c + 50, c - 50], [c + 110, c - 40]].forEach(([x, y]) => {
+    ctx.fillStyle = '#ffd6dc'; for (let p = 0; p < 5; p++) { const a = (p / 5) * Math.PI * 2; ctx.beginPath(); ctx.arc(x + Math.cos(a) * 9, y + Math.sin(a) * 9, 7, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = '#e6b84a'; ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+  });
+  // The ribs at the base, and the rivet.
+  ctx.strokeStyle = goldGrad(ctx, c - 90, c + 60, c + 90, c + 150); ctx.lineWidth = 6;
+  for (let k = 0; k <= folds; k += 2) { const t = a0 + ((a1 - a0) * k) / folds; ctx.beginPath(); ctx.moveTo(pivot[0], pivot[1]); ctx.lineTo(pivot[0] + Math.cos(t) * 92, pivot[1] + Math.sin(t) * 92); ctx.stroke(); }
+  ctx.fillStyle = goldGrad(ctx, c - 18, c + 132, c + 18, c + 168);
+  ctx.beginPath(); ctx.arc(pivot[0], pivot[1], 18, 0, Math.PI * 2); ctx.fill();
+}
+// The royals in jade enamel, rimmed in gold.
+function drawJadeRoyal(ctx, ch) {
+  const pal = { A: JADE, K: GOLD_PAL, Q: JADE, J: GOLD_PAL }[ch];
+  halo(ctx, S / 2, S / 2, 220, pal.mid, 0.2);
+  if (ch === 'Q') letter(ctx, ch, S / 2 - 40, S / 2 + 100, 270, pal);
+  else letter(ctx, ch, S / 2, S / 2 + 118, 330, pal);
+  flourish(ctx, S / 2, S / 2 + 168, 120);
+}
+
 // Paints one symbol, centred in its cell (W by H symbol units).
 function paint(ctx, sym, logo, W, H) {
   ground(ctx, W, H);
@@ -832,6 +1065,13 @@ function paint(ctx, sym, logo, W, H) {
   else if (sym === 'pQ') drawPlatinumRoyal(ctx, 'Q');
   else if (sym === 'pJ') drawPlatinumRoyal(ctx, 'J');
   else if (sym === 'p10') drawPlatinumRoyal(ctx, '10');
+  else if (sym === 'pwild') drawPandaWild(ctx);
+  else if (sym === 'pearl') drawPearl(ctx);
+  else if (sym === 'ingot') drawIngot(ctx);
+  else if (sym === 'lantern') drawLantern(ctx);
+  else if (sym === 'jade') drawJadeDisc(ctx);
+  else if (sym === 'fan') drawFan(ctx);
+  else if (sym === 'jA' || sym === 'jK' || sym === 'jQ' || sym === 'jJ') drawJadeRoyal(ctx, sym[1]);
   else drawGem(ctx, sym);
   ctx.restore();
 }
