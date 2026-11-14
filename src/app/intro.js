@@ -108,6 +108,20 @@ export function createIntro() {
       pill.classList.add('on');
       pillAt = performance.now();
     },
+    /** Loading has stalled or failed: say so, show why, offer a reload. */
+    fail(title, detail = '') {
+      if (finished) return;
+      status.textContent = '';
+      let box = el.querySelector('.intro-fail');
+      if (!box) {
+        box = document.createElement('div');
+        box.className = 'intro-fail';
+        el.querySelector('.intro-load').appendChild(box);
+      }
+      box.innerHTML = `<b>${esc(title)}</b>${detail ? `<small>${esc(detail).slice(0, 240)}</small>` : ''}<button class="btn btn-primary">Reload</button>`;
+      box.querySelector('button').onclick = () => location.reload();
+      el.classList.add('load-on');
+    },
     done() {
       if (finished) return;
       finished = true;

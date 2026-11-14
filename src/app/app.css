@@ -1429,3 +1429,6 @@ input:focus { outline: none; border-color: var(--accent); }
 .fs-steps b { color: #f3dfae; }
 .fs-ico { display: inline-flex; vertical-align: middle; padding: 2px 4px; border-radius: 6px; background: rgba(243, 223, 174, 0.12); color: #f3dfae; }
 .fs-install { width: 100%; font-family: var(--brand); letter-spacing: 0.08em; }
+
+.intro-fail { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); width: min(360px, calc(100% - 32px)); display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 16px; border-radius: 14px; text-align: center; background: rgba(20, 16, 12, 0.92); border: 1px solid rgba(200, 164, 106, 0.45); color: #f3e6c8; font-size: 14px; }
+.intro-fail small { font-size: 11px; color: rgba(243, 223, 174, 0.65); word-break: break-word; }

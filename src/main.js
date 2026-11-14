@@ -196,18 +196,31 @@ function checkInviteParam() {
 // Kept inside an async boot rather than a top-level await: the latter
 // needs an esnext build target, and this ordering (fonts → scene → first
 // render) is the only reason the await exists.
+// What went wrong, if anything, for the loading screen to say (intro.js):
+// a phone's console can't be seen, so the page itself has to tell.
+let bootError = '';
+window.addEventListener('error', (e) => { bootError = bootError || String((e.error && e.error.message) || e.message || 'error'); });
+window.addEventListener('unhandledrejection', (e) => { bootError = bootError || String((e.reason && e.reason.message) || e.reason || 'error'); });
+const within = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(r, ms))]);
+
 async function boot() {
   // The house mark at once, while fonts and the scene load.
   render();
   intro.progress(0.15, 'Opening the doors…');
-  await Promise.all([
+  // Fonts if they come quickly; a slow font is no reason to wait.
+  await within(Promise.all([
     document.fonts.load("700 40px 'Cinzel'"),
     // Card indices are drawn in Inter; a card painted before it loads is
     // cached with the fallback face for the rest of the session.
     document.fonts.load("700 40px 'Inter'"),
-  ]);
+  ]).catch(() => {}), 3000);
   intro.progress(0.4, 'Setting the tables…');
-  sceneHandles = initScene(canvas);
+  try {
+    sceneHandles = initScene(canvas);
+  } catch (e) {
+    if (intro) intro.fail("This device couldn't start the 3D casino.", String((e && e.message) || e));
+    return;
+  }
   intro.progress(0.75, 'Calling the dealers…');
   mountTable3D(sceneHandles);
   mountPoker3D(sceneHandles);
@@ -220,7 +233,10 @@ async function boot() {
   checkInviteParam();
 }
 
-boot();
+boot().catch((e) => { if (intro) intro.fail('Something went wrong while opening.', String((e && e.message) || e)); });
+// If the casino still hasn't opened after a good while, say so, with what
+// went wrong if anything did, and a way to try again.
+setTimeout(() => { if (intro) intro.fail('This is taking longer than it should.', bootError); }, 20000);
 
 // Build order:
 // 1-3. [done] static 3D table, deal animation, seats + dealer — src/scene/*
