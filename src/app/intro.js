@@ -69,7 +69,7 @@ export function createIntro() {
       <div class="intro-centre">
         ${chips()}
         <div class="intro-crest">
-          <img src="${LOGO_URL}" alt="NVGR Blackjack 21">
+          <img src="${LOGO_URL}" alt="NVGR Casino">
           <span class="intro-games">Blackjack · Hold'em · Roulette · Baccarat</span>
           <span class="intro-line"><i></i></span>
         </div>
