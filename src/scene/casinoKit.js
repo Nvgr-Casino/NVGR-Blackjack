@@ -5,11 +5,19 @@ import { m } from './scale.js';
 // textures, felt, marble, wood, velvet, metals, stacks of chips, bottles.
 // The rooms build their own furniture from these.
 
+// A phone paints these at most 1024 px on a side: the same picture, drawn
+// smaller, so it costs a quarter of the memory (the renderer caps what it
+// uploads there at 1024 anyway — see scene.js).
+const PHONE = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820;
 export function canvasTex(w, h, draw, { repeat = false } = {}) {
   const c = document.createElement('canvas');
-  c.width = w;
-  c.height = h;
-  draw(c.getContext('2d'), w, h);
+  const k = PHONE ? Math.min(1, 1024 / Math.max(w, h)) : 1;
+  c.width = Math.round(w * k);
+  c.height = Math.round(h * k);
+  const ctx = c.getContext('2d');
+  // Drawn in the full-size coordinates either way.
+  ctx.scale(k, k);
+  draw(ctx, w, h);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8;
@@ -20,7 +28,8 @@ export function canvasTex(w, h, draw, { repeat = false } = {}) {
 // Fine grain over whatever is on the canvas: the weave of cloth, the
 // grain of stone.
 export function grain(ctx, w, h, amount = 14) {
-  const img = ctx.getImageData(0, 0, w, h);
+  // Over the canvas's own pixels, whatever size it was drawn at.
+  const img = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
   for (let i = 0; i < img.data.length; i += 4) {
     const n = (Math.random() - 0.5) * amount;
     img.data[i] += n;

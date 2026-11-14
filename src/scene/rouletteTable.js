@@ -388,7 +388,9 @@ export function createRouletteTable() {
   // The results board beside the croupier, behind the wheel end of the
   // table: one wide screen on two chrome legs, painted at a high
   // resolution and shown unlit so its numbers read sharp from every seat.
-  const BOARD_PW = 1000, BOARD_PH = 540, BOARD_SCALE = 2.2;
+  const BOARD_PW = 1000, BOARD_PH = 540;
+  // Sharp on a big screen; a phone shows it far smaller, and has less memory.
+  const BOARD_SCALE = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820 ? 1.0 : 2.2;
   const towerCanvas = document.createElement('canvas');
   towerCanvas.width = Math.round(BOARD_PW * BOARD_SCALE);
   towerCanvas.height = Math.round(BOARD_PH * BOARD_SCALE);

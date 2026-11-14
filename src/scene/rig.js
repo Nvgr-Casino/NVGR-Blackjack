@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { lightenForPhone } from './phoneTextures.js';
 
 // Finds the bones the table needs, whatever skeleton a model arrived with.
 //
@@ -123,6 +124,8 @@ export function withoutRootMotion(clip, hipsBone) {
  * to fully non-metallic and given at least a cloth-like roughness.
  */
 export function prepareFigureMaterials(model) {
+  // A phone keeps a figure's colour and lets its surface maps go.
+  lightenForPhone(model);
   model.traverse((o) => {
     if (!o.isMesh) return;
     for (const mat of [].concat(o.material)) {

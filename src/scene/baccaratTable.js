@@ -376,7 +376,9 @@ export function createBaccaratTable() {
   // the players: the coups so far in beads large enough to read from any
   // seat. The board is painted at a high resolution and shown unlit,
   // so its lettering stays sharp.
-  const BOARD_W = 1000, BOARD_H = 540, BOARD_SCALE = 2.2;
+  const BOARD_W = 1000, BOARD_H = 540;
+  // Sharp on a big screen; a phone shows it far smaller, and has less memory.
+  const BOARD_SCALE = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820 ? 1.0 : 2.2;
   const boardCanvas = document.createElement('canvas');
   boardCanvas.width = Math.round(BOARD_W * BOARD_SCALE);
   boardCanvas.height = Math.round(BOARD_H * BOARD_SCALE);

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { lightenForPhone } from './phoneTextures.js';
 import { loadGltf } from './gltf.js';
 import { UNITS_PER_METRE, FLOOR_Y, m } from './scale.js';
 
@@ -12,7 +13,8 @@ const url = (id) => `${import.meta.env.BASE_URL}models/furniture/${id}.glb`;
 // One load per piece however many times it is placed.
 const cache = new Map();
 function piece(id) {
-  if (!cache.has(id)) cache.set(id, loadGltf(url(id)).then((g) => g.scene));
+  // Lightened once for a phone, before any copy is made of it.
+  if (!cache.has(id)) cache.set(id, loadGltf(url(id)).then((g) => { lightenForPhone(g.scene); return g.scene; }));
   return cache.get(id);
 }
 
