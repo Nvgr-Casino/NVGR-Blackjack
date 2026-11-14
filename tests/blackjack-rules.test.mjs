@@ -154,4 +154,33 @@ function room(seats, cards) {
   ok(r.players.edge.chips === L.RESTAKE_BELOW, 'but leaves ' + L.RESTAKE_BELOW + ' alone: it can still bet');
 }
 
+// A player who misses a betting window is away: the next deal doesn't wait
+// for them, a bet brings them back and clears the run, three in a row
+// frees the seat.
+{
+  const r = { code: 'A', isPublic: true, players: {}, playerOrder: [], dealer: { hand: [] }, deck: Array(200).fill('2-C'), shoeSize: 312, cutCardAt: 0, log: [] };
+  L.addPlayerToRoom(r, 'here', 'Here', 10000);
+  L.addPlayerToRoom(r, 'gone', 'Gone', 10000);
+  L.startRoundLogic(r);
+  const min = L.stakesFor(r).min;
+  L.applyBet(r, 'here', min);
+  ok(r.phase === 'betting', 'the first window waits for everyone');
+  r.bettingDeadline = Date.now() - 1;
+  L.processBettingTimeoutLogic(r);
+  ok(r.players.gone.away && r.players.gone.timeouts === 1 && r.phase !== 'betting', 'missed once: away, and the hand is dealt');
+  L.startRoundLogic(r);
+  L.applyBet(r, 'here', min);
+  ok(r.phase !== 'betting' && r.players.gone.timeouts === 2, 'the next deal goes without waiting for the away player, and counts it missed');
+  L.startRoundLogic(r);
+  L.applyBet(r, 'gone', min);
+  ok(!r.players.gone.away && r.players.gone.timeouts === 0, 'a bet brings them back and the run starts again');
+  L.applyBet(r, 'here', min);
+  for (let i = 0; i < 3; i++) {
+    L.startRoundLogic(r);
+    if (i === 0) { r.bettingDeadline = Date.now() - 1; L.applyBet(r, 'here', min); L.processBettingTimeoutLogic(r); }
+    else L.applyBet(r, 'here', min);
+  }
+  ok(!r.players.gone, 'three windows missed in a row and the seat is freed');
+}
+
 console.log(fails ? fails + ' FAILED' : 'ALL PASSED');

@@ -359,11 +359,34 @@ export function processInsuranceTimeout(r) {
   resolveInsurance(r);
 }
 
+// A player who missed the last betting window is 'away': the table doesn't
+// hold the deal for them — it goes as soon as everyone else has bet — but
+// they can still bet while the window is open, and that brings them back.
 export function checkAutoDeal(r) {
   if (!r.isPublic) return;
-  const pending = r.playerOrder.some((key) => r.players[key].status === 'betting');
+  const pending = r.playerOrder.some((key) => r.players[key].status === 'betting' && !r.players[key].away);
   const anyBettor = r.playerOrder.some((key) => r.players[key].status === 'bet-placed');
-  if (!pending && anyBettor) dealRoundCards(r);
+  if (pending || !anyBettor) return;
+  // Dealt without the away players: that is another window missed.
+  missAway(r);
+  dealRoundCards(r);
+}
+function missAway(r) {
+  const notes = [];
+  for (const key of r.playerOrder.slice()) {
+    const p = r.players[key];
+    if (!p || p.status !== 'betting') continue;
+    p.timeouts = (p.timeouts || 0) + 1;
+    if (p.timeouts >= MAX_TIMEOUTS) {
+      notes.push(p.name + ' was removed after missing ' + MAX_TIMEOUTS + ' bets in a row.');
+      delete r.players[key];
+      r.playerOrder = r.playerOrder.filter((x) => x !== key);
+    } else {
+      p.status = 'sitout';
+      p.away = true;
+    }
+  }
+  if (notes.length) r.log = (r.log || []).concat(notes).slice(-8);
 }
 
 export function processBettingTimeoutLogic(r) {
@@ -374,11 +397,12 @@ export function processBettingTimeoutLogic(r) {
     if (p.status === 'betting') {
       p.timeouts = (p.timeouts || 0) + 1;
       if (p.timeouts >= MAX_TIMEOUTS) {
-        notes.push(p.name + ' was removed after missing ' + MAX_TIMEOUTS + ' bets.');
+        notes.push(p.name + ' was removed after missing ' + MAX_TIMEOUTS + ' bets in a row.');
         delete r.players[key];
         r.playerOrder = r.playerOrder.filter((x) => x !== key);
       } else {
         p.status = 'sitout';
+        p.away = true;
         notes.push(p.name + ' missed the betting window (' + p.timeouts + '/' + MAX_TIMEOUTS + ').');
       }
     }
@@ -609,6 +633,9 @@ export function applyBet(r, key, amount) {
   const { min, max } = stakesFor(r);
   if (amount < min || amount > max) return false;
   p.bet = amount; p.lastBet = amount; p.status = 'bet-placed';
+  // Back at the table: the run of missed bets starts again from nothing.
+  p.timeouts = 0;
+  p.away = false;
   r.log = (r.log || []).concat(p.name + ' bet ' + amount + '.').slice(-8);
   checkAutoDeal(r);
   return true;
