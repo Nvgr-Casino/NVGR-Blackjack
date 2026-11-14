@@ -31,7 +31,6 @@ import { POKER_SEATS_3D } from '../scene/pokerTable.js';
 import { ROULETTE_SEATS_3D } from '../scene/rouletteTable.js';
 import { BACCARAT_SEATS_3D } from '../scene/baccaratTable.js';
 import { audio, masterOut, isSoundOn, setSoundOn, isMusicOn, setMusicOn } from '../scene/sfx.js';
-import * as Social from './social.js';
 import { fullscreenButton, attachFullscreen } from './fullscreen.js';
 import * as S from './session.js';
 
@@ -62,11 +61,15 @@ let micQuick = false;     // whether it came on at once, without a prompt
 
 const isPoker = (r) => r && r.game === 'holdem';
 
-/** Whether the other player `k` is someone this player can talk with here. */
+/**
+ * Whether the other player `k` is someone this player can talk with here:
+ * anyone seated at the same table, public or private — talking is how
+ * strangers at a table become friends. Everyone's mic starts off, and any
+ * player can be muted for yourself from the players list (voiceBadge).
+ */
 function inScope(r, k) {
   if (!r || r.offline || k === me()) return false;
-  if (seatOfKey(r, k) < 0) return false;
-  return !r.isPublic || Social.isFriend(k);
+  return seatOfKey(r, k) >= 0;
 }
 
 /** Whether there is voice at this table at all for this player. */
@@ -443,7 +446,13 @@ export function attachMusicButton() {
 /** The Sound and Music switches, and the Mic button where there's anyone to talk to. */
 export function voiceButtons(r) {
   const sound = fullscreenButton() + musicButton() + `<button class="hud-btn hud-icon ${isSoundOn() ? '' : 'off'}" id="soundToggleBtn" title="${isSoundOn() ? 'Sound on — tap to turn off' : 'Sound off — tap to turn on'}" aria-label="Sound ${isSoundOn() ? 'on' : 'off'}">${isSoundOn() ? ICON_SOUND : ICON_SOUND_OFF}</button>`;
-  if (!voiceAvailable(r)) return `<span class="hud-voice">${sound}</span>`;
+  if (!voiceAvailable(r)) {
+    // Seated at a real table but nobody to talk to yet: the mic is still
+    // shown, and a tap says why it's quiet and how to change that.
+    const why = voiceHint(r);
+    if (!why) return `<span class="hud-voice">${sound}</span>`;
+    return `<span class="hud-voice">${sound}<button class="hud-btn hud-icon mic idle" id="micHintBtn" data-hint="${why.replace(/"/g, '&quot;')}" title="${why.replace(/"/g, '&quot;')}" aria-label="Voice chat">${ICON_MIC_OFF}</button></span>`;
+  }
   const on = micState === 'on';
   const title = micState === 'denied' ? 'The mic is blocked for this site — allow it in the browser settings, then tap to try again'
     : micState === 'failed' ? "Couldn't start the mic — tap to try again"
@@ -461,8 +470,32 @@ export function voiceBadge(k) {
   return `<button class="voice-mute ${isMuted ? 'muted' : ''} ${live ? 'live' : ''}" data-voice-mute="${k}" title="${isMuted ? 'Unmute' : 'Mute'} this player" aria-label="${isMuted ? 'Unmute' : 'Mute'}">${isMuted || !others[k].mic ? ICON_MIC_OFF : ICON_MIC}</button>`;
 }
 
+/** Why there's no one to talk to at this table, or '' where voice can't be had at all. */
+function voiceHint(r) {
+  if (!r || seatOfKey(r, me()) < 0) return '';
+  if (r.offline) return 'Voice chat is for tables with other players — practice tables are just you.';
+  if (!supported) return "This browser can't use the microphone for voice chat.";
+  return 'Voice opens when someone else sits down at this table.';
+}
+let hintTimer = null;
+function showHint(text) {
+  let el = document.getElementById('voiceHint');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'voiceHint';
+    el.className = 'voice-hint';
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  el.classList.add('on');
+  clearTimeout(hintTimer);
+  hintTimer = setTimeout(() => el.classList.remove('on'), 4500);
+}
+
 export function attachVoice() {
   attachMusicButton();
+  const hint = document.getElementById('micHintBtn');
+  if (hint) hint.onclick = () => showHint(hint.dataset.hint);
   attachFullscreen();
   const sound = document.getElementById('soundToggleBtn');
   if (sound) sound.onclick = () => { setSoundOn(!isSoundOn()); peers.forEach((p) => { if (!p.gain && p.el) p.el.muted = !isSoundOn() || muted.has(p.key); }); S.refresh(); };

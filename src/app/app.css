@@ -1432,3 +1432,12 @@ input:focus { outline: none; border-color: var(--accent); }
 
 .intro-fail { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); width: min(360px, calc(100% - 32px)); display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 16px; border-radius: 14px; text-align: center; background: rgba(20, 16, 12, 0.92); border: 1px solid rgba(200, 164, 106, 0.45); color: #f3e6c8; font-size: 14px; }
 .intro-fail small { font-size: 11px; color: rgba(243, 223, 174, 0.65); word-break: break-word; }
+
+/* Why the mic is quiet, on a tap of it (voice.js). */
+.hud-btn.mic.idle { opacity: 0.6; }
+.voice-hint {
+  position: fixed; left: 50%; top: 72px; transform: translate(-50%, -6px); z-index: 70; width: min(420px, calc(100vw - 32px));
+  padding: 10px 14px; border-radius: 14px; background: rgba(14, 12, 10, 0.92); border: 1px solid rgba(200, 164, 106, 0.5);
+  color: #f3e6c8; font-size: 13px; line-height: 1.45; text-align: center; opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s;
+}
+.voice-hint.on { opacity: 1; transform: translate(-50%, 0); }
