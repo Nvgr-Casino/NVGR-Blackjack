@@ -6,7 +6,7 @@ import logoUrl from '../assets/nvgr-mark.png';
 export const LOGO_URL = logoUrl;
 
 export function brandMark(className = '') {
-  return `<img class="brand-mark ${className}" src="${logoUrl}" alt="NVGR Blackjack 21">`;
+  return `<img class="brand-mark ${className}" src="${logoUrl}" alt="NVGR Casino">`;
 }
 
 // The bar across the top of every screen below the lobby: one way back,

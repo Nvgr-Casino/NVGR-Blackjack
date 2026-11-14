@@ -162,7 +162,7 @@ const FLOOR = [
   { id: 'roulette', kicker: 'Table game · six seats', name: 'Roulette', line: 'European wheel, one zero · straight up pays 35 to 1' },
   { id: 'craps', kicker: 'Dice · six seats', name: 'Craps', line: 'Pass Line, odds at true odds, the field and the hard ways' },
   { id: 'baccarat', kicker: 'Table game · seven seats', name: 'Baccarat', line: 'Punto Banco · Banker pays 19 to 20, Tie 8 to 1' },
-  { id: 'slots', kicker: 'High Limit Salon · slots', name: 'Crown Jewels', line: 'Five reels, ten lines · five NVGR wilds pay 1,000 a line' },
+  { id: 'slots', kicker: 'High Limit Salon · slots', name: 'Crown Jewels', line: 'Five reels, ten lines · five NVGR wilds pay 1,000 a line', more: 'How it pays' },
 ];
 const wrapIndex = (i) => ((i % FLOOR.length) + FLOOR.length) % FLOOR.length;
 // Where the carousel is headed: a whole number that runs past the ends, so
@@ -210,7 +210,7 @@ function homePage() {
 
       <div class="stage-actions" id="stageActions">
         <button class="btn btn-primary btn-lg stage-play" id="stagePlay">Play now</button>
-        <button class="btn btn-ghost stage-tables" id="stageTables">Tables</button>
+        <button class="btn btn-ghost stage-tables" id="stageTables">${esc(g.more || 'Tables')}</button>
       </div>
       <div class="stage-dots" id="stageDots">${FLOOR.map((x, i) => `<button class="stage-dot ${i === carouselIndex() ? 'on' : ''}" data-dot="${i}" aria-label="${esc(x.name)}"></button>`).join('')}</div>
 
@@ -285,6 +285,7 @@ function showGame() {
       const set = (id, t) => { const el = document.getElementById(id); if (el) el.textContent = t; };
       set('stageKicker', g.kicker); set('stageTitle', g.name); set('stageLine', g.line);
       set('stagePrevName', prev.name); set('stageNextName', next.name);
+      set('stageTables', g.more || 'Tables');
       const h = document.getElementById('stageHeading');
       if (h) h.classList.remove('swap');
     }, 220);
