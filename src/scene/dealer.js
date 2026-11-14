@@ -3,8 +3,9 @@ import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js
 import { loadGltf } from './gltf.js';
 import { resolveRig, withoutRootMotion, prepareFigureMaterials, fitClipToRig } from './rig.js';
 import { createReach } from './reach.js';
+import { createFingerPoser } from './fingers.js';
 import { DEALER } from './seats.js';
-import { DEAL_MS, DEAL_PULL, DEAL_PICK, DEAL_SET } from './deal.js';
+import { DEAL_MS, DEAL_PULL, DEAL_SET } from './deal.js';
 import { DEALER_HEIGHT, FLOOR_Y, m } from './scale.js';
 
 // The dealer: a Microsoft Rocketbox avatar, like the players, standing
@@ -87,11 +88,14 @@ function standAtTable(model, bones) {
 const activeDealers = new Set();
 export function updateDealerAnimations(deltaSeconds) {
   activeDealers.forEach((record) => {
+    if (record.fingers) record.fingers.before();
     if (record.left) record.left.before();
     if (record.reach) record.reach.before();
     record.mixer.update(deltaSeconds);
     if (record.reach) record.reach.after();
     if (record.left) record.left.after();
+    // The fingers last, over wherever the arms have put the hands.
+    if (record.fingers) record.fingers.after();
   });
 }
 
@@ -139,7 +143,9 @@ function populateDealer(group, key) {
       // the right is usually reaching at the same time.
       const left = createReach(model, bones, { side: 'left', body: 0.5 });
 
-      const record = { mixer, reach, left };
+      // Fingers that curl round a card, press it flat, rest on the shoe.
+      const fingers = createFingerPoser(model, { right: bones.wristR, left: bones.wristL });
+      const record = { mixer, reach, left, fingers };
       activeDealers.add(record);
       Object.assign(group.userData, { model, mixer, record, ready: true });
     })
@@ -259,17 +265,57 @@ export function dealerReach(dealer, points, { hand = 'right', ...options } = {})
   reach.play(points.map((p) => ({ at: p.at, pos: lifted(p.pos) })), options);
 }
 
-// In step with the card itself (deal.js): the left hand at the shoe's mouth
-// as the card starts out, sliding it to the handoff point; the right hand
-// there to take it, then at the player's spot as it is set down.
+// In step with the card itself (deal.js): the left hand comes to rest on
+// the shoe and stays there while the cards go out; the right hand goes to
+// the shoe's mouth, carries the card to its spot, presses it flat a moment
+// and, if another card follows, goes straight back to the shoe for it.
+const SHOE_REST_MS = 1600;   // how long the left hand stays after the last card
 export function playDealGesture(dealer, target, duration = DEAL_MS) {
   if (!target) return;
+  holdShoe(dealer);
+  const set = duration * DEAL_SET;
   dealerReach(dealer, [
     { at: duration * DEAL_PULL, pos: DEALER.deckPosition },
-    { at: duration * DEAL_PICK, pos: DEALER.handoffPosition },
-  ], { hand: 'left', returnMs: 320 });
+    { at: set, pos: target },
+    { at: set + 110, pos: target },
+  ], { returnMs: 380 });
+  const fingers = dealer.userData.record && dealer.userData.record.fingers;
+  if (fingers) {
+    // Closing on the card at the shoe, holding it across, flattening to
+    // press it down, and easing open again on the way back.
+    setTimeout(() => fingers.set('right', 'grip', 160), duration * DEAL_PULL - 120);
+    setTimeout(() => fingers.set('right', 'flat', 120), set - 60);
+    setTimeout(() => fingers.set('right', 'relax', 260), set + 160);
+  }
+}
+/** Where the dealer's right fingertips are now, for a card held in them. */
+export function dealerFingertip(dealer) {
+  const f = dealer && dealer.userData.record && dealer.userData.record.fingers;
+  return f ? f.tip('right') : null;
+}
+// The left hand on top of the shoe, kept there through a run of cards.
+function holdShoe(dealer) {
+  const record = dealer.userData.record;
+  const left = record && record.left;
+  if (!left) return;
+  const top = lifted(DEALER.shoePosition.clone().setY(0.05));
+  if (!record.onShoe) { left.hold(() => top.clone(), { blendMs: 320 }); record.onShoe = true; if (record.fingers) record.fingers.set('left', 'rest', 320); }
+  clearTimeout(record.shoeTimer);
+  record.shoeTimer = setTimeout(() => { left.release({ blendMs: 500 }); record.onShoe = false; if (record.fingers) record.fingers.set('left', 'relax', 500); }, SHOE_REST_MS);
+}
+/**
+ * The hand goes to a dealt card and turns it over, as a dealer turns the
+ * hole card: `card` is its mesh; `flip` is called as the fingers lift it.
+ */
+export function playFlipGesture(dealer, at, flip, reachMs = 360) {
   dealerReach(dealer, [
-    { at: duration * DEAL_PICK, pos: DEALER.handoffPosition },
-    { at: duration * DEAL_SET, pos: target },
-  ], { returnMs: 300 });
+    { at: reachMs, pos: at },
+    { at: reachMs + 380, pos: at.clone().add(new THREE.Vector3(0, 0.02, 0)) },
+  ], { returnMs: 360 });
+  setTimeout(flip, reachMs);
+  const fingers = dealer.userData.record && dealer.userData.record.fingers;
+  if (fingers) {
+    setTimeout(() => fingers.set('right', 'grip', 160), reachMs - 120);
+    setTimeout(() => fingers.set('right', 'relax', 300), reachMs + 420);
+  }
 }

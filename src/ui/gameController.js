@@ -7,7 +7,7 @@ import { CARD_WIDTH, CARD_HEIGHT } from '../scene/card.js';
 import { createChip, createChipForValue, createChipStack, CHIP_HEIGHT, DENOMINATIONS } from '../scene/chip.js';
 import { CHANNEL_RADIUS, CHANNEL_Y } from '../scene/table.js';
 import { createCharacter, playerReach, playerHandPosition } from '../scene/character.js';
-import { dealerReach } from '../scene/dealer.js';
+import { dealerReach, playFlipGesture } from '../scene/dealer.js';
 import { cameraOverride } from '../scene/cameraFocus.js';
 import { createHandBadge } from '../scene/handBadge.js';
 import { SEATS, DEALER, cameraPositionForSeat, cameraLookAtForSeat, isTallScreen } from '../scene/seats.js';
@@ -337,8 +337,12 @@ export function createTableDriver({ scene, camera, controls, dealer, shoe, disca
     return mesh;
   }
 
+  // The hole card turned over by the dealer's own hand: it reaches to the
+  // card, lifts its near edge and rolls it face up.
   function revealDealerCard(index) {
-    if (dealerMeshes[index]) revealCard(dealerMeshes[index]);
+    const mesh = dealerMeshes[index];
+    if (!mesh) return;
+    playFlipGesture(dealer, mesh.position.clone(), () => revealCard(mesh, 380));
   }
 
   // With an ace or a ten showing, the dealer checks the hole card for

@@ -34,7 +34,7 @@ const me = () => L.safeKey(S.session.uid);
 const between = ([lo, hi]) => lo + Math.random() * (hi - lo);
 const MOVES = { hit: L.applyHit, stand: L.applyStand, double: L.applyDouble, split: L.applySplit };
 
-export const isOfflineBlackjack = (r) => !!(r && r.offline && r.game !== 'holdem' && r.game !== 'roulette' && r.game !== 'baccarat');
+export const isOfflineBlackjack = (r) => !!(r && r.offline && !['holdem', 'roulette', 'baccarat', 'craps', 'slots'].includes(r.game));
 export const active = () => !!room;
 
 /** Starts `defId` against four bots. Returns false if the buy-in can't be covered. */

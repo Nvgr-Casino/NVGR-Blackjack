@@ -119,7 +119,7 @@ export const DEALER = {
   // holder on their right. A card comes out of the shoe under the left
   // hand, which slides it across to the handoff point, where the right hand
   // takes it and deals it.
-  shoePosition: new THREE.Vector3(1.62, 0, TABLE_BACK_Z + 0.4),
+  shoePosition: new THREE.Vector3(1.22, 0, TABLE_BACK_Z + 0.36),
   deckPosition: new THREE.Vector3(1.16, 0.06, TABLE_BACK_Z + 0.4),
   handoffPosition: new THREE.Vector3(0.78, 0.012, TABLE_BACK_Z + 0.95),
   discardPosition: new THREE.Vector3(-1.6, 0, TABLE_BACK_Z + 0.4),
