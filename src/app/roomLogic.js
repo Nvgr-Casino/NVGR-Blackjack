@@ -302,8 +302,34 @@ function dealerBlackjack(r, notes) {
 
 // Where a round goes once any insurance question is settled.
 function beginPlay(r) {
-  if (r.turnOrder.length === 0) { r.turnDeadline = null; r.phase = 'dealer'; resolveDealerAndPayouts(r); }
+  // With every box a blackjack there are no turns, and the database drops
+  // the empty list: it comes back missing, not empty.
+  if (!r.turnOrder || r.turnOrder.length === 0) { r.turnDeadline = null; r.phase = 'dealer'; resolveDealerAndPayouts(r); }
   else { r.phase = 'playing'; enterTurn(r); }
+}
+
+/**
+ * The database keeps no empty lists: a room read back from it has no
+ * turnOrder when nobody has a turn, no hands for a player sitting out, and
+ * so on. Every update to a blackjack room starts by putting them back, so
+ * no step can trip over a list that was simply empty — one such crash, an
+ * insurance hand where every box had blackjack, rejected every update and
+ * froze the table.
+ */
+export function restoreLists(r) {
+  if (!r || typeof r !== 'object') return r;
+  r.playerOrder = r.playerOrder || [];
+  r.turnOrder = r.turnOrder || [];
+  r.dealtIn = r.dealtIn || [];
+  r.log = r.log || [];
+  r.chat = r.chat || [];
+  if (r.dealer) r.dealer.hand = r.dealer.hand || [];
+  Object.values(r.players || {}).forEach((p) => {
+    if (!p) return;
+    p.hands = p.hands || [];
+    p.hands.forEach((h) => { if (h) h.cards = h.cards || []; });
+  });
+  return r;
 }
 
 export function openInsurance(r) {

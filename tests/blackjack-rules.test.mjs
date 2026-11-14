@@ -183,4 +183,31 @@ function room(seats, cards) {
   ok(!r.players.gone, 'three windows missed in a row and the seat is freed');
 }
 
+// The database drops empty lists. An insurance hand where every box has
+// blackjack has no turns: read back, turnOrder is missing, and settling the
+// insurance used to throw — rejecting every update and freezing the table.
+{
+  const strip = (v) => {
+    if (Array.isArray(v)) { const x = v.map(strip).filter((y) => y !== undefined); return x.length ? x : undefined; }
+    if (v && typeof v === 'object') { const o = {}; for (const [k, x] of Object.entries(v)) { const y = strip(x); if (y !== undefined) o[k] = y; } return Object.keys(o).length ? o : undefined; }
+    return v === null ? undefined : v;
+  };
+  for (const how of ['decline', 'timeout']) {
+    let r = { code: 'F', isPublic: true, players: {}, playerOrder: [], dealer: { hand: [] }, deck: [], shoeSize: 312, cutCardAt: 1, log: [] };
+    L.addPlayerToRoom(r, 'bj', 'BJ', 300000);
+    L.addPlayerToRoom(r, 'out', 'Out', 300000);
+    L.startRoundLogic(r);
+    r.players.out.away = true;
+    r.deck = Array(100).fill('3-C').concat(['7-C', 'K-D', 'A-H', 'A-S']);
+    L.applyBet(r, 'bj', L.stakesFor(r).min);
+    r = L.restoreLists(strip(JSON.parse(JSON.stringify(r))));
+    let threw = false;
+    try {
+      if (how === 'decline') L.applyInsurance(r, 'bj', false);
+      else { r.insuranceDeadline = Date.now() - 1; L.processInsuranceTimeout(r); }
+    } catch (e) { threw = true; }
+    ok(!threw && r.phase === 'results', `every box a blackjack against an ace, read back from the database: insurance ${how} settles the hand`);
+  }
+}
+
 console.log(fails ? fails + ' FAILED' : 'ALL PASSED');

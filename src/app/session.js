@@ -35,6 +35,7 @@ import {
   chipLadderForTable, stakesFor, TABLE_STAKES,
   processInsuranceTimeout, moveToSeat, countdownLabel, resultsPauseFor,
   applyBet, applyInsurance, applyHit, applyStand, applyDouble, applySplit, applySurrender,
+  restoreLists,
 } from './roomLogic.js';
 
 export let session = { screen: 'loading', uid: null, name: null, photo: null, chips: 0, character: null, code: null, isAdmin: false, room: null };
@@ -413,6 +414,8 @@ export async function mutateRoom(code, fn) {
   try {
     const result = await runTransaction(ref(db, 'rooms/' + code), (current) => {
       if (current === null || current === undefined) return current;
+      // A blackjack room's empty lists come back missing (roomLogic.js).
+      if (!current.game) restoreLists(current);
       fn(current);
       return current;
     });
