@@ -664,7 +664,12 @@ export function renderTableScreen() {
     } else if (phase === 'betting' && me.status === 'bet-placed') {
       dock = `<p class="dock-msg">Bet placed · ${me.bet.toLocaleString()}. Waiting for the table…</p>`;
     } else if (phase === 'insurance') {
-      if (me.insuranceDecided) {
+      const insCost = Math.floor(((me.hands && me.hands[0] && me.hands[0].bet) || me.bet || 0) / 2);
+      // Insurance is only offered to a hand in play; sitting this one out,
+      // there's nothing to insure.
+      if (!(r.dealtIn || []).includes(myKey) || insCost <= 0) {
+        dock = `<p class="dock-msg">You're sitting out this hand — you'll be dealt in at the next one.</p>`;
+      } else if (me.insuranceDecided) {
         dock = `<p class="dock-msg">${me.insurance ? 'Insurance taken.' : 'No insurance.'} Waiting for the table…</p>`;
       } else {
         const cost = Math.floor(((me.hands && me.hands[0] && me.hands[0].bet) || me.bet || 0) / 2);

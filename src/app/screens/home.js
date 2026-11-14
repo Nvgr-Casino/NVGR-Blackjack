@@ -198,8 +198,7 @@ function homePage() {
           <button class="stage-chip" id="signOutBtn" title="Sign out" aria-label="Sign out">${ICON.exit}</button>
         </div>
       </header>
-      ${S.formNotice ? `<p class="stage-notice">${esc(S.formNotice)}</p>` : ''}
-      ${S.formError ? `<p class="stage-notice error">${esc(S.formError)}</p>` : ''}
+      ${stageNotice()}
 
       <button class="stage-side left" id="stagePrev" aria-label="${esc(prev.name)}">${ICON.left}<span id="stagePrevName">${esc(prev.name)}</span></button>
       <button class="stage-side right" id="stageNext" aria-label="${esc(next.name)}"><span id="stageNextName">${esc(next.name)}</span>${ICON.right}</button>
@@ -233,6 +232,25 @@ function homePage() {
         </button>` : ''}
       </footer>
     </div>`;
+}
+
+// A note for the player (a top-up, being removed from a table, an error)
+// shows for a few seconds above the buttons and fades; it used to stay put
+// over the game's name until something else cleared it.
+const NOTICE_MS = 6000;
+let notice = null;   // { text, error, until }
+function stageNotice() {
+  // A notice is cleared once taken, so any that's there is new; an error
+  // stays set in the session, so it's new only when it says something else.
+  if (S.formNotice) {
+    notice = { text: S.formNotice, error: false, until: Date.now() + NOTICE_MS };
+    S.clearFormNotice();
+  } else if (S.formError && (!notice || notice.text !== S.formError)) {
+    notice = { text: S.formError, error: true, until: Date.now() + NOTICE_MS };
+  }
+  if (!notice || Date.now() > notice.until) return '';
+  const left = Math.max(0, notice.until - Date.now());
+  return `<p class="stage-notice ${notice.error ? 'error' : ''}" style="animation-delay:${Math.max(0, left - 600)}ms">${esc(notice.text)}</p>`;
 }
 
 // The carousel's motion, and the page following it: the name crossfades,

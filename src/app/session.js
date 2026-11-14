@@ -149,7 +149,31 @@ export async function setCurrentRoom(uid, code) {
 }
 
 // ---------- Auth ----------
+// The Connection lost banner follows the database's own connected flag,
+// and only after a few seconds without it: a moment's drop (a phone
+// switching networks, waking up) isn't worth alarming anyone over.
+let connTimer = null;
+let connWatched = false;
+function watchConnection() {
+  if (connWatched) return;
+  connWatched = true;
+  let seenOnline = false;
+  onValue(ref(db, '.info/connected'), (snap) => {
+    const online = snap.val() === true;
+    clearTimeout(connTimer);
+    if (online) {
+      seenOnline = true;
+      if (connLost) { connLost = false; render(); }
+      return;
+    }
+    // Before the first connection, it's just starting up.
+    if (!seenOnline) return;
+    connTimer = setTimeout(() => { connLost = true; render(); }, 4000);
+  });
+}
+
 export function initAuth() {
+  watchConnection();
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       session.uid = user.uid;
@@ -400,10 +424,11 @@ export async function mutateRoom(code, fn) {
       // data still keeps up without that hole.
       persistMyChips(result.snapshot.val());
     }
-    connLost = false;
   } catch (e) {
+    // A transaction can fail with the connection perfectly good — several
+    // players acting at once and the server asking one to retry — so this
+    // is not what the Connection lost banner goes by (see watchConnection).
     console.error('mutateRoom failed', e);
-    connLost = true; render();
   }
 }
 
