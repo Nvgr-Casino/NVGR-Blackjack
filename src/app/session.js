@@ -28,6 +28,7 @@ import * as BJT from './bjTournamentSession.js';
 // Roulette tables, the same way as poker's.
 import * as Roulette from './rouletteSession.js';
 import * as Baccarat from './baccaratSession.js';
+import * as Slots from './slotsSession.js';
 import { isBjTournament, registering as bjRegistering, registrationLabel } from '../blackjack/tournament.js';
 import {
   STARTING_CHIPS, RESTAKE_BELOW, BETTING_SECONDS, TURN_SECONDS, MAX_PUBLIC_SEATS, MIN_PUBLIC_TABLES,
@@ -589,8 +590,12 @@ export async function leaveTable() {
     if (OfflineBJ.isOfflineBlackjack(session.room)) OfflineBJ.leave();
     else if (Roulette.isPracticeRoulette(session.room)) Roulette.stopPractice();
     else if (Baccarat.isPracticeBaccarat(session.room)) Baccarat.stopPractice();
+    else if (Slots.isSlots(session.room)) Slots.leave();
     else Offline.leavePractice();
+    const playedReal = Slots.isSlots(session.room);
     session.code = null; session.room = null; session.screen = 'home';
+    // The salon plays on your real chips: broke, and the house tops you up.
+    if (playedReal && restakeIfBroke()) formNotice = RESTAKED;
     updateHash(); render();
     loadLobby();
     return;

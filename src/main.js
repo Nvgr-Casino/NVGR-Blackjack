@@ -12,6 +12,7 @@ import { syncRequestToast } from './app/social.js';
 import { mountTable3D, syncRoomToScene, renderTableScreen, attachTableScreen, resetTableDiffState, hideBlackjackTable } from './app/table3dBridge.js';
 import { mountPoker3D, syncPokerToScene, renderPokerScreen, attachPokerScreen, leavePokerView } from './app/pokerBridge.js';
 import { mountRoulette3D, syncRouletteToScene, renderRouletteScreen, attachRouletteScreen, leaveRouletteView } from './app/rouletteBridge.js';
+import { mountSlots3D, syncSlotsToScene, renderSlotsScreen, attachSlotsScreen, leaveSlotsView } from './app/slotsBridge.js';
 import { mountBaccarat3D, syncBaccaratToScene, renderBaccaratScreen, attachBaccaratScreen, leaveBaccaratView } from './app/baccaratBridge.js';
 import { renderAuth, attachAuth } from './app/screens/auth.js';
 import { renderHome, attachHome, setLobbyScene, carouselIndex } from './app/screens/home.js';
@@ -84,6 +85,7 @@ function render() {
     if (shownGame === 'holdem') leavePokerView();
     else if (shownGame === 'roulette') leaveRouletteView();
     else if (shownGame === 'baccarat') leaveBaccaratView();
+    else if (shownGame === 'slots') leaveSlotsView();
     else hideBlackjackTable();
     resetTableDiffState();
     clearService();
@@ -138,6 +140,21 @@ function render() {
   }
   if (session.screen === 'table') {
     const myKey = session.uid ? safeKey(session.uid) : null;
+    if (session.room && session.room.game === 'slots') {
+      if (shownGame !== 'slots') {
+        if (shownGame === 'holdem') leavePokerView();
+        else if (shownGame === 'roulette') leaveRouletteView();
+        else if (shownGame === 'baccarat') leaveBaccaratView();
+        else hideBlackjackTable();
+        resetTableDiffState();
+        shownGame = 'slots';
+      }
+      root.innerHTML = renderSlotsScreen();
+      attachSlotsScreen();
+      syncSlotsToScene(session.room);
+      return;
+    }
+    if (shownGame === 'slots') { leaveSlotsView(); shownGame = null; }
     if (session.room && session.room.game === 'baccarat') {
       if (shownGame !== 'baccarat') {
         if (shownGame === 'holdem') leavePokerView();
@@ -227,6 +244,7 @@ async function boot() {
   mountPoker3D(sceneHandles);
   mountRoulette3D(sceneHandles);
   mountBaccarat3D(sceneHandles);
+  mountSlots3D(sceneHandles);
   setLobbyScene(sceneHandles);
   mountService(sceneHandles);
   setOnChange(render);

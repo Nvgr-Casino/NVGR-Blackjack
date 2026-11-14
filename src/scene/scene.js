@@ -17,6 +17,7 @@ import { tickAnimations } from './animator.js';
 import { cameraOverride } from './cameraFocus.js';
 import { createService } from './service.js';
 import { createLobbyCrowd } from './lobbyCrowd.js';
+import { createSlotSalon } from './slotSalon.js';
 
 // Step 1-2: static table + deal animation. Step 3 (current): seats, a
 // dealer figure, and empty chairs around the table — no fixed "you" seat or
@@ -292,6 +293,13 @@ export function initScene(canvas) {
     }));
   });
 
+  // The slot salon: a bank of machines, yours in the middle (slotSalon.js).
+  const slotsSet = new THREE.Group();
+  slotsSet.visible = false;
+  scene.add(slotsSet);
+  const slotsSalon = createSlotSalon();
+  slotsSet.add(slotsSalon);
+
   // Drinks and the waiters who bring them (service.js).
   service = createService({ scene, blackjackSet, pokerSet, blackjackTable: table, pokerTable });
   service.prepare('blackjack');
@@ -307,6 +315,9 @@ export function initScene(canvas) {
     pokerSet.visible = game === 'holdem';
     rouletteSet.visible = game === 'roulette';
     baccaratSet.visible = game === 'baccarat';
+    slotsSet.visible = game === 'slots';
+    // The salon has no dealer.
+    dealer.visible = game !== 'slots';
     dealer.position.copy(game === 'holdem' ? POKER_DEALER.position : game === 'roulette' ? ROULETTE_DEALER.position : game === 'baccarat' ? BACCARAT_DEALER.position : DEALER.position);
   }
 
@@ -321,6 +332,7 @@ export function initScene(canvas) {
     { game: 'holdem', set: pokerSet, dealer: POKER_DEALER.position },
     { game: 'roulette', set: rouletteSet, dealer: ROULETTE_DEALER.position },
     { game: 'baccarat', set: baccaratSet, dealer: BACCARAT_DEALER.position },
+    { game: 'slots', set: slotsSet, dealer: null },
   ];
   // Guests at the tables while the carousel is up (lobbyCrowd.js).
   const crowd = createLobbyCrowd({ blackjack: blackjackSet, holdem: pokerSet, roulette: rouletteSet, baccarat: baccaratSet });
@@ -346,8 +358,8 @@ export function initScene(canvas) {
     // The dealer waits at the table in the middle, and steps away while
     // the tables move.
     const still = Math.abs(carousel.pos - carousel.target) < 0.004 && Math.abs(carousel.vel) < 0.02 && !carousel.held;
-    dealer.visible = !!nearest && still;
-    if (nearest && still) {
+    dealer.visible = !!nearest && still && !!nearest.c.dealer;
+    if (nearest && still && nearest.c.dealer) {
       dealer.position.copy(nearest.c.dealer).applyAxisAngle(UP_Y, nearest.c.set.rotation.y).add(nearest.c.set.position);
       dealer.rotation.y = nearest.c.set.rotation.y;
     }
@@ -637,6 +649,7 @@ export function initScene(canvas) {
     setPokerFelt: pokerTable.userData.setFeltTheme,
     rouletteSet, rouletteTable, rouletteChairs,
     baccaratSet, baccaratTable, baccaratChairs,
+    slotsSet, slotsSalon,
     carouselTo, carouselHold,
     get carouselPos() { return carousel.pos; },
   };

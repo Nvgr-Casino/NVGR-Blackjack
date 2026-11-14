@@ -448,6 +448,8 @@ export function attachMusicButton() {
 export function voiceButtons(r) {
   // Every table's How to play guide sits first among these.
   const sound = rulesButton((r && r.game) || 'blackjack') + fullscreenButton() + musicButton() + `<button class="hud-btn hud-icon ${isSoundOn() ? '' : 'off'}" id="soundToggleBtn" title="${isSoundOn() ? 'Sound on — tap to turn off' : 'Sound off — tap to turn on'}" aria-label="Sound ${isSoundOn() ? 'on' : 'off'}">${isSoundOn() ? ICON_SOUND : ICON_SOUND_OFF}</button>`;
+  // The slot salon is you and your machine: no one to talk to.
+  if (r && r.game === 'slots') return `<span class="hud-voice">${sound}</span>`;
   if (!voiceAvailable(r)) {
     // Seated at a real table but nobody to talk to yet: the mic is still
     // shown, and a tap says why it's quiet and how to change that.

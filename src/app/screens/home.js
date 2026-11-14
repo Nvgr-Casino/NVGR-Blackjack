@@ -22,6 +22,7 @@ import * as Roulette from '../rouletteSession.js';
 import { ROULETTE_SEATS, colorOf } from '../../roulette/rules.js';
 import * as Baccarat from '../baccaratSession.js';
 import { BACCARAT_SEATS } from '../../baccarat/rules.js';
+import * as Slots from '../slotsSession.js';
 import * as Offline from '../offlinePoker.js';
 import * as Leaderboard from '../leaderboard.js';
 import { feltTheme } from '../../scene/table.js';
@@ -158,6 +159,7 @@ const FLOOR = [
   { id: 'holdem', kicker: 'Poker · six seats', name: "Texas Hold'em", line: 'No-limit cash games, practice and tournaments' },
   { id: 'roulette', kicker: 'Table game · six seats', name: 'Roulette', line: 'European wheel, one zero · straight up pays 35 to 1' },
   { id: 'baccarat', kicker: 'Table game · seven seats', name: 'Baccarat', line: 'Punto Banco · Banker pays 19 to 20, Tie 8 to 1' },
+  { id: 'slots', kicker: 'High Limit Salon · slots', name: 'Crown Jewels', line: 'Five reels, ten lines · five NVGR wilds pay 1,000 a line' },
 ];
 const wrapIndex = (i) => ((i % FLOOR.length) + FLOOR.length) % FLOOR.length;
 // Where the carousel is headed: a whole number that runs past the ends, so
@@ -320,6 +322,7 @@ function attachStage() {
       if (id === 'blackjack') await S.playNow();
       else if (id === 'holdem') await Poker.playPokerNow();
       else if (id === 'roulette') await Roulette.playRouletteNow();
+      else if (id === 'slots') await Slots.startSlots();
       else await Baccarat.playBaccaratNow();
     } catch (e) { /* the page says what went wrong */ }
     if (S.session.screen !== 'table') Curtain.lift(0);
@@ -515,6 +518,24 @@ function baccaratPage() {
       <div class="feature-form">
         <label class="field-inline"><span>Stakes</span><select id="bcPracticeStakes">${TABLE_STAKES.map((st, i) => `<option value="${i}">${esc(ROOM_NAMES[i])} · ${short(st.min)} / ${short(st.max)}</option>`).join('')}</select></label>
         <button class="btn btn-primary btn-lg" id="bcPracticeBtn">Deal for practice</button>
+      </div>
+    </section>`;
+}
+
+// ---------- 2e. the slot salon ----------
+function slotsPage() {
+  return `
+    ${banner('slots', {
+      kicker: 'High Limit Salon · slots',
+      title: 'Crown Jewels',
+      line: 'Five reels, three rows, ten lines · the NVGR crest is wild · Diamonds scatter',
+      actions: '<button class="btn btn-primary btn-lg" id="slotsNowBtn">Take a seat</button>',
+    })}
+    <section class="feature-card theme-slots">
+      <div class="feature-text">
+        <span class="kicker">How it pays</span>
+        <h2 class="feature-title">Jewels, crowns and the crest</h2>
+        <p class="feature-line">Three or more of a kind on a line, from the first reel, win. Five NVGR wilds on a line pay a thousand times the line bet; three Diamonds anywhere pay on the whole bet. Plays on your real balance, from 10 a spin.</p>
       </div>
     </section>`;
 }
@@ -888,7 +909,7 @@ function sheetHtml() {
 
 // ---------- the page ----------
 
-const PAGES = { home: homePage, blackjack: blackjackPage, holdem: holdemPage, roulette: roulettePage, baccarat: baccaratPage, tournaments: tournamentsPage, leaderboard: leaderboardPage };
+const PAGES = { home: homePage, blackjack: blackjackPage, holdem: holdemPage, roulette: roulettePage, baccarat: baccaratPage, slots: slotsPage, tournaments: tournamentsPage, leaderboard: leaderboardPage };
 
 export function renderHome() {
   if (S.lobbyGame === 'home' || !PAGES[S.lobbyGame]) return `${homePage()}${sheetHtml()}`;
@@ -961,6 +982,7 @@ export function attachHome() {
     Roulette.hostRouletteTable(sel ? Number(sel.value) : 0);
   });
   on('baccaratNowBtn', Baccarat.playBaccaratNow);
+  on('slotsNowBtn', async () => { Curtain.drop('Taking your seat…'); try { await Slots.startSlots(); } catch (e) { /* said on the page */ } if (S.session.screen !== 'table') Curtain.lift(0); });
   on('bcPracticeBtn', () => {
     const sel = document.getElementById('bcPracticeStakes');
     Baccarat.startPractice(sel ? Number(sel.value) : 0);
