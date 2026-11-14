@@ -69,13 +69,20 @@ export function initScene(canvas) {
   // and everything — the scoreboards' lettering most of all — went soft;
   // a high-density screen never steps below 1.5x.
   const MIN_DPR = window.devicePixelRatio >= 2 ? 1.5 : 1;
-  const DPR_STEPS = [2, 1.75, 1.5, 1.25, 1].filter((d) => d >= MIN_DPR);
+  // A phone starts a step lower: its framebuffers count against the same
+  // tight memory as everything else (see the texture cap below).
+  const DPR_STEPS = (lowPower ? [1.75, 1.5, 1.25, 1] : [2, 1.75, 1.5, 1.25, 1]).filter((d) => d >= MIN_DPR);
   let dprStep = 0;
   const applyPixelRatio = () => renderer.setPixelRatio(Math.min(window.devicePixelRatio, DPR_STEPS[dprStep]));
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   applyPixelRatio();
+  // On a phone every texture is uploaded at most 1024 px on a side — more
+  // than a phone screen shows of any one surface. At full size the rooms,
+  // tables and figures came to about 900 MB of texture, and iPhone Safari
+  // killed the page ("A problem repeatedly occurred").
+  if (lowPower) renderer.capabilities.maxTextureSize = Math.min(renderer.capabilities.maxTextureSize, 1024);
   renderer.shadowMap.enabled = true;
   // Plain PCF everywhere: the soft variant's extra taps cost about a quarter
   // of the frame on integrated graphics, for edges hardly anyone notices.

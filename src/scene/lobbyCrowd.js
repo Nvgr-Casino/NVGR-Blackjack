@@ -22,6 +22,9 @@ const CAST = {
   roulette: [[1, 'rb_bf04'], [3, 'rb_bm05'], [5, 'rb_bf01']],
   baccarat: [[1, 'rb_bm02'], [2, 'rb_bf03'], [5, 'rb_bm01'], [6, 'rb_bf02']],
 };
+// A phone has the memory for fewer: two guests a table, of four figures.
+const PHONE = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820;
+const PHONE_FIGURES = { rb_bf03: 'rb_bf01', rb_bf04: 'rb_bf02', rb_bm03: 'rb_bm01', rb_bm05: 'rb_bm02' };
 const HANDS = [['K', 'S', '7', 'H'], ['A', 'D', '9', 'C'], ['Q', 'H', '8', 'S'], ['10', 'C', 'J', 'D']];
 
 function card(rank, suit, at, yaw, faceDown, dx) {
@@ -50,7 +53,8 @@ export function createLobbyCrowd(sets) {
       g.visible = false;
       sets[game].add(g);
       groups[game] = g;
-      cast.forEach(([seatIndex, id], k) => {
+      (PHONE ? cast.slice(0, 2) : cast).forEach(([seatIndex, castId], k) => {
+        const id = PHONE ? (PHONE_FIGURES[castId] || castId) : castId;
         const seat = game === 'blackjack' ? SEATS[seatIndex] : game === 'holdem' ? POKER_SEATS_3D[seatIndex]
           : game === 'roulette' ? ROULETTE_SEATS_3D[seatIndex] : BACCARAT_SEATS_3D[seatIndex];
         const figure = createCharacter(id);
