@@ -199,11 +199,17 @@ function paintBoard(ctx, w, h, history, min, max) {
   ctx.fillRect(30, 430, w - 60, 2);
   const n = history.length || 1;
   const pct = (c) => Math.round((history.filter((x) => colorOf(x) === c).length / n) * 100);
+  // Set left to right, each after the one before, so none run together.
   ctx.font = '700 34px Georgia, serif';
-  [['RED', 'red', '#ff5a6e'], ['GREEN', 'green', '#3ad07c'], ['BLACK', 'black', '#e8e8ea']].forEach(([label, c, col], k) => {
+  ctx.textAlign = 'left';
+  let x = 40;
+  [['RED', 'red', '#ff5a6e'], ['GREEN', 'green', '#3ad07c'], ['BLACK', 'black', '#e8e8ea']].forEach(([label, c, col]) => {
+    const t = `${label} ${history.length ? pct(c) + '%' : '–'}`;
     ctx.fillStyle = col;
-    ctx.fillText(`${label} ${history.length ? pct(c) + '%' : '–'}`, w * (0.12 + k * 0.2), 484);
+    ctx.fillText(t, x, 484);
+    x += ctx.measureText(t).width + 36;
   });
+  ctx.textAlign = 'center';
   const short = (v) => (v >= 1e6 ? v / 1e6 + 'M' : v >= 1000 ? v / 1000 + 'K' : String(v));
   ctx.fillStyle = '#e8dcc0';
   ctx.font = '600 32px Georgia, serif';

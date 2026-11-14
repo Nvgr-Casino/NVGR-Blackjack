@@ -257,11 +257,17 @@ function paintBoard(ctx, w, h, history, min, max) {
   });
   const count = (k) => history.filter((x) => x[0] === k).length;
   const y = top + rows * cell + 46;
+  // Set left to right, each after the one before, so none run together.
   ctx.font = '700 34px Georgia, serif';
-  [['PLAYER', 'P', '#7fb6ff'], ['BANKER', 'B', '#ff7a7a'], ['TIE', 'T', '#6fe0a0']].forEach(([label, k, col], i) => {
+  ctx.textAlign = 'left';
+  let cx = 30;
+  [['PLAYER', 'P', '#7fb6ff'], ['BANKER', 'B', '#ff7a7a'], ['TIE', 'T', '#6fe0a0']].forEach(([label, k, col]) => {
+    const t = `${label} ${count(k)}`;
     ctx.fillStyle = col;
-    ctx.fillText(`${label} ${count(k)}`, w * (0.11 + i * 0.2), y);
+    ctx.fillText(t, cx, y);
+    cx += ctx.measureText(t).width + 40;
   });
+  ctx.textAlign = 'center';
   const short = (n) => (n >= 1e6 ? n / 1e6 + 'M' : n >= 1000 ? n / 1000 + 'K' : String(n));
   ctx.fillStyle = '#e8dcc0';
   ctx.font = '600 32px Georgia, serif';
