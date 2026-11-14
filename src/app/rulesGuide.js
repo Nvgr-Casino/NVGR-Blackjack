@@ -162,13 +162,19 @@ const GUIDES = {
     lede: 'Spin the reels and line up matching symbols on a payline, from left to right.',
     sections: [
       ['How to play', steps([
-        'Choose your bet per spin with the − and + buttons.',
-        'Press <b>Spin</b>, or pull the handle.',
-        'Three or more of the same symbol on a payline, starting from the leftmost reel, wins. Each line is paid on its own, and wins on different lines add up.',
-        'The <b>NVGR</b> crest is <b>wild</b>: it stands in for any symbol to complete a win.',
-        'Three or more <b>Diamonds</b> anywhere on the reels pay a scatter prize on top of any line wins.',
+        'Choose your bet per spin with the − and + buttons. It is spread across all the machine’s lines.',
+        'Press <b>Spin</b>, pull the handle, or press the space bar.',
+        'Three or more of the same symbol on a line, starting from the leftmost reel, win. Each line is paid on its own, and wins on different lines add up.',
+        'The wild stands in for other symbols to complete a win.',
+        'Tap <b>Pays</b> for the machine’s full pay table and its lines; tap <b>Machines</b> to move to another machine.',
       ])],
-      ['Paylines', '<p>The machine plays <b>10 lines</b> on every spin. The bet you choose is spread across all of them. Tap <b>Pays</b> on the machine for the full pay table and the line shapes.</p>'],
+      ['The machines', moves([
+        ['Crown Jewels', 'Five reels, ten lines. The NVGR crest is wild; three or more Diamonds anywhere pay on your whole bet.'],
+        ['Imperial Sevens', 'A classic three-reel machine with five lines. The Diamond wild doubles a win, four times with two. Any three sevens or any three bars pay too, and a cherry or two at the start of a line pays a little.'],
+        ['High Roller', 'Five reels, ten lines. The crest is wild; three or more Golden Chips anywhere pay on your whole bet.'],
+        ['Jade Panda', 'Five reels, ten lines, and four jackpots. Six or more Golden Pearls start Hold & Spin: the pearls lock, you get three respins, and every new pearl puts the count back to three. Pearls carry prizes or the Mini, Minor and Major; fill all fifteen places for the Grand. The Major and Grand grow with every spin.'],
+      ])],
+      ['Good to know', '<p>Each machine gives back about 95 per cent over the long run. Slots play on your real balance, and every spin is saved the moment you press Spin.</p>'],
     ],
   },
 };

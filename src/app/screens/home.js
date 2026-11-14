@@ -23,6 +23,7 @@ import { ROULETTE_SEATS, colorOf } from '../../roulette/rules.js';
 import * as Baccarat from '../baccaratSession.js';
 import { BACCARAT_SEATS } from '../../baccarat/rules.js';
 import * as Slots from '../slotsSession.js';
+import { GAME_LIST } from '../../slots/games.js';
 import * as Craps from '../crapsSession.js';
 import { CRAPS_SEATS } from '../../craps/rules.js';
 import * as Offline from '../offlinePoker.js';
@@ -162,7 +163,7 @@ const FLOOR = [
   { id: 'roulette', kicker: 'Table game · six seats', name: 'Roulette', line: 'European wheel, one zero · straight up pays 35 to 1' },
   { id: 'craps', kicker: 'Dice · six seats', name: 'Craps', line: 'Pass Line, odds at true odds, the field and the hard ways' },
   { id: 'baccarat', kicker: 'Table game · seven seats', name: 'Baccarat', line: 'Punto Banco · Banker pays 19 to 20, Tie 8 to 1' },
-  { id: 'slots', kicker: 'High Limit Salon · slots', name: 'Crown Jewels', line: 'Five reels, ten lines · five NVGR wilds pay 1,000 a line', more: 'How it pays' },
+  { id: 'slots', kicker: 'High Limit Salon · slots', name: 'Slot Salon', line: 'Crown Jewels, Imperial Sevens, High Roller and more · your real balance', more: 'Machines' },
 ];
 const wrapIndex = (i) => ((i % FLOOR.length) + FLOOR.length) % FLOOR.length;
 // Where the carousel is headed: a whole number that runs past the ends, so
@@ -595,20 +596,24 @@ function baccaratPage() {
 
 // ---------- 2e. the slot salon ----------
 function slotsPage() {
+  const machines = GAME_LIST.map((g) => `
+    <li><button class="row" data-play-slot="${esc(g.id)}">
+      <span class="felt-dot sl-dot look-${esc(g.look.trim)}"></span>
+      <span class="row-main">
+        <span class="row-title">${esc(g.name)}</span>
+        <span class="row-sub">${esc(g.tagline)}</span>
+      </span>
+      <span class="pill live">Play</span>
+      ${chevron}
+    </button></li>`).join('');
   return `
     ${banner('slots', {
       kicker: 'High Limit Salon · slots',
-      title: 'Crown Jewels',
-      line: 'Five reels, three rows, ten lines · the NVGR crest is wild · Diamonds scatter',
+      title: 'The Slot Salon',
+      line: 'A bank of machines, each with its own reels and pays · plays on your real balance, from 10 a spin',
       actions: '<button class="btn btn-primary btn-lg" id="slotsNowBtn">Take a seat</button>',
     })}
-    <section class="feature-card theme-slots">
-      <div class="feature-text">
-        <span class="kicker">How it pays</span>
-        <h2 class="feature-title">Jewels, crowns and the crest</h2>
-        <p class="feature-line">Three or more of a kind on a line, from the first reel, win. Five NVGR wilds on a line pay a thousand times the line bet; three Diamonds anywhere pay on the whole bet. Plays on your real balance, from 10 a spin.</p>
-      </div>
-    </section>`;
+    <section class="list-section">${listHead('Machines')}<ul class="rows">${machines}</ul></section>`;
 }
 
 function baccaratSheet(t) {
@@ -1128,6 +1133,7 @@ export function attachHome() {
   all('[data-open-poker]', (el) => { el.onclick = () => { sheet = null; Poker.openPokerTable(el.dataset.openPoker); }; });
   all('[data-join-table]', (el) => { el.onclick = () => { sheet = null; S.joinSpecificPublicTable(el.dataset.joinTable); }; });
   all('[data-join-roulette]', (el) => { el.onclick = () => { sheet = null; Roulette.joinRouletteTable(el.dataset.joinRoulette); }; });
+  all('[data-play-slot]', (el) => { el.onclick = async () => { Curtain.drop('Taking your seat…'); try { await Slots.startSlots(el.dataset.playSlot); } catch (e) { /* said on the page */ } if (S.session.screen !== 'table') Curtain.lift(0); }; });
   all('[data-join-craps]', (el) => { el.onclick = () => { sheet = null; Craps.joinCrapsTable(el.dataset.joinCraps); }; });
   all('[data-join-baccarat]', (el) => { el.onclick = () => { sheet = null; Baccarat.joinBaccaratTable(el.dataset.joinBaccarat); }; });
 

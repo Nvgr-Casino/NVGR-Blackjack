@@ -9,11 +9,16 @@
 // win added when the reels have landed.
 
 import * as R from '../slots/rules.js';
+import { gameOf, GAMES, DEFAULT_GAME } from '../slots/games.js';
 import * as S from './session.js';
 
 export const isSlots = (r) => !!r && r.game === 'slots';
 
 let state = null;
+// The machine you played last, for next time.
+function lastGame() { try { const id = localStorage.getItem('nvgr-slot-game'); return GAMES[id] ? id : DEFAULT_GAME; } catch { return DEFAULT_GAME; } }
+function rememberGame(id) { try { localStorage.setItem('nvgr-slot-game', id); } catch { /* private mode */ } }
+export const gameNow = () => gameOf(state && state.gameId);
 const publish = () => { S.session.room = { ...state }; S.refresh(); };
 
 function save(chips) {
@@ -27,13 +32,15 @@ function defaultBet(chips) {
   return bet;
 }
 
-export async function startSlots() {
+export async function startSlots(gameId = lastGame()) {
   S.setFormError('');
   const chips = (await S.ensureAccount(S.session.uid, S.session.name)).chips;
+  const g = gameOf(gameId);
+  rememberGame(g.id);
   state = {
-    code: 'SLOTS', game: 'slots', offline: true, isPublic: false,
+    code: 'SLOTS', game: 'slots', gameId: g.id, offline: true, isPublic: false,
     chips, bet: defaultBet(chips), spinning: false, pending: null, last: null,
-    stops: R.drawStops((n) => Math.floor(Math.random() * n)), spins: 0, auto: false,
+    stops: g.drawStops((n) => Math.floor(Math.random() * n)), spins: 0, auto: false,
   };
   S.session.chips = chips;
   S.session.code = state.code;
@@ -44,9 +51,10 @@ export async function startSlots() {
 export const current = () => state;
 
 // Local checks only: a seat at the machine without an account behind it.
-export function devStart(chips = 250000) {
+export function devStart(chips = 250000, gameId = DEFAULT_GAME) {
   if (!import.meta.env.DEV) return;
-  state = { code: 'SLOTS', game: 'slots', offline: true, isPublic: false, chips, bet: defaultBet(chips), spinning: false, pending: null, last: null, stops: R.drawStops((n) => Math.floor(Math.random() * n)), spins: 0, auto: false };
+  const g = gameOf(gameId);
+  state = { code: 'SLOTS', game: 'slots', gameId: g.id, offline: true, isPublic: false, chips, bet: defaultBet(chips), spinning: false, pending: null, last: null, stops: g.drawStops((n) => Math.floor(Math.random() * n)), spins: 0, auto: false };
   S.session.code = state.code;
   S.session.screen = 'table';
   publish();
@@ -71,6 +79,17 @@ export function maxBet() {
   for (const b of R.BETS) if (b <= state.chips) best = b;
   setBet(best);
 }
+/** Moves to another machine in the salon, between spins. */
+export function setGame(id) {
+  if (!state || state.spinning || !GAMES[id] || id === state.gameId) return;
+  const g = gameOf(id);
+  rememberGame(id);
+  state.gameId = id;
+  state.stops = g.drawStops((n) => Math.floor(Math.random() * n));
+  state.last = null;
+  state.auto = false;
+  publish();
+}
 export function setAuto(on) {
   if (!state) return;
   state.auto = !!on;
@@ -80,8 +99,9 @@ export function setAuto(on) {
 /** Draws a spin, if one can be played; returns { stops, result } or null. */
 export function spin() {
   if (!state || state.spinning || state.chips < state.bet) return null;
-  const stops = R.drawStops();
-  const result = R.evaluate(stops, state.bet);
+  const g = gameOf(state.gameId);
+  const stops = g.drawStops();
+  const result = g.evaluate(stops, state.bet);
   state.chips -= state.bet;
   state.spinning = true;
   state.pending = { stops, result, bet: state.bet };

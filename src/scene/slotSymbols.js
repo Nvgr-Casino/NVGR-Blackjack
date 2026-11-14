@@ -1,20 +1,21 @@
-// The Crown Jewels reel symbols, painted: cut gemstones facet by facet, a
-// gold crown, the NVGR crest as the wild, and the royals in gold and enamel.
-// They go into one atlas (four across, three down) that the reels map their
+// The salon's reel symbols, painted: cut gemstones facet by facet, a gold
+// crown, the NVGR crest as a wild, royals in gold or platinum and enamel,
+// sevens and chrome BAR plates, cherries, the casino's own ace, wheel, dice
+// and chips. Each machine gets one atlas of its own symbols, on its own
+// ground (midnight, ivory reel strip or velvet), that its reels map their
 // faces from, with a second, blurred copy for while a reel is spinning.
 //
 // Each cell's ground runs on unbroken from top to bottom, so the symbols
 // sit on one continuous strip round the reel as on a real machine.
 
 import { LOGO_URL } from '../app/uiHelpers.js';
-import { SYMBOLS } from '../slots/rules.js';
 
-export const ATLAS_COLS = 4;
-export const ATLAS_ROWS = 3;
 const PHONE = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820;
+// Pixels across a square cell; a wider cell (three reels) is wider still.
 export const CELL = PHONE ? 256 : 512;
-const S = 512; // every symbol is drawn in a 512 cell and scaled to CELL
-export const symbolCell = (sym) => SYMBOLS.indexOf(sym);
+const S = 512; // every symbol is drawn in a 512 square and scaled to the cell
+// The ground being painted, for the symbols that look different on it.
+let STYLE = 'midnight';
 
 // ---------- colour ----------
 const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
@@ -47,20 +48,42 @@ function goldGrad(ctx, x0, y0, x1, y1, bright = 1) {
   return g;
 }
 
+// Platinum and chrome, for the machines trimmed in silver.
+function silverGrad(ctx, x0, y0, x1, y1, warm = false) {
+  const g = ctx.createLinearGradient(x0, y0, x1, y1);
+  const c = warm ? ['#ffffff', '#dcdde4', '#8c8f9c', '#d4d6de', '#f4f4f8', '#6e717c'] : ['#ffffff', '#d6dde8', '#7c8698', '#c8d0dc', '#f2f6fb', '#5e6676'];
+  [0, 0.18, 0.42, 0.6, 0.8, 1].forEach((t, i) => g.addColorStop(t, c[i]));
+  return g;
+}
+const metalGrad = (ctx, metal, x0, y0, x1, y1) => (metal === 'gold' ? goldGrad(ctx, x0, y0, x1, y1) : silverGrad(ctx, x0, y0, x1, y1, metal === 'platinum'));
+
 // ---------- the ground ----------
-// Deep midnight, darker toward the reel's edges, the same all the way down.
-function ground(ctx) {
-  const g = ctx.createLinearGradient(0, 0, S, 0);
-  g.addColorStop(0, '#05050a');
-  g.addColorStop(0.18, '#0d0e1b');
-  g.addColorStop(0.5, '#141629');
-  g.addColorStop(0.82, '#0d0e1b');
-  g.addColorStop(1, '#05050a');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, S, S);
+// Painted over the whole cell, W by H in symbol units, the same all the way
+// down so the strip runs on unbroken.
+function ground(ctx, W, H) {
+  const g = ctx.createLinearGradient(0, 0, W, 0);
+  if (STYLE === 'ivory') {
+    // A mechanical reel's printed strip: warm ivory, shaded at the edges.
+    g.addColorStop(0, '#9c917c'); g.addColorStop(0.12, '#d6ccb4'); g.addColorStop(0.5, '#ece4d2'); g.addColorStop(0.88, '#d6ccb4'); g.addColorStop(1, '#9c917c');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(120,100,70,0.05)';
+    for (let x = 6; x < W; x += 9) ctx.fillRect(x, 0, 1, H);
+    return;
+  }
+  if (STYLE === 'velvet') {
+    // Midnight blue velvet with a fine silver point.
+    g.addColorStop(0, '#04050d'); g.addColorStop(0.2, '#0b1030'); g.addColorStop(0.5, '#131a44'); g.addColorStop(0.8, '#0b1030'); g.addColorStop(1, '#04050d');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(200,214,240,0.06)';
+    for (let y = 16; y < H; y += 32) for (let x = 16 + ((y / 32) % 2) * 16; x < W; x += 32) { ctx.beginPath(); ctx.arc(x, y, 1.6, 0, Math.PI * 2); ctx.fill(); }
+    return;
+  }
+  // Deep midnight, darker toward the reel's edges.
+  g.addColorStop(0, '#05050a'); g.addColorStop(0.18, '#0d0e1b'); g.addColorStop(0.5, '#141629'); g.addColorStop(0.82, '#0d0e1b'); g.addColorStop(1, '#05050a');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   // A faint damask of gold points, in a pattern that tiles top to bottom.
   ctx.fillStyle = 'rgba(214, 178, 110, 0.05)';
-  for (let y = 16; y < S; y += 32) for (let x = 16 + ((y / 32) % 2) * 16; x < S; x += 32) { ctx.beginPath(); ctx.arc(x, y, 1.6, 0, Math.PI * 2); ctx.fill(); }
+  for (let y = 16; y < H; y += 32) for (let x = 16 + ((y / 32) % 2) * 16; x < W; x += 32) { ctx.beginPath(); ctx.arc(x, y, 1.6, 0, Math.PI * 2); ctx.fill(); }
 }
 // A soft pool of light behind a symbol, in its colour.
 function halo(ctx, cx, cy, r, c, a = 0.35) {
@@ -416,7 +439,7 @@ function drawCrown(ctx) {
   glint(ctx, c - 120, by0 - 50, 22, 0.6);
 }
 // Lettering in gold over an enamel colour, with a dark bevel beneath.
-function letter(ctx, text, x, y, size, pal, { spacing = 0, weight = 900 } = {}) {
+function letter(ctx, text, x, y, size, pal, { spacing = 0, weight = 900, metal = 'gold' } = {}) {
   ctx.save();
   ctx.font = `${weight} ${size}px Cinzel, "Cinzel", Georgia, serif`;
   if ('letterSpacing' in ctx) ctx.letterSpacing = spacing + 'px';
@@ -425,7 +448,7 @@ function letter(ctx, text, x, y, size, pal, { spacing = 0, weight = 900 } = {}) 
   ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = size * 0.08; ctx.shadowOffsetY = size * 0.04;
   ctx.lineJoin = 'round';
   ctx.lineWidth = pal ? size * 0.11 : size * 0.06;
-  ctx.strokeStyle = goldGrad(ctx, 0, top, 0, y);
+  ctx.strokeStyle = metalGrad(ctx, metal, 0, top, 0, y);
   ctx.strokeText(text, x, y);
   ctx.shadowColor = 'transparent';
   if (pal) {
@@ -433,7 +456,7 @@ function letter(ctx, text, x, y, size, pal, { spacing = 0, weight = 900 } = {}) 
     g.addColorStop(0, rgb(tone(pal, 0.85))); g.addColorStop(0.45, rgb(tone(pal, 0.55))); g.addColorStop(1, rgb(tone(pal, 0.28)));
     ctx.fillStyle = g;
   } else {
-    ctx.fillStyle = goldGrad(ctx, 0, top, 0, y, 1.05);
+    ctx.fillStyle = metal === 'gold' ? goldGrad(ctx, 0, top, 0, y, 1.05) : metalGrad(ctx, metal, 0, top, 0, y);
   }
   ctx.fillText(text, x, y);
   // A line of light across the top of the enamel.
@@ -496,57 +519,374 @@ function drawWild(ctx, logo) {
   letter(ctx, 'WILD', c, ry + 17, 46, null, { spacing: 14, weight: 900 });
 }
 
-// Paints one symbol into a 512 cell at (x, y) of a context scaled to CELL.
-function paint(ctx, sym, logo) {
-  ground(ctx);
+// ---------- Imperial Sevens ----------
+// A seven in enamel, rimmed in polished chrome.
+function drawSeven(ctx, pal) {
+  const c = S / 2;
+  ctx.save();
+  ctx.font = '900 400px Cinzel, "Cinzel", Georgia, serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  const y = c + 150, top = y - 300;
+  ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 10;
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 44; ctx.strokeStyle = '#2a2a30'; ctx.strokeText('7', c, y);
+  ctx.shadowColor = 'transparent';
+  ctx.lineWidth = 34; ctx.strokeStyle = silverGrad(ctx, 0, top, 0, y); ctx.strokeText('7', c, y);
+  const g = ctx.createLinearGradient(0, top, 0, y);
+  g.addColorStop(0, rgb(tone(pal, 0.9))); g.addColorStop(0.5, rgb(tone(pal, 0.55))); g.addColorStop(1, rgb(tone(pal, 0.25)));
+  ctx.fillStyle = g; ctx.fillText('7', c, y);
+  ctx.save(); ctx.beginPath(); ctx.rect(0, top - 10, S, 110); ctx.clip();
+  ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillText('7', c, y); ctx.restore();
+  ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.strokeText('7', c, y);
+  ctx.restore();
+}
+const GOLD_PAL = { deep: [70, 40, 4], dark: [140, 92, 22], mid: [214, 160, 58], light: [250, 214, 120], white: [255, 246, 214] };
+// BAR plates: black lacquer in a chrome bevel, the word in polished silver.
+function plate(ctx, cx, cy, w, h) {
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 12; ctx.shadowOffsetY = 6;
+  ctx.fillStyle = silverGrad(ctx, 0, cy - h / 2, 0, cy + h / 2);
+  ctx.beginPath(); ctx.roundRect(cx - w / 2, cy - h / 2, w, h, h * 0.22); ctx.fill();
+  ctx.restore();
+  const g = ctx.createLinearGradient(0, cy - h / 2, 0, cy + h / 2);
+  g.addColorStop(0, '#2a2a30'); g.addColorStop(0.5, '#0b0b0e'); g.addColorStop(1, '#1a1a20');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.roundRect(cx - w / 2 + 9, cy - h / 2 + 9, w - 18, h - 18, h * 0.16); ctx.fill();
+  ctx.save();
+  ctx.font = `900 ${h * 0.62}px Cinzel, "Cinzel", Georgia, serif`;
+  if ('letterSpacing' in ctx) ctx.letterSpacing = `${h * 0.12}px`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = silverGrad(ctx, 0, cy - h * 0.3, 0, cy + h * 0.3);
+  ctx.fillText('BAR', cx + h * 0.06, cy + h * 0.04);
+  ctx.restore();
+}
+function drawBars(ctx, n) {
+  const c = S / 2, h = n === 1 ? 130 : n === 2 ? 108 : 92, w = 400, gap = 16;
+  const total = n * h + (n - 1) * gap;
+  for (let k = 0; k < n; k++) plate(ctx, c, c - total / 2 + h / 2 + k * (h + gap), w, h);
+}
+// Two cherries on their stems, polished deep red.
+function drawCherries(ctx) {
+  const c = S / 2;
+  const fruit = (x, y, r) => {
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 8;
+    const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.08, x, y, r);
+    g.addColorStop(0, '#ff8a94'); g.addColorStop(0.25, '#d8142e'); g.addColorStop(0.7, '#8a0718'); g.addColorStop(1, '#3c0208');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.beginPath(); ctx.ellipse(x - r * 0.38, y - r * 0.42, r * 0.2, r * 0.11, -0.7, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(60,0,8,0.6)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(x + r * 0.05, y - r * 0.9, r * 0.12, 0, Math.PI); ctx.stroke();
+  };
+  // The stems, from the fruit up to where they join.
+  ctx.lineCap = 'round';
+  const stem = (x0, y0, cx1, cy1, x1, y1) => {
+    ctx.strokeStyle = '#3d5a1e'; ctx.lineWidth = 12; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(cx1, cy1, x1, y1); ctx.stroke();
+    ctx.strokeStyle = 'rgba(170,210,110,0.5)'; ctx.lineWidth = 3; ctx.stroke();
+  };
+  stem(c - 92, c + 30, c - 60, c - 110, c + 30, c - 170);
+  stem(c + 96, c + 60, c + 70, c - 80, c + 30, c - 170);
+  // A leaf where they meet.
+  const lg = ctx.createLinearGradient(c + 30, c - 200, c + 170, c - 120);
+  lg.addColorStop(0, '#5f9a2a'); lg.addColorStop(1, '#2c5212');
+  ctx.fillStyle = lg;
+  ctx.beginPath(); ctx.moveTo(c + 30, c - 170); ctx.quadraticCurveTo(c + 110, c - 250, c + 190, c - 150); ctx.quadraticCurveTo(c + 100, c - 120, c + 30, c - 170); ctx.fill();
+  ctx.strokeStyle = 'rgba(200,240,150,0.5)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(c + 34, c - 168); ctx.quadraticCurveTo(c + 110, c - 180, c + 186, c - 152); ctx.stroke();
+  fruit(c - 92, c + 92, 86);
+  fruit(c + 96, c + 116, 80);
+}
+// The Diamond wild: a brilliant on a lacquer plate, WILD and 2× in gold.
+function drawDiamondWild(ctx) {
+  const c = S / 2;
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 20; ctx.shadowOffsetY = 8;
+  ctx.fillStyle = silverGrad(ctx, 0, 40, 0, S - 40);
+  ctx.beginPath(); ctx.roundRect(46, 40, S - 92, S - 80, 36); ctx.fill();
+  ctx.restore();
+  const p = ctx.createLinearGradient(0, 50, 0, S - 50);
+  p.addColorStop(0, '#20263a'); p.addColorStop(1, '#070910');
+  ctx.fillStyle = p; ctx.beginPath(); ctx.roundRect(58, 52, S - 116, S - 104, 28); ctx.fill();
+  halo(ctx, c, c - 30, 190, [160, 200, 255], 0.35);
+  diamondProfile(ctx, c, c - 34, 300, 270, GEMS.diamond);
+  glint(ctx, c - 64, c - 140, 44); glint(ctx, c + 80, c - 90, 26, 0.8);
+  letter(ctx, 'WILD', c - 40, S - 92, 64, null, { spacing: 10, weight: 900 });
+  // The 2× medallion.
+  ctx.save();
+  ctx.fillStyle = goldGrad(ctx, 0, S - 160, 0, S - 60);
+  ctx.beginPath(); ctx.arc(c + 128, S - 112, 46, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#7a0e1e'; ctx.beginPath(); ctx.arc(c + 128, S - 112, 38, 0, Math.PI * 2); ctx.fill();
+  ctx.font = '900 40px Cinzel, Georgia, serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = goldGrad(ctx, 0, S - 140, 0, S - 90); ctx.fillText('2×', c + 130, S - 109);
+  ctx.restore();
+}
+
+// ---------- High Roller ----------
+// The ace of spades, a black card edged in gold.
+function spadePath(ctx, x, y, s) {
+  ctx.beginPath(); ctx.moveTo(x, y - s);
+  ctx.bezierCurveTo(x + s * 0.35, y - s * 0.55, x + s, y - s * 0.25, x + s * 0.9, y + s * 0.2);
+  ctx.bezierCurveTo(x + s * 0.82, y + s * 0.55, x + s * 0.35, y + s * 0.6, x + s * 0.08, y + s * 0.32);
+  ctx.lineTo(x + s * 0.28, y + s * 0.95); ctx.lineTo(x - s * 0.28, y + s * 0.95); ctx.lineTo(x - s * 0.08, y + s * 0.32);
+  ctx.bezierCurveTo(x - s * 0.35, y + s * 0.6, x - s * 0.82, y + s * 0.55, x - s * 0.9, y + s * 0.2);
+  ctx.bezierCurveTo(x - s, y - s * 0.25, x - s * 0.35, y - s * 0.55, x, y - s);
+}
+function drawAce(ctx) {
+  const c = S / 2;
+  halo(ctx, c, c, 240, [255, 200, 100], 0.3);
+  ctx.save(); ctx.translate(c, c); ctx.rotate(-0.08);
+  const w = 300, h = 420;
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 26; ctx.shadowOffsetY = 12;
+  ctx.fillStyle = goldGrad(ctx, 0, -h / 2, 0, h / 2);
+  ctx.beginPath(); ctx.roundRect(-w / 2, -h / 2, w, h, 26); ctx.fill(); ctx.restore();
+  const g = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
+  g.addColorStop(0, '#1d1a17'); g.addColorStop(1, '#070606');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(-w / 2 + 10, -h / 2 + 10, w - 20, h - 20, 20); ctx.fill();
+  ctx.strokeStyle = 'rgba(232,196,120,0.6)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(-w / 2 + 22, -h / 2 + 22, w - 44, h - 44, 14); ctx.stroke();
+  ctx.fillStyle = goldGrad(ctx, 0, -110, 0, 110);
+  spadePath(ctx, 0, -10, 105); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,240,200,0.8)'; ctx.lineWidth = 3; spadePath(ctx, 0, -10, 105); ctx.stroke();
+  ctx.font = '900 64px Cinzel, Georgia, serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = goldGrad(ctx, 0, -h / 2, 0, -h / 2 + 90);
+  ctx.fillText('A', -w / 2 + 52, -h / 2 + 60);
+  ctx.save(); ctx.rotate(Math.PI); ctx.fillText('A', -w / 2 + 52, -h / 2 + 60); ctx.restore();
+  ctx.restore();
+  glint(ctx, c - 70, c - 150, 34, 0.8);
+}
+// The wheel from above: mahogany, gold, thirty-seven pockets and the turret.
+function drawWheel(ctx) {
+  const c = S / 2, R = 210;
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 24; ctx.shadowOffsetY = 10;
+  const wood = ctx.createRadialGradient(c - 60, c - 60, 20, c, c, R);
+  wood.addColorStop(0, '#7a3418'); wood.addColorStop(1, '#2a0c04');
+  ctx.fillStyle = wood; ctx.beginPath(); ctx.arc(c, c, R, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  ctx.strokeStyle = goldGrad(ctx, c - R, c - R, c + R, c + R); ctx.lineWidth = 10;
+  ctx.beginPath(); ctx.arc(c, c, R - 18, 0, Math.PI * 2); ctx.stroke();
+  const ORDER = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
+  const r0 = R - 26, r1 = R - 82;
+  ORDER.forEach((n, i) => {
+    const a0 = (i / 37) * Math.PI * 2 - Math.PI / 2, a1 = ((i + 1) / 37) * Math.PI * 2 - Math.PI / 2;
+    ctx.beginPath(); ctx.arc(c, c, r0, a0, a1); ctx.arc(c, c, r1, a1, a0, true); ctx.closePath();
+    ctx.fillStyle = n === 0 ? '#0f7a3c' : i % 2 ? '#141414' : '#b3122e'; ctx.fill();
+    ctx.strokeStyle = goldGrad(ctx, c - R, c - R, c + R, c + R); ctx.lineWidth = 1.5; ctx.stroke();
+  });
+  const cone = ctx.createRadialGradient(c - 30, c - 30, 10, c, c, r1);
+  cone.addColorStop(0, '#9a4a20'); cone.addColorStop(1, '#3a1206');
+  ctx.fillStyle = cone; ctx.beginPath(); ctx.arc(c, c, r1, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = goldGrad(ctx, c - r1, c - r1, c + r1, c + r1); ctx.lineWidth = 6; ctx.stroke();
+  // The turret's cross.
+  ctx.fillStyle = goldGrad(ctx, c - 80, c - 80, c + 80, c + 80);
+  for (let k = 0; k < 4; k++) {
+    ctx.save(); ctx.translate(c, c); ctx.rotate((k * Math.PI) / 2);
+    ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(8, 0); ctx.lineTo(4, -r1 * 0.78); ctx.arc(0, -r1 * 0.78, 10, 0, Math.PI * 2); ctx.lineTo(-4, -r1 * 0.78); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  ctx.beginPath(); ctx.arc(c, c, 26, 0, Math.PI * 2); ctx.fill();
+  // The ball, in a pocket.
+  const bx = c + Math.cos(-0.9) * (r0 - 18), by = c + Math.sin(-0.9) * (r0 - 18);
+  const bg = ctx.createRadialGradient(bx - 4, by - 4, 1, bx, by, 12);
+  bg.addColorStop(0, '#ffffff'); bg.addColorStop(1, '#a8a8b0');
+  ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(bx, by, 11, 0, Math.PI * 2); ctx.fill();
+  glint(ctx, c - 120, c - 120, 30, 0.7);
+}
+// Two red dice, seen from above and a little to the side.
+function die3d(ctx, x, y, s, faces, tilt) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(tilt);
+  const d = s * 0.42; // depth of the visible sides
+  const faceDraw = (pts, shade, n, m) => {
+    ctx.beginPath(); pts.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py))); ctx.closePath();
+    const g = ctx.createLinearGradient(pts[0][0], pts[0][1], pts[2][0], pts[2][1]);
+    g.addColorStop(0, `rgba(${Math.round(226 * shade)},${Math.round(40 * shade)},${Math.round(63 * shade)},1)`);
+    g.addColorStop(1, `rgba(${Math.round(150 * shade)},${Math.round(14 * shade)},${Math.round(30 * shade)},1)`);
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,170,180,0.35)'; ctx.lineWidth = 2; ctx.stroke();
+    // Pips: placed on the unit square, mapped onto the face.
+    const P = { 1: [[0.5, 0.5]], 2: [[0.25, 0.25], [0.75, 0.75]], 3: [[0.25, 0.25], [0.5, 0.5], [0.75, 0.75]], 4: [[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]], 5: [[0.25, 0.25], [0.75, 0.25], [0.5, 0.5], [0.25, 0.75], [0.75, 0.75]], 6: [[0.25, 0.22], [0.75, 0.22], [0.25, 0.5], [0.75, 0.5], [0.25, 0.78], [0.75, 0.78]] }[n];
+    const [a, b, , e] = pts;
+    P.forEach(([u, v]) => {
+      const px = a[0] + (b[0] - a[0]) * u + (e[0] - a[0]) * v, py = a[1] + (b[1] - a[1]) * u + (e[1] - a[1]) * v;
+      ctx.save(); ctx.translate(px, py); ctx.transform((b[0] - a[0]) / s, (b[1] - a[1]) / s, (e[0] - a[0]) / s, (e[1] - a[1]) / s, 0, 0);
+      ctx.fillStyle = '#fbf7ef'; ctx.beginPath(); ctx.arc(0, 0, s * 0.085 * m, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    });
+  };
+  const h = s / 2;
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 20; ctx.shadowOffsetY = 12;
+  ctx.fillStyle = '#5a0612'; ctx.beginPath(); ctx.rect(-h, -h, s, s + d); ctx.fill(); ctx.restore();
+  faceDraw([[-h, -h], [h, -h], [h, h], [-h, h]], 1, faces[0], 1);
+  faceDraw([[-h, h], [h, h], [h, h + d], [-h, h + d]], 0.7, faces[1], 1);
+  ctx.restore();
+}
+function drawDice(ctx) {
+  const c = S / 2;
+  halo(ctx, c, c, 230, [255, 70, 90], 0.22);
+  die3d(ctx, c - 92, c - 40, 170, [5, 3], -0.22);
+  die3d(ctx, c + 96, c + 30, 160, [6, 2], 0.18);
+  glint(ctx, c - 150, c - 110, 26, 0.8);
+}
+// A stack of black chips, edged in white and gold.
+function drawChips(ctx) {
+  const c = S / 2, rx = 150, ry = 52, th = 30, n = 6;
+  halo(ctx, c, c, 230, [200, 210, 255], 0.18);
+  const base = c + 130;
+  for (let k = 0; k < n; k++) {
+    const y = base - k * th;
+    const side = ctx.createLinearGradient(c - rx, 0, c + rx, 0);
+    side.addColorStop(0, '#060606'); side.addColorStop(0.45, '#2a2a2e'); side.addColorStop(1, '#050505');
+    ctx.fillStyle = side;
+    ctx.beginPath(); ctx.ellipse(c, y, rx, ry, 0, 0, Math.PI); ctx.lineTo(c - rx, y - th); ctx.ellipse(c, y - th, rx, ry, 0, Math.PI, 0, true); ctx.closePath(); ctx.fill();
+    // The edge spots, white, round the visible half.
+    // Three edge spots in view, offset chip to chip as a real stack sits.
+    for (let j = 0; j < 3; j++) {
+      const a = (0.2 + j * 0.3 + (k % 2) * 0.15) * Math.PI;
+      const x = c + Math.cos(a) * rx, w = Math.sin(a) * 26;
+      ctx.fillStyle = '#e9e4d8'; ctx.fillRect(x - w / 2, y - th + Math.sin(a) * ry + 8, w, th - 16);
+    }
+    // A fine gold line round each chip's edge.
+    ctx.strokeStyle = 'rgba(214,178,110,0.55)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(c, y - th / 2, rx, ry, 0, 0.05, Math.PI - 0.05); ctx.stroke();
+  }
+  // The top: black with a gold ring and the house's name.
+  const top = base - n * th;
+  ctx.fillStyle = '#0c0c0e'; ctx.beginPath(); ctx.ellipse(c, top, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = goldGrad(ctx, c - rx, top, c + rx, top); ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.ellipse(c, top, rx * 0.68, ry * 0.68, 0, 0, Math.PI * 2); ctx.stroke();
+  for (let j = 0; j < 8; j++) {
+    const a = (j / 8) * Math.PI * 2;
+    ctx.save(); ctx.translate(c + Math.cos(a) * rx * 0.86, top + Math.sin(a) * ry * 0.86); ctx.scale(1, ry / rx);
+    ctx.fillStyle = '#f2efe6'; ctx.fillRect(-9, -14, 18, 28); ctx.restore();
+  }
+  ctx.save(); ctx.translate(c, top); ctx.scale(1, ry / rx);
+  ctx.font = '700 46px Cinzel, Georgia, serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = goldGrad(ctx, 0, -30, 0, 30); ctx.fillText('NVGR', 0, 2);
+  ctx.restore();
+}
+// The Golden Chip scatter, face on.
+function drawGoldChip(ctx) {
+  const c = S / 2, R = 190;
+  halo(ctx, c, c - 10, 250, [255, 200, 90], 0.45);
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 26; ctx.shadowOffsetY = 12;
+  ctx.fillStyle = goldGrad(ctx, c - R, c - R, c + R, c + R);
+  ctx.beginPath(); ctx.arc(c, c - 16, R, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  for (let j = 0; j < 8; j++) {
+    const a = (j / 8) * Math.PI * 2 + Math.PI / 8;
+    ctx.save(); ctx.translate(c + Math.cos(a) * (R - 26), c - 16 + Math.sin(a) * (R - 26)); ctx.rotate(a + Math.PI / 2);
+    ctx.fillStyle = '#7a0e1e'; ctx.fillRect(-20, -18, 40, 36);
+    ctx.fillStyle = '#f6efdc'; ctx.fillRect(-8, -18, 16, 36);
+    ctx.restore();
+  }
+  ctx.fillStyle = '#120d06'; ctx.beginPath(); ctx.arc(c, c - 16, R - 58, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = goldGrad(ctx, c - R, c - R, c + R, c + R); ctx.lineWidth = 6;
+  ctx.beginPath(); ctx.arc(c, c - 16, R - 66, 0, Math.PI * 2); ctx.stroke();
+  letter(ctx, 'NVGR', c, c + 2, 64, null, { spacing: 6, weight: 900 });
+  letter(ctx, 'GOLD', c, c + 52, 30, null, { spacing: 8, weight: 700 });
+  glint(ctx, c - 100, c - 130, 46); glint(ctx, c + 110, c - 40, 26, 0.8);
+  letter(ctx, 'SCATTER', c, S - 26, 34, null, { spacing: 6, weight: 700 });
+}
+// The royals in platinum over enamel.
+function drawPlatinumRoyal(ctx, ch) {
+  const pal = { K: GEMS.sapphire, Q: GEMS.amethyst, J: GEMS.emerald, '10': GEMS.ruby }[ch];
+  halo(ctx, S / 2, S / 2, 220, pal.mid, 0.2);
+  if (ch === '10') letter(ctx, '10', S / 2 - 6, S / 2 + 100, 260, pal, { metal: 'platinum' });
+  else if (ch === 'Q') letter(ctx, ch, S / 2 - 40, S / 2 + 100, 270, pal, { metal: 'platinum' });
+  else letter(ctx, ch, S / 2, S / 2 + 118, 330, pal, { metal: 'platinum' });
+  ctx.save();
+  ctx.strokeStyle = silverGrad(ctx, S / 2 - 120, 0, S / 2 + 120, 0); ctx.lineWidth = 5; ctx.lineCap = 'round';
+  const y = S / 2 + 168, w = 120, cx = S / 2;
+  ctx.beginPath(); ctx.moveTo(cx - w, y); ctx.bezierCurveTo(cx - w * 0.6, y - 18, cx - w * 0.3, y + 18, cx, y);
+  ctx.bezierCurveTo(cx + w * 0.3, y + 18, cx + w * 0.6, y - 18, cx + w, y); ctx.stroke();
+  ctx.restore();
+}
+
+// Paints one symbol, centred in its cell (W by H symbol units).
+function paint(ctx, sym, logo, W, H) {
+  ground(ctx, W, H);
+  if (sym === 'blank') {
+    // The strip between symbols: nothing but a fine rule across it.
+    ctx.fillStyle = 'rgba(120,100,70,0.12)'; ctx.fillRect(W * 0.3, H / 2 - 1, W * 0.4, 2);
+    return;
+  }
+  ctx.save();
+  ctx.translate((W - S) / 2, (H - S) / 2);
+  // A wide cell (three reels) shows its symbol a little smaller in height.
+  if (H < S) { const k = H / S; ctx.translate(S / 2, S / 2); ctx.scale(k * 1.04, k * 1.04); ctx.translate(-S / 2, -S / 2); }
   if (sym === 'wild') drawWild(ctx, logo);
   else if (sym === 'crown') drawCrown(ctx);
   else if (sym === 'A' || sym === 'K' || sym === 'Q' || sym === 'J') drawRoyal(ctx, sym);
+  else if (sym === 'seven_r') drawSeven(ctx, GEMS.ruby);
+  else if (sym === 'seven_b') drawSeven(ctx, GEMS.sapphire);
+  else if (sym === 'seven_g') drawSeven(ctx, GOLD_PAL);
+  else if (sym === 'bar1') drawBars(ctx, 1);
+  else if (sym === 'bar2') drawBars(ctx, 2);
+  else if (sym === 'bar3') drawBars(ctx, 3);
+  else if (sym === 'cherry') drawCherries(ctx);
+  else if (sym === 'dwild') drawDiamondWild(ctx);
+  else if (sym === 'ace') drawAce(ctx);
+  else if (sym === 'wheel') drawWheel(ctx);
+  else if (sym === 'dice') drawDice(ctx);
+  else if (sym === 'chips') drawChips(ctx);
+  else if (sym === 'goldchip') drawGoldChip(ctx);
+  else if (sym === 'pK') drawPlatinumRoyal(ctx, 'K');
+  else if (sym === 'pQ') drawPlatinumRoyal(ctx, 'Q');
+  else if (sym === 'pJ') drawPlatinumRoyal(ctx, 'J');
+  else if (sym === 'p10') drawPlatinumRoyal(ctx, '10');
   else drawGem(ctx, sym);
+  ctx.restore();
 }
 
 /**
- * The atlas: { sharp, blur } canvases, and `ready`, a promise that settles
- * once the crest and the lettering's font are in (the atlas is painted at
- * once, and painted again then; call onRepaint to hear of it).
+ * A machine's atlas: { sharp, blur } canvases laid out `cols` across, a
+ * cell `cellW` by `cellH` pixels for each of the game's symbols; `aspect` is
+ * a reel face's height over its width. `ready` settles once the crest and
+ * the lettering's font are in (the atlas is painted at once, and again then;
+ * onRepaint hears of it).
  */
-export function createSymbolAtlas() {
-  const W = CELL * ATLAS_COLS, H = CELL * ATLAS_ROWS;
+export function createSymbolAtlas(game, aspect = 1) {
+  const symbols = game.symbols;
+  // Symbol units: the shorter side is 512.
+  const W = aspect < 1 ? S / aspect : S, H = aspect < 1 ? S : S * aspect;
+  const cellW = Math.round((CELL * W) / S), cellH = Math.round((CELL * H) / S);
+  const cols = aspect < 0.8 ? 3 : 4;
+  const rows = Math.ceil(symbols.length / cols);
   const sharp = document.createElement('canvas');
-  sharp.width = W; sharp.height = H;
+  sharp.width = cellW * cols; sharp.height = cellH * rows;
   const blur = document.createElement('canvas');
-  blur.width = W; blur.height = H;
+  blur.width = sharp.width; blur.height = sharp.height;
   const listeners = [];
+  const style = game.look.ground;
   function draw(logo) {
+    STYLE = style;
     const ctx = sharp.getContext('2d');
-    ctx.clearRect(0, 0, W, H);
-    SYMBOLS.forEach((sym, i) => {
+    ctx.clearRect(0, 0, sharp.width, sharp.height);
+    symbols.forEach((sym, i) => {
       ctx.save();
-      ctx.translate((i % ATLAS_COLS) * CELL, Math.floor(i / ATLAS_COLS) * CELL);
-      ctx.scale(CELL / S, CELL / S);
-      ctx.beginPath(); ctx.rect(0, 0, S, S); ctx.clip();
-      paint(ctx, sym, logo);
+      ctx.translate((i % cols) * cellW, Math.floor(i / cols) * cellH);
+      ctx.scale(cellW / W, cellH / H);
+      ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
+      paint(ctx, sym, logo, W, H);
       ctx.restore();
     });
     // The spinning copy: each cell smeared up and down its own column,
     // wrapping, as a reel's strip blurs past the window.
     const b = blur.getContext('2d');
-    b.clearRect(0, 0, W, H);
-    SYMBOLS.forEach((sym, i) => {
-      const x = (i % ATLAS_COLS) * CELL, y = Math.floor(i / ATLAS_COLS) * CELL;
+    b.clearRect(0, 0, blur.width, blur.height);
+    symbols.forEach((sym, i) => {
+      const x = (i % cols) * cellW, y = Math.floor(i / cols) * cellH;
       b.save();
-      b.beginPath(); b.rect(x, y, CELL, CELL); b.clip();
-      const passes = 30, reach = CELL * 0.4;
+      b.beginPath(); b.rect(x, y, cellW, cellH); b.clip();
+      const passes = 30, reach = cellH * 0.4;
       b.globalAlpha = 1;
-      b.drawImage(sharp, x, y, CELL, CELL, x, y, CELL, CELL);
+      b.drawImage(sharp, x, y, cellW, cellH, x, y, cellW, cellH);
       for (let k = 0; k < passes; k++) {
         const dy = ((k / (passes - 1)) - 0.5) * 2 * reach;
         b.globalAlpha = 0.085;
-        b.drawImage(sharp, x, y, CELL, CELL, x, y + dy, CELL, CELL);
-        b.drawImage(sharp, x, y, CELL, CELL, x, y + dy + (dy > 0 ? -CELL : CELL), CELL, CELL);
+        b.drawImage(sharp, x, y, cellW, cellH, x, y + dy, cellW, cellH);
+        b.drawImage(sharp, x, y, cellW, cellH, x, y + dy + (dy > 0 ? -cellH : cellH), cellW, cellH);
       }
       // A dark wash, so the blur reads as speed and not glare.
-      b.globalAlpha = 0.18; b.fillStyle = '#000'; b.fillRect(x, y, CELL, CELL);
+      b.globalAlpha = style === 'ivory' ? 0.1 : 0.18; b.fillStyle = '#000'; b.fillRect(x, y, cellW, cellH);
       b.restore();
     });
     listeners.forEach((fn) => fn());
@@ -557,5 +897,9 @@ export function createSymbolAtlas() {
   logo.src = LOGO_URL;
   const fontIn = (document.fonts ? Promise.all([document.fonts.load('900 100px Cinzel'), document.fonts.load('700 100px Cinzel')]).catch(() => {}) : Promise.resolve());
   const ready = Promise.all([logoIn, fontIn]).then(([img]) => { draw(img); });
-  return { sharp, blur, ready, onRepaint: (fn) => listeners.push(fn) };
+  return {
+    sharp, blur, ready, cols, rows, cellW, cellH,
+    index: (sym) => symbols.indexOf(sym),
+    onRepaint: (fn) => listeners.push(fn),
+  };
 }

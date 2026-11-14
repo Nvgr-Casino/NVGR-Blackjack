@@ -3,10 +3,10 @@ import { createSlotMachine, CAB_W, SEAT_Z, REEL_CENTER } from './slotMachine.js'
 import { place } from './furniture.js';
 import { createCharacter } from './character.js';
 import { m, FLOOR_Y } from './scale.js';
-import { drawStops, evaluate } from '../slots/rules.js';
+import { DEFAULT_GAME } from '../slots/games.js';
 
-// The high-limit slot salon: a gently curved bank of Crown Jewels machines,
-// yours in the middle, a chair before each, guests at a couple of them,
+// The high-limit slot salon: a gently curved bank of the house's machines,
+// all three games side by side, yours in the middle (whichever you choose), a chair before each, guests at a couple of them,
 // lacquered end pillars, and the salon's name in gold above the toppers.
 // The neighbours play on their own now and then, as at a real bank.
 //
@@ -21,6 +21,8 @@ const ARC = m(5.2);
 const SPACING = m(CAB_W + 0.03) / ARC;   // radians between machines
 const BACK = -m(0.15);                   // your machine's back, from the origin
 const GUESTS = PHONE ? [[0, 'rb_bf01']] : [[0, 'rb_bf02'], [3, 'rb_bm02']];
+// Which game stands where, either side of yours.
+const NEIGHBOURS = PHONE ? { 0: 'highroller', 2: 'imperialsevens' } : { 0: 'imperialsevens', 1: 'highroller', 3: 'crownjewels', 4: 'imperialsevens' };
 
 // Where machine i stands and which way it faces.
 function slot(i) {
@@ -74,7 +76,7 @@ export function createSlotSalon() {
   const chairs = [];
   for (let i = 0; i < COUNT; i++) {
     const { angle, position } = slot(i);
-    const mach = createSlotMachine({ full: i === MINE });
+    const mach = createSlotMachine({ full: i === MINE, game: i === MINE ? DEFAULT_GAME : NEIGHBOURS[i] });
     mach.position.copy(position);
     mach.rotation.y = -angle;
     group.add(mach);
@@ -136,14 +138,30 @@ export function createSlotSalon() {
     machines.forEach((mach, i) => {
       mach.userData.update(now);
       if (i !== MINE && now >= nextSpin[i] && !mach.userData.spinning) {
-        const stops = drawStops((n) => Math.floor(Math.random() * n));
-        const result = evaluate(stops, 100);
+        const g = mach.userData.game;
+        const stops = g.drawStops((n) => Math.floor(Math.random() * n));
+        const result = g.evaluate(stops, 100);
         mach.userData.spinTo(stops, { onDone: () => { if (result.total) mach.userData.showWins(result.wins, result.scatter); } });
         nextSpin[i] = now + 6000 + Math.random() * 9000;
       }
     });
   }
 
+  // Your machine: swapped for the game you choose, each kept once built.
+  const built = new Map([[DEFAULT_GAME, machines[MINE]]]);
+  function setGame(id) {
+    const now = machines[MINE];
+    if (now.userData.game.id === id) return now;
+    let next = built.get(id);
+    if (!next) { next = createSlotMachine({ full: true, game: id }); built.set(id, next); }
+    next.position.copy(now.position);
+    next.rotation.copy(now.rotation);
+    group.remove(now);
+    group.add(next);
+    machines[MINE] = next;
+    group.userData.machine = next;
+    return next;
+  }
   // Your seat: the chair before your machine, and the view from it.
   const mine = machines[MINE];
   const myChair = chairs[MINE].chair;
@@ -152,10 +170,11 @@ export function createSlotSalon() {
     update,
     machine: mine,
     machines,
+    setGame,
     myChair,
     /** A point on your machine, from its own metres, in the set's frame. */
-    onMachine: (x, y, z) => new THREE.Vector3(m(x), m(y), m(z)).applyAxisAngle(new THREE.Vector3(0, 1, 0), mine.rotation.y).add(mine.position),
-    reelCenter: () => reelWorld.clone().multiplyScalar(m(1)).add(mine.position),
+    onMachine: (x, y, z) => new THREE.Vector3(m(x), m(y), m(z)).applyAxisAngle(new THREE.Vector3(0, 1, 0), machines[MINE].rotation.y).add(machines[MINE].position),
+    reelCenter: () => reelWorld.clone().multiplyScalar(m(1)).add(machines[MINE].position),
   };
   return group;
 }

@@ -1,15 +1,16 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { m } from './scale.js';
-import { createSymbolAtlas, symbolCell, ATLAS_COLS, ATLAS_ROWS, CELL } from './slotSymbols.js';
-import { STRIPS, LINES, REELS, PAYS } from '../slots/rules.js';
+import { createSymbolAtlas } from './slotSymbols.js';
+import { gameOf, DEFAULT_GAME } from '../slots/games.js';
 import { LOGO_URL } from '../app/uiHelpers.js';
 
-// A Crown Jewels slot machine, built as the high-limit cabinets on a real
-// casino floor are: a lacquered black cabinet with gold inlay, a gold-framed
-// reel window with five real reels turning behind glass, an arched topper
-// with the house crest and the jackpot, a lit button deck, LED light pipes
-// down the front edges, and a gold and onyx pull handle at the side.
+// A slot machine, built as the high-limit cabinets on a real casino floor
+// are: a lacquered cabinet with metal inlay, a framed reel window with real
+// reels turning behind glass, an arched topper with the house crest and the
+// jackpot, a lit button deck, LED light pipes down the front edges, and a
+// pull handle at the side. Each game (src/slots/games.js) dresses it in its
+// own lacquer, metal and light, and puts its own symbols on the reels.
 //
 // The machine stands on the floor at its own origin, its back at z = 0 and
 // its face toward +z. Measurements are real ones, in metres (m()).
@@ -23,9 +24,11 @@ const WIN_W = 0.66, WIN_H = 0.37, WIN_Y = 1.22;
 // Sixteen faces round a drum of 0.33 m: each face about as tall as the
 // reel is wide, so a symbol sits square, and three show at a time over a
 // gentle curve, as on a real reel, rather than a tight barrel.
-const REEL_R = 0.33, REEL_W = 0.124, REEL_GAP = 0.01, PANELS = 16, STEP = (Math.PI * 2) / PANELS;
+// Three reels share the same window, each three times as wide.
+const REEL_R = 0.33, REEL_GAP = 0.01, PANELS = 16, STEP = (Math.PI * 2) / PANELS;
 const REEL_Z = HOUSING_FRONT - 0.045 - REEL_R;
-const reelX = (i) => (i - (REELS - 1) / 2) * (REEL_W + REEL_GAP);
+const reelWidth = (n) => (WIN_W - (n - 1) * (n === 3 ? 0.014 : REEL_GAP)) / n;
+const reelX = (i, n) => (i - (n - 1) / 2) * (reelWidth(n) + (n === 3 ? 0.014 : REEL_GAP));
 // Where the player's eyes go: the middle of the reel window.
 export const REEL_CENTER = { x: 0, y: WIN_Y, z: HOUSING_FRONT };
 // The seat in front: where a chair stands, and the front of the deck.
@@ -36,31 +39,12 @@ export const DECK_FRONT = 0.745;
 let shared = null;
 function materials() {
   if (shared) return shared;
-  const lacquer = PHONE
-    ? new THREE.MeshStandardMaterial({ color: 0x0d0c0f, roughness: 0.28, metalness: 0.2 })
-    : new THREE.MeshPhysicalMaterial({ color: 0x0b0a0d, roughness: 0.24, metalness: 0.15, clearcoat: 1, clearcoatRoughness: 0.07 });
-  const gold = new THREE.MeshStandardMaterial({ color: 0xd9b26a, roughness: 0.22, metalness: 1, envMapIntensity: 1.6 });
-  const darkGold = new THREE.MeshStandardMaterial({ color: 0x9c7a3c, roughness: 0.35, metalness: 1, envMapIntensity: 1.3 });
   const chrome = new THREE.MeshStandardMaterial({ color: 0xe6e8ec, roughness: 0.08, metalness: 1, envMapIntensity: 2 });
   const onyx = PHONE
     ? new THREE.MeshStandardMaterial({ color: 0x060606, roughness: 0.12, metalness: 0.2 })
     : new THREE.MeshPhysicalMaterial({ color: 0x050505, roughness: 0.08, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.03 });
   const matte = new THREE.MeshStandardMaterial({ color: 0x050506, roughness: 0.9, metalness: 0 });
   const blackGlass = new THREE.MeshStandardMaterial({ color: 0x07070a, roughness: 0.08, metalness: 0.4, envMapIntensity: 1.4 });
-
-  // The reels' faces, from the painted atlas.
-  const atlas = createSymbolAtlas();
-  const tex = (canvas) => {
-    const t = new THREE.CanvasTexture(canvas);
-    t.colorSpace = THREE.SRGBColorSpace;
-    t.anisotropy = 8;
-    t.generateMipmaps = true;
-    return t;
-  };
-  const sharpTex = tex(atlas.sharp), blurTex = tex(atlas.blur);
-  atlas.onRepaint(() => { sharpTex.needsUpdate = true; blurTex.needsUpdate = true; });
-  const reel = new THREE.MeshStandardMaterial({ map: sharpTex, emissiveMap: sharpTex, emissive: 0xffffff, emissiveIntensity: 0.42, roughness: 0.5, metalness: 0 });
-  const reelBlur = new THREE.MeshStandardMaterial({ map: blurTex, emissiveMap: blurTex, emissive: 0xffffff, emissiveIntensity: 0.42, roughness: 0.5, metalness: 0 });
 
   // The glass over the reels: faint, with a streak of reflected light.
   const streak = canvasTexture(512, 512, (ctx, w, h) => {
@@ -85,8 +69,45 @@ function materials() {
   });
   const shade = new THREE.MeshBasicMaterial({ map: vignette, transparent: true, depthWrite: false, toneMapped: false });
 
-  shared = { lacquer, gold, darkGold, chrome, onyx, matte, blackGlass, reel, reelBlur, glass, shade, atlas, sharpTex };
+  shared = { chrome, onyx, matte, blackGlass, glass, shade };
   return shared;
+}
+// What one game wears: its lacquer, its metal, its reels' faces.
+const METALS = {
+  gold: { color: 0xd9b26a, dark: 0x9c7a3c, rough: 0.22 },
+  chrome: { color: 0xe8ebf0, dark: 0x8a909c, rough: 0.08 },
+  platinum: { color: 0xd6d8e0, dark: 0x9a9da8, rough: 0.16 },
+};
+const looks = new Map();
+function lookOf(game) {
+  if (looks.has(game.id)) return looks.get(game.id);
+  const L = game.look;
+  const metal = METALS[L.trim] || METALS.gold;
+  const lacquer = PHONE
+    ? new THREE.MeshStandardMaterial({ color: L.lacquer, roughness: 0.28, metalness: 0.2 })
+    : new THREE.MeshPhysicalMaterial({ color: L.lacquer, roughness: 0.24, metalness: 0.15, clearcoat: 1, clearcoatRoughness: 0.07 });
+  const gold = new THREE.MeshStandardMaterial({ color: metal.color, roughness: metal.rough, metalness: 1, envMapIntensity: 1.6 });
+  const darkGold = new THREE.MeshStandardMaterial({ color: metal.dark, roughness: 0.35, metalness: 1, envMapIntensity: 1.3 });
+  // The reels' faces, from the game's painted atlas, as tall as a face is
+  // over its width.
+  const aspect = (REEL_R * STEP) / reelWidth(game.reels);
+  const atlas = createSymbolAtlas(game, aspect);
+  const tex = (canvas) => {
+    const t = new THREE.CanvasTexture(canvas);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 8;
+    t.generateMipmaps = true;
+    return t;
+  };
+  const sharpTex = tex(atlas.sharp), blurTex = tex(atlas.blur);
+  atlas.onRepaint(() => { sharpTex.needsUpdate = true; blurTex.needsUpdate = true; });
+  // An ivory strip is lit less from within: it would glare.
+  const glow = L.ground === 'ivory' ? 0.06 : 0.42;
+  const reel = new THREE.MeshStandardMaterial({ map: sharpTex, emissiveMap: sharpTex, emissive: 0xffffff, emissiveIntensity: glow, roughness: 0.5, metalness: 0 });
+  const reelBlur = new THREE.MeshStandardMaterial({ map: blurTex, emissiveMap: blurTex, emissive: 0xffffff, emissiveIntensity: glow, roughness: 0.5, metalness: 0 });
+  const out = { lacquer, gold, darkGold, reel, reelBlur, atlas };
+  looks.set(game.id, out);
+  return out;
 }
 function canvasTexture(w, h, draw) {
   const c = document.createElement('canvas');
@@ -97,10 +118,19 @@ function canvasTexture(w, h, draw) {
   t.anisotropy = 8;
   return t;
 }
+// The metal being painted (a game's trim), for the gradients below.
+let TRIM = 'gold';
 const goldStops = (g) => {
-  g.addColorStop(0, '#fff0c4'); g.addColorStop(0.22, '#e6c27a'); g.addColorStop(0.5, '#a97e32'); g.addColorStop(0.75, '#e2bd6e'); g.addColorStop(1, '#8a6224');
+  if (TRIM === 'gold') {
+    g.addColorStop(0, '#fff0c4'); g.addColorStop(0.22, '#e6c27a'); g.addColorStop(0.5, '#a97e32'); g.addColorStop(0.75, '#e2bd6e'); g.addColorStop(1, '#8a6224');
+  } else {
+    g.addColorStop(0, '#ffffff'); g.addColorStop(0.22, '#d8dde6'); g.addColorStop(0.5, '#7d8594'); g.addColorStop(0.75, '#d0d6e0'); g.addColorStop(1, '#5e6574');
+  }
   return g;
 };
+// Text and lines in the trim's colour: [label, value, bright, line].
+const INK = () => (TRIM === 'gold' ? ['#8f7a55', '#e8c27a', '#ffe2a0', 'rgba(220,186,110,'] : ['#7f8796', '#e4e9f2', '#ffffff', 'rgba(200,208,222,']);
+const GLOW = () => (TRIM === 'gold' ? 'rgba(255,170,60,' : 'rgba(170,200,255,');
 const FONT = (w, px) => `${w} ${px}px Cinzel, "Cinzel", Georgia, serif`;
 
 // ---------- the cabinet ----------
@@ -120,18 +150,20 @@ function lowerProfile() {
   return s;
 }
 // A side panel's inlay: a fine gold line following the profile, inset.
-function sidePanelTexture() {
+function sidePanelTexture(game) {
+  TRIM = game.look.trim;
+  const base = '#' + game.look.lacquer.toString(16).padStart(6, '0');
   // Drawn over the profile's own coordinates: z 0 to 0.8, y 0 to 0.85 m.
   const PX = 1024, Z = 0.8, Y = 0.85;
   return canvasTexture(PX, Math.round((PX * Y) / Z), (ctx, w, h) => {
     const X = (z) => (z / Z) * w, Yp = (y) => h - (y / Y) * h;
-    ctx.fillStyle = '#0b0a0d'; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = base; ctx.fillRect(0, 0, w, h);
     const g = ctx.createLinearGradient(0, 0, w, h);
     goldStops(g);
     ctx.strokeStyle = g; ctx.lineWidth = 5; ctx.lineJoin = 'round';
     const inset = [[0.07, 0.12], [0.55, 0.12], [0.55, 0.62], [0.69, 0.705], [0.555, 0.745], [0.07, 0.745]];
     ctx.beginPath(); inset.forEach(([z, y], i) => (i ? ctx.lineTo(X(z), Yp(y)) : ctx.moveTo(X(z), Yp(y)))); ctx.closePath(); ctx.stroke();
-    ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(220,186,110,0.5)';
+    ctx.lineWidth = 1.5; ctx.strokeStyle = INK()[3] + '0.5)';
     const inner = [[0.095, 0.145], [0.525, 0.145], [0.525, 0.6], [0.645, 0.68], [0.54, 0.718], [0.095, 0.718]];
     ctx.beginPath(); inner.forEach(([z, y], i) => (i ? ctx.lineTo(X(z), Yp(y)) : ctx.moveTo(X(z), Yp(y)))); ctx.closePath(); ctx.stroke();
   });
@@ -153,16 +185,18 @@ function roundedRectPath(x, y, w, h, r, ShapeClass = THREE.Path) {
   return p;
 }
 // The fascia's inlay: a gold pinstripe round its edge and round the window.
-function fasciaTexture() {
+function fasciaTexture(game) {
+  TRIM = game.look.trim;
+  const base = '#' + game.look.lacquer.toString(16).padStart(6, '0');
   const W = CAB_W, H = HOUSING_Y1 - HOUSING_Y0;
   const PX = 1024;
   return canvasTexture(PX, Math.round((PX * H) / W), (ctx, w, h) => {
     const X = (x) => ((x + W / 2) / W) * w, Y = (y) => h - ((y - HOUSING_Y0) / H) * h, S = w / W;
-    ctx.fillStyle = '#0b0a0d'; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = base; ctx.fillRect(0, 0, w, h);
     const g = goldStops(ctx.createLinearGradient(0, 0, w, h));
     ctx.strokeStyle = g; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.roundRect(X(-W / 2 + 0.03), Y(HOUSING_Y1 - 0.03), (W - 0.06) * S, (H - 0.06) * S, 0.02 * S); ctx.stroke();
-    ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(220,186,110,0.45)';
+    ctx.lineWidth = 1.2; ctx.strokeStyle = INK()[3] + '0.45)';
     ctx.beginPath(); ctx.roundRect(X(-W / 2 + 0.04), Y(HOUSING_Y1 - 0.04), (W - 0.08) * S, (H - 0.08) * S, 0.015 * S); ctx.stroke();
   });
 }
@@ -188,7 +222,8 @@ function fitCapUVs(geometry, x0, x1, y0, y1) {
 // One reel: ten curved panels round a drum, in one geometry. A panel shows
 // whichever symbol of the strip is due at its place as it comes round, so a
 // drum of ten faces can carry a strip of thirty-four.
-function createReel(index, mats) {
+function createReel(index, game, mats) {
+  const REEL_W = reelWidth(game.reels);
   const SEGS = 6;
   const per = (SEGS + 1) * 2;
   const pos = new Float32Array(PANELS * per * 3);
@@ -218,21 +253,24 @@ function createReel(index, mats) {
   geo.setIndex(idx);
   const mesh = new THREE.Mesh(geo, mats.reel);
   const drum = new THREE.Group();
-  drum.position.set(reelX(index), WIN_Y, REEL_Z);
+  drum.position.set(reelX(index, game.reels), WIN_Y, REEL_Z);
   drum.add(mesh);
   // The drum's rims, dark, just inside each face's edge.
-  const strip = STRIPS[index];
+  const strip = game.strips[index];
   const showing = new Array(PANELS).fill(-1);
-  const half = 0.5 / (CELL * ATLAS_COLS); // half a texel, against bleeding
+  const { atlas } = mats;
+  const COLS = atlas.cols, ROWS = atlas.rows;
+  const half = 0.5 / atlas.sharp.width; // half a texel, against bleeding
+  const halfV = 0.5 / atlas.sharp.height;
   function setPanel(j, k) {
     const n = strip.length;
     const sym = strip[((k % n) + n) % n];
-    const cell = symbolCell(sym);
+    const cell = atlas.index(sym);
     if (showing[j] === cell) return;
     showing[j] = cell;
-    const col = cell % ATLAS_COLS, row = Math.floor(cell / ATLAS_COLS);
-    const u0 = col / ATLAS_COLS + half, u1 = (col + 1) / ATLAS_COLS - half;
-    const vTop = 1 - row / ATLAS_ROWS - half, vBot = 1 - (row + 1) / ATLAS_ROWS + half;
+    const col = cell % COLS, row = Math.floor(cell / COLS);
+    const u0 = col / COLS + half, u1 = (col + 1) / COLS - half;
+    const vTop = 1 - row / ROWS - halfV, vBot = 1 - (row + 1) / ROWS + halfV;
     for (let s = 0; s <= SEGS; s++) {
       const t = s / SEGS;
       const v = vBot + (vTop - vBot) * t;
@@ -286,12 +324,14 @@ const logoLoaded = new Promise((res) => {
 });
 const fmt = (n) => Math.round(n).toLocaleString('en-US');
 
-function paintTopper(d, bet) {
+function paintTopper(d, bet, game) {
+  TRIM = game.look.trim;
   const { ctx, canvas } = d;
   const w = canvas.width, h = canvas.height;
   ctx.clearRect(0, 0, w, h);
   const bg = ctx.createRadialGradient(w / 2, h * 0.32, 10, w / 2, h * 0.4, w * 0.7);
-  bg.addColorStop(0, '#2a1a10'); bg.addColorStop(0.55, '#100b08'); bg.addColorStop(1, '#040303');
+  const warm = TRIM === 'gold';
+  bg.addColorStop(0, warm ? '#2a1a10' : TRIM === 'chrome' ? '#2c0a10' : '#101a3a'); bg.addColorStop(0.55, warm ? '#100b08' : TRIM === 'chrome' ? '#12050a' : '#070b1a'); bg.addColorStop(1, '#040303');
   ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
   // Rays fanning up behind the crest, faint.
   ctx.save(); ctx.translate(w / 2, h * 0.62);
@@ -299,7 +339,8 @@ function paintTopper(d, bet) {
     ctx.rotate(0);
     const a = -Math.PI / 2 + k * 0.1;
     const g = ctx.createLinearGradient(0, 0, Math.cos(a) * h, Math.sin(a) * h);
-    g.addColorStop(0, 'rgba(232,190,110,0.16)'); g.addColorStop(1, 'rgba(232,190,110,0)');
+    const ray = warm ? '232,190,110' : '210,220,240';
+    g.addColorStop(0, `rgba(${ray},0.16)`); g.addColorStop(1, `rgba(${ray},0)`);
     ctx.strokeStyle = g; ctx.lineWidth = k % 2 ? 2 : 5;
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * h * 1.1, Math.sin(a) * h * 1.1); ctx.stroke();
   }
@@ -316,18 +357,19 @@ function paintTopper(d, bet) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = FONT(700, ph * 0.24);
   if ('letterSpacing' in ctx) ctx.letterSpacing = '10px';
-  ctx.fillStyle = '#c9a35a';
+  ctx.fillStyle = INK()[0];
   ctx.fillText('GRAND JACKPOT', w / 2, py + ph * 0.25);
   if ('letterSpacing' in ctx) ctx.letterSpacing = '4px';
   ctx.font = FONT(900, ph * 0.48);
   const g = goldStops(ctx.createLinearGradient(0, py + ph * 0.42, 0, py + ph * 0.92));
-  ctx.shadowColor = 'rgba(255,170,60,0.6)'; ctx.shadowBlur = 18;
+  ctx.shadowColor = GLOW() + '0.6)'; ctx.shadowBlur = 18;
   ctx.fillStyle = g;
-  ctx.fillText(fmt(PAYS.wild[2] * (bet / LINES.length)), w / 2, py + ph * 0.66);
+  ctx.fillText(fmt(game.jackpot(bet)), w / 2, py + ph * 0.66);
   ctx.shadowBlur = 0;
   d.tex.needsUpdate = true;
 }
-function paintTitle(d) {
+function paintTitle(d, game) {
+  TRIM = game.look.trim;
   const { ctx, canvas } = d;
   const w = canvas.width, h = canvas.height;
   const bg = ctx.createLinearGradient(0, 0, 0, h);
@@ -336,23 +378,25 @@ function paintTitle(d) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = FONT(900, h * 0.42);
   if ('letterSpacing' in ctx) ctx.letterSpacing = `${Math.round(h * 0.08)}px`;
-  ctx.shadowColor = 'rgba(255,170,60,0.55)'; ctx.shadowBlur = h * 0.18;
+  ctx.shadowColor = GLOW() + '0.55)'; ctx.shadowBlur = h * 0.18;
   ctx.fillStyle = goldStops(ctx.createLinearGradient(0, h * 0.2, 0, h * 0.8));
-  ctx.fillText('CROWN JEWELS', w / 2 + h * 0.05, h * 0.56);
+  ctx.fillText(game.look.title, w / 2 + h * 0.05, h * 0.56);
   ctx.shadowBlur = 0;
   // Filigree either side.
   const line = (x0, x1) => {
     const g = goldStops(ctx.createLinearGradient(x0, 0, x1, 0));
     ctx.strokeStyle = g; ctx.lineWidth = h * 0.04;
     ctx.beginPath(); ctx.moveTo(x0, h * 0.55); ctx.lineTo(x1, h * 0.55); ctx.stroke();
-    ctx.fillStyle = '#c4203a';
+    ctx.fillStyle = game.look.accent;
     const cx = x1 > x0 ? x1 : x1;
     ctx.beginPath(); ctx.moveTo(cx, h * 0.38); ctx.lineTo(cx + h * 0.12, h * 0.55); ctx.lineTo(cx, h * 0.72); ctx.lineTo(cx - h * 0.12, h * 0.55); ctx.closePath(); ctx.fill();
   };
   line(w * 0.02, w * 0.09); line(w * 0.98, w * 0.91);
   d.tex.needsUpdate = true;
 }
-function paintMeters(d, { credit, bet, win, note }) {
+function paintMeters(d, { credit, bet, win, note }, trim = 'gold') {
+  TRIM = trim;
+  const ink = INK();
   const { ctx, canvas } = d;
   const w = canvas.width, h = canvas.height;
   ctx.fillStyle = '#040405'; ctx.fillRect(0, 0, w, h);
@@ -361,27 +405,29 @@ function paintMeters(d, { credit, bet, win, note }) {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = `600 ${h * 0.2}px Inter, system-ui, sans-serif`;
     if ('letterSpacing' in ctx) ctx.letterSpacing = `${Math.round(h * 0.05)}px`;
-    ctx.fillStyle = '#8f7a55';
+    ctx.fillStyle = ink[0];
     ctx.fillText(label, x, h * 0.27);
     if ('letterSpacing' in ctx) ctx.letterSpacing = '1px';
     ctx.font = `700 ${h * 0.4}px Inter, system-ui, sans-serif`;
-    ctx.shadowColor = hot ? 'rgba(255,180,70,0.85)' : 'rgba(255,180,70,0.35)'; ctx.shadowBlur = hot ? h * 0.25 : h * 0.1;
-    ctx.fillStyle = hot ? '#ffe2a0' : '#e8c27a';
+    ctx.shadowColor = GLOW() + (hot ? '0.85)' : '0.35)'); ctx.shadowBlur = hot ? h * 0.25 : h * 0.1;
+    ctx.fillStyle = hot ? ink[2] : ink[1];
     ctx.fillText(value, x, h * 0.66);
     ctx.shadowBlur = 0;
   };
   cell(0, 'CREDIT', fmt(credit));
   cell(1, 'BET', fmt(bet));
   cell(2, note || 'WIN', win ? fmt(win) : '—', !!win);
-  ctx.strokeStyle = 'rgba(200,164,106,0.25)'; ctx.lineWidth = 2;
+  ctx.strokeStyle = ink[3] + '0.25)'; ctx.lineWidth = 2;
   [1, 2].forEach((k) => { ctx.beginPath(); ctx.moveTo((k * w) / 3, h * 0.18); ctx.lineTo((k * w) / 3, h * 0.82); ctx.stroke(); });
   d.tex.needsUpdate = true;
 }
-function paintBelly(d) {
+function paintBelly(d, game, atlas) {
+  TRIM = game.look.trim;
   const { ctx, canvas } = d;
   const w = canvas.width, h = canvas.height;
   const bg = ctx.createRadialGradient(w / 2, h * 0.45, 10, w / 2, h / 2, w * 0.75);
-  bg.addColorStop(0, '#1e1530'); bg.addColorStop(0.6, '#0b0914'); bg.addColorStop(1, '#030305');
+  const tint = { gold: '#1e1530', chrome: '#3a0a14', platinum: '#13204a' }[TRIM] || '#1e1530';
+  bg.addColorStop(0, tint); bg.addColorStop(0.6, '#0b0914'); bg.addColorStop(1, '#030305');
   ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
   // An Art Deco frame.
   const g = goldStops(ctx.createLinearGradient(0, 0, w, h));
@@ -396,85 +442,95 @@ function paintBelly(d) {
     ctx.lineTo(w * (x + sx * 0.1), h * (y + sy * 0.06)); ctx.lineTo(w * (x + sx * 0.1), h * y);
     ctx.stroke();
   });
-  // The jewels, from the reels' own paintings.
-  const src = shared.atlas.sharp;
-  const cellPx = src.width / ATLAS_COLS;
+  // The game's own symbols, from the reels' paintings.
+  const src = atlas.sharp;
+  const cw = atlas.cellW, ch = atlas.cellH;
   const draw = (sym, cx, cy, size) => {
-    const i = symbolCell(sym);
-    const sx = (i % ATLAS_COLS) * cellPx, sy = Math.floor(i / ATLAS_COLS) * cellPx;
+    const i = atlas.index(sym);
+    // The symbol's square in the middle of its cell.
+    const side = Math.min(cw, ch);
+    const sx = (i % atlas.cols) * cw + (cw - side) / 2, sy = Math.floor(i / atlas.cols) * ch + (ch - side) / 2;
     // Cut the symbol from its ground with a soft round mask.
     const tmp = document.createElement('canvas'); tmp.width = tmp.height = Math.round(size);
     const t = tmp.getContext('2d');
-    t.drawImage(src, sx, sy, cellPx, cellPx, 0, 0, size, size);
+    t.drawImage(src, sx, sy, side, side, 0, 0, size, size);
     t.globalCompositeOperation = 'destination-in';
     const m = t.createRadialGradient(size / 2, size / 2, size * 0.3, size / 2, size / 2, size * 0.5);
     m.addColorStop(0, 'rgba(0,0,0,1)'); m.addColorStop(1, 'rgba(0,0,0,0)');
     t.fillStyle = m; t.fillRect(0, 0, size, size);
     ctx.drawImage(tmp, cx - size / 2, cy - size / 2);
   };
-  draw('crown', w / 2, h * 0.4, h * 0.62);
-  draw('ruby', w * 0.2, h * 0.52, h * 0.34);
-  draw('sapphire', w * 0.8, h * 0.52, h * 0.34);
-  draw('emerald', w * 0.32, h * 0.7, h * 0.26);
-  draw('emerald', w * 0.68, h * 0.7, h * 0.26);
+  const [a, b, c, e] = game.look.showcase;
+  draw(a, w / 2, h * 0.4, h * 0.62);
+  draw(b, w * 0.2, h * 0.52, h * 0.34);
+  draw(c, w * 0.8, h * 0.52, h * 0.34);
+  draw(e, w * 0.32, h * 0.7, h * 0.26);
+  draw(e, w * 0.68, h * 0.7, h * 0.26);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = FONT(900, h * 0.1);
   if ('letterSpacing' in ctx) ctx.letterSpacing = `${Math.round(h * 0.03)}px`;
   ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 10;
   ctx.fillStyle = goldStops(ctx.createLinearGradient(0, h * 0.76, 0, h * 0.88));
-  ctx.fillText('CROWN JEWELS', w / 2 + h * 0.015, h * 0.83);
+  if (ctx.measureText(game.look.title).width > w * 0.84) ctx.font = FONT(900, h * 0.08);
+  ctx.fillText(game.look.title, w / 2 + h * 0.015, h * 0.83);
   ctx.shadowBlur = 0;
   d.tex.needsUpdate = true;
 }
 // A button's lit top: its words in gold on black glass.
-function buttonLabel(text, wide) {
+function buttonLabel(text, wide, trim) {
+  TRIM = trim;
+  const ink = INK();
   return canvasTexture(wide ? 256 : 192, 128, (ctx, w, h) => {
     const g = ctx.createLinearGradient(0, 0, 0, h);
     g.addColorStop(0, '#1a1410'); g.addColorStop(1, '#070505');
     ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = 'rgba(232,196,120,0.7)'; ctx.lineWidth = 4; ctx.strokeRect(6, 6, w - 12, h - 12);
+    ctx.strokeStyle = ink[3] + '0.7)'; ctx.lineWidth = 4; ctx.strokeRect(6, 6, w - 12, h - 12);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = `700 ${h * 0.3}px Inter, system-ui, sans-serif`;
     if ('letterSpacing' in ctx) ctx.letterSpacing = '3px';
-    ctx.shadowColor = 'rgba(255,190,80,0.9)'; ctx.shadowBlur = 12;
-    ctx.fillStyle = '#ffd88e';
+    ctx.shadowColor = GLOW() + '0.9)'; ctx.shadowBlur = 12;
+    ctx.fillStyle = trim === 'gold' ? '#ffd88e' : '#eef3fb';
     ctx.fillText(text, w / 2, h * 0.54);
   });
 }
 const buttonTops = new Map();
-function buttonTop(text) {
-  if (!buttonTops.has(text)) {
-    const label = buttonLabel(text, text.length > 5);
-    buttonTops.set(text, new THREE.MeshStandardMaterial({ map: label, emissiveMap: label, emissive: 0xffffff, emissiveIntensity: 0.9, roughness: 0.25, metalness: 0.1 }));
+function buttonTop(text, trim) {
+  const key = text + '|' + trim;
+  if (!buttonTops.has(key)) {
+    const label = buttonLabel(text, text.length > 5, trim);
+    buttonTops.set(key, new THREE.MeshStandardMaterial({ map: label, emissiveMap: label, emissive: 0xffffff, emissiveIntensity: 0.9, roughness: 0.25, metalness: 0.1 }));
   }
-  return buttonTops.get(text);
+  return buttonTops.get(key);
 }
-function spinLabel() {
+// The SPIN button's face: gold, ruby or sapphire glass, by the game.
+function spinLabel(trim) {
   return canvasTexture(256, 256, (ctx, w, h) => {
     const g = ctx.createRadialGradient(w * 0.42, h * 0.38, 10, w / 2, h / 2, w / 2);
-    g.addColorStop(0, '#fff3cf'); g.addColorStop(0.45, '#f1c46a'); g.addColorStop(1, '#a8701e');
+    if (trim === 'chrome') { g.addColorStop(0, '#ffb3bd'); g.addColorStop(0.45, '#d8142e'); g.addColorStop(1, '#6a0612'); }
+    else if (trim === 'platinum') { g.addColorStop(0, '#d6e6ff'); g.addColorStop(0.45, '#3a78e0'); g.addColorStop(1, '#0f2a66'); }
+    else { g.addColorStop(0, '#fff3cf'); g.addColorStop(0.45, '#f1c46a'); g.addColorStop(1, '#a8701e'); }
     ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = FONT(900, h * 0.24);
     if ('letterSpacing' in ctx) ctx.letterSpacing = '6px';
-    ctx.fillStyle = '#3a2208';
+    ctx.fillStyle = trim === 'gold' ? '#3a2208' : '#ffffff';
     ctx.fillText('SPIN', w / 2 + 3, h * 0.53);
   });
 }
 // The overlay just behind the glass where wins are drawn.
-function paintWins(d, wins, scatter, phase) {
+function paintWins(d, wins, scatter, phase, game) {
   const { ctx, canvas } = d;
   const w = canvas.width, h = canvas.height;
   ctx.clearRect(0, 0, w, h);
   if (!wins.length && !scatter) { d.tex.needsUpdate = true; return; }
-  const colW = w / REELS, rowH = h / 3;
+  const colW = w / game.reels, rowH = h / 3;
   const COLORS = ['#ffd36e', '#ff6b7f', '#6fd3ff', '#8dffa8', '#d39bff', '#ffa45c', '#ff8ad8', '#9ae6ff', '#ffe98a', '#b4ff6e'];
   const cellCenter = ([reel, row]) => [(reel + 0.5) * colW, (row + 0.5) * rowH];
   const show = phase === null ? wins : wins.filter((_, i) => i === phase % Math.max(1, wins.length));
   show.forEach((win) => {
     const color = COLORS[win.line % COLORS.length];
     // The whole line, faint, then the winning cells framed.
-    const pts = LINES[win.line].map((row, reel) => [(reel + 0.5) * colW, (row + 0.5) * rowH]);
+    const pts = game.lines[win.line].map((row, reel) => [(reel + 0.5) * colW, (row + 0.5) * rowH]);
     ctx.save();
     ctx.strokeStyle = color; ctx.lineWidth = h * 0.014; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     ctx.shadowColor = color; ctx.shadowBlur = h * 0.04; ctx.globalAlpha = 0.9;
@@ -501,12 +557,13 @@ function paintWins(d, wins, scatter, phase) {
 }
 
 // What every machine wears alike, painted once for the whole bank.
-let dressed = null;
-function decor() {
-  if (dressed) return dressed;
-  const mats = materials();
+const dressed = new Map();
+function decorOf(game) {
+  if (dressed.has(game.id)) return dressed.get(game.id);
+  const mats = lookOf(game);
   const title = display(0.56, 0.1, 1024);
-  paintTitle(title);
+  paintTitle(title, game);
+  if (document.fonts) document.fonts.ready.then(() => paintTitle(title, game));
   const club = display(0.14, 0.04, 256);
   {
     const { ctx, canvas } = club;
@@ -519,7 +576,7 @@ function decor() {
     club.tex.needsUpdate = true;
   }
   const belly = display(0.36, 0.4, PHONE ? 512 : 768);
-  const paintBellyNow = () => paintBelly(belly);
+  const paintBellyNow = () => paintBelly(belly, game, mats.atlas);
   paintBellyNow();
   mats.atlas.ready.then(paintBellyNow);
   const grilleTex = canvasTexture(128, 128, (ctx, w, h) => {
@@ -527,25 +584,29 @@ function decor() {
     ctx.fillStyle = '#000';
     for (let y = 6; y < h; y += 9) for (let x = 6 + ((y / 9) % 2) * 4.5; x < w; x += 9) { ctx.beginPath(); ctx.arc(x, y, 2.6, 0, Math.PI * 2); ctx.fill(); }
   });
-  dressed = {
-    side: new THREE.MeshStandardMaterial({ map: sidePanelTexture(), roughness: 0.25, metalness: 0.15 }),
-    fascia: new THREE.MeshStandardMaterial({ map: fasciaTexture(), roughness: 0.22, metalness: 0.15 }),
+  const out = {
+    side: new THREE.MeshStandardMaterial({ map: sidePanelTexture(game), roughness: 0.25, metalness: 0.15 }),
+    fascia: new THREE.MeshStandardMaterial({ map: fasciaTexture(game), roughness: 0.22, metalness: 0.15 }),
     title, club, belly,
     grille: new THREE.MeshStandardMaterial({ map: grilleTex, roughness: 0.6, metalness: 0.5 }),
   };
-  return dressed;
+  dressed.set(game.id, out);
+  return out;
 }
 
-/** The painted symbols, for the pay table. */
-export function symbolAtlas() { return materials().atlas; }
+/** A game's painted symbols, for its pay table. */
+export function symbolAtlas(gameId) { return lookOf(gameOf(gameId)).atlas; }
 
 // ---------- the machine ----------
 /**
  * One machine. `full` builds the player's own: its meters, win overlay and
  * handle respond; a neighbour's are dressed alike but simpler.
  */
-export function createSlotMachine({ full = false } = {}) {
-  const mats = materials();
+export function createSlotMachine({ full = false, game: gameId = DEFAULT_GAME } = {}) {
+  const game = gameOf(gameId);
+  const mats = { ...materials(), ...lookOf(game) };
+  const decor = () => (decorFor || (decorFor = decorOf(game)));
+  let decorFor = null;
   const root = new THREE.Group();
   const M = new THREE.Group();          // built in metres
   M.scale.setScalar(m(1));
@@ -589,15 +650,15 @@ export function createSlotMachine({ full = false } = {}) {
 
   // The reels.
   const reels = [];
-  for (let i = 0; i < REELS; i++) {
-    const r = createReel(i, mats);
+  for (let i = 0; i < game.reels; i++) {
+    const r = createReel(i, game, mats);
     M.add(r.drum);
     reels.push(r);
   }
   // Fine gold rules between the reels, inside the glass.
-  for (let i = 1; i < REELS; i++) {
+  for (let i = 1; i < game.reels; i++) {
     const rule = new THREE.Mesh(new THREE.BoxGeometry(0.003, WIN_H, 0.003), mats.darkGold);
-    rule.position.set((reelX(i - 1) + reelX(i)) / 2, WIN_Y, HOUSING_FRONT - 0.03);
+    rule.position.set((reelX(i - 1, game.reels) + reelX(i, game.reels)) / 2, WIN_Y, HOUSING_FRONT - 0.03);
     M.add(rule);
   }
   // The shade over the window's top and bottom, the win overlay, the glass.
@@ -625,7 +686,7 @@ export function createSlotMachine({ full = false } = {}) {
   titlePlane.position.set(0, 1.525, HOUSING_FRONT + 0.011);
   M.add(titlePlane);
   const meters = display(0.6, 0.075, full ? 1024 : 512);
-  paintMeters(meters, { credit: 0, bet: 100, win: 0 });
+  paintMeters(meters, { credit: 0, bet: 100, win: 0 }, game.look.trim);
   const meterPlane = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.075), meters.mat);
   meterPlane.position.set(0, 0.935, HOUSING_FRONT + 0.011);
   M.add(meterPlane);
@@ -676,8 +737,8 @@ export function createSlotMachine({ full = false } = {}) {
   face.position.z = HOUSING_FRONT - 0.004;
   M.add(face);
   let topperBet = 100;
-  paintTopper(topper, topperBet);
-  logoLoaded.then(() => paintTopper(topper, topperBet));
+  paintTopper(topper, topperBet, game);
+  logoLoaded.then(() => paintTopper(topper, topperBet, game));
 
   // The belly glass, lit, in a gold frame; speakers and the note and ticket
   // slots either side.
@@ -719,7 +780,7 @@ export function createSlotMachine({ full = false } = {}) {
   const buttonGeo = new RoundedBoxGeometry(0.072, 0.016, 0.042, 3, 0.006);
   const buttons = {};
   [['PAYS', -0.27, 'pays'], ['BET −', -0.185, 'down'], ['BET +', -0.1, 'up'], ['MAX BET', -0.015, 'max'], ['AUTO', 0.07, 'auto']].forEach(([text, x, id]) => {
-    const top = buttonTop(text);
+    const top = buttonTop(text, game.look.trim);
     const b = new THREE.Mesh(buttonGeo, [mats.onyx, mats.onyx, top, mats.onyx, mats.onyx, mats.onyx]);
     b.position.set(x, 0.01, 0.005);
     b.userData.button = id;
@@ -730,7 +791,7 @@ export function createSlotMachine({ full = false } = {}) {
     buttons[id] = b;
   });
   // Your machine's SPIN button breathes on its own; a neighbour's shares one.
-  const spinTex = decor().spinTex || (decor().spinTex = spinLabel());
+  const spinTex = decor().spinTex || (decor().spinTex = spinLabel(game.look.trim));
   const spinTop = new THREE.MeshStandardMaterial({ map: spinTex, emissiveMap: spinTex, emissive: 0xffffff, emissiveIntensity: 0.8, roughness: 0.25, metalness: 0.2 });
   const spin = new THREE.Mesh(new THREE.CylinderGeometry(0.044, 0.046, 0.02, 48), [mats.gold, spinTop, mats.gold]);
   spin.position.set(0.215, 0.012, 0.004);
@@ -808,7 +869,7 @@ export function createSlotMachine({ full = false } = {}) {
     const now = performance.now();
     const base = quick ? 700 : 1300, stagger = quick ? 170 : 320;
     const plans = stops.map((stop, i) => {
-      const n = STRIPS[i].length;
+      const n = game.strips[i].length;
       const T = base + i * stagger;
       // Seconds of travel at full speed the run is worth: half of the
       // speeding up and the slowing down, all of the steady part.
@@ -821,7 +882,7 @@ export function createSlotMachine({ full = false } = {}) {
     });
     spinning = { start: now, plans, landed: stops.map(() => false), onReelStop, onDone };
     winState = null;
-    if (winLayer) paintWins(winLayer, [], null, null);
+    if (winLayer) paintWins(winLayer, [], null, null, game);
     lights = { mode: 'spin', since: now };
   }
   // One reel, t ms into its spin: a small kick upward, speeding up, a
@@ -864,7 +925,7 @@ export function createSlotMachine({ full = false } = {}) {
       if (all) {
         const done = spinning.onDone;
         // Keep the reels' positions small, so the numbers never grow.
-        reels.forEach((r, i) => { const n = STRIPS[i].length; r.setPosition(((r.p % n) + n) % n); });
+        reels.forEach((r, i) => { const n = game.strips[i].length; r.setPosition(((r.p % n) + n) % n); });
         spinning = null;
         lights = { mode: 'idle', since: now };
         if (done) done();
@@ -883,14 +944,15 @@ export function createSlotMachine({ full = false } = {}) {
     if (lights.mode === 'win') k = 0.75 + 0.25 * Math.sin(since * 12);
     else if (lights.mode === 'spin') k = 0.7 + 0.3 * Math.sin(since * 20);
     else k = 0.62 + 0.18 * Math.sin(now / 900);
-    ledMat.color.setRGB(1.0 * k, 0.81 * k, 0.48 * k);
+    const [lr, lg, lb] = game.look.led;
+    ledMat.color.setRGB(lr * k, lg * k, lb * k);
     if (lights.mode === 'win' && since > 6) lights = { mode: 'idle', since: now };
     spin.material[1].emissiveIntensity = spinning ? 0.35 : 0.65 + 0.25 * Math.sin(now / 420);
     // Cycle through the winning lines one at a time after the first showing.
     if (winState && winLayer) {
       const el = (now - winState.since) / 1000;
       const phase = el < 2 ? null : Math.floor((el - 2) / 1.3);
-      if (phase !== winState.phase) { winState.phase = phase; paintWins(winLayer, winState.wins, winState.scatter, phase); }
+      if (phase !== winState.phase) { winState.phase = phase; paintWins(winLayer, winState.wins, winState.scatter, phase, game); }
     }
   }
   function showWins(wins, scatter) {
@@ -898,8 +960,8 @@ export function createSlotMachine({ full = false } = {}) {
     winState = { wins, scatter, since: performance.now(), phase: undefined };
     if (wins.length || scatter) lights = { mode: 'win', since: performance.now() };
   }
-  function setMeters(values) { paintMeters(meters, values); }
-  function setBet(bet) { if (bet !== topperBet) { topperBet = bet; paintTopper(topper, bet); } }
+  function setMeters(values) { paintMeters(meters, values, game.look.trim); }
+  function setBet(bet) { if (bet !== topperBet) { topperBet = bet; paintTopper(topper, bet, game); } }
   function pullHandle() { pull.t = performance.now(); }
   function pressButton(id) {
     const b = buttons[id];
@@ -911,6 +973,6 @@ export function createSlotMachine({ full = false } = {}) {
   // Rest on given stops at once (no spin).
   function rest(stops) { reels.forEach((r, i) => r.setPosition(stops[i])); }
 
-  root.userData = { update, spinTo, showWins, setMeters, setBet, pullHandle, pressButton, rest, buttons: Object.values(buttons), get spinning() { return !!spinning; } };
+  root.userData = { game, update, spinTo, showWins, setMeters, setBet, pullHandle, pressButton, rest, buttons: Object.values(buttons), get spinning() { return !!spinning; } };
   return root;
 }

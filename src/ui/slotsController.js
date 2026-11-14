@@ -8,8 +8,8 @@ import { m } from '../scene/scale.js';
 // answering a tap. src/app/slotsBridge.js plays the game and calls these.
 
 export function createSlotsDriver({ scene, camera, controls, renderer, set, salon }) {
-  const machine = salon.userData.machine;
-  const api = machine.userData;
+  // Your machine, whichever game it is now (it changes when you switch).
+  const api = () => salon.userData.machine.userData;
 
   // The salon moves every frame while it is out: your machine and the
   // neighbours playing on their own.
@@ -102,7 +102,7 @@ export function createSlotsDriver({ scene, camera, controls, renderer, set, salo
     const r = renderer.domElement.getBoundingClientRect();
     ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
-    const hit = ray.intersectObjects(api.buttons, false)[0];
+    const hit = ray.intersectObjects(api().buttons, false)[0];
     if (hit && hit.distance < m(3)) onButton(hit.object.userData.button);
   });
 
@@ -110,13 +110,16 @@ export function createSlotsDriver({ scene, camera, controls, renderer, set, salo
     sit, stand,
     get seated() { return seated; },
     setOnButton(fn) { onButton = fn; },
-    spinTo: (stops, opts) => api.spinTo(stops, opts),
-    rest: (stops) => api.rest(stops),
-    showWins: (wins, scatter) => api.showWins(wins, scatter),
-    setMeters: (v) => api.setMeters(v),
-    setBet: (b) => api.setBet(b),
-    pullHandle: () => api.pullHandle(),
-    pressButton: (id) => api.pressButton(id),
-    get spinning() { return api.spinning; },
+    /** Puts the game `id` in front of you. */
+    setGame: (id) => salon.userData.setGame(id),
+    currentGame: () => salon.userData.machine.userData.game.id,
+    spinTo: (stops, opts) => api().spinTo(stops, opts),
+    rest: (stops) => api().rest(stops),
+    showWins: (wins, scatter) => api().showWins(wins, scatter),
+    setMeters: (v) => api().setMeters(v),
+    setBet: (b) => api().setBet(b),
+    pullHandle: () => api().pullHandle(),
+    pressButton: (id) => api().pressButton(id),
+    get spinning() { return api().spinning; },
   };
 }

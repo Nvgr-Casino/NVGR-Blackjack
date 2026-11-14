@@ -1674,3 +1674,29 @@ input:focus { outline: none; border-color: var(--accent); }
   .dock-panel.cr-result { gap: 10px; }
   .cr-die { width: 36px; height: 36px; padding: 5px; }
 }
+
+/* Choosing a machine (slotsBridge.js). */
+.sl-machine-list { display: flex; flex-direction: column; gap: 10px; padding: 12px 0 6px; }
+.sl-machine {
+  display: flex; align-items: center; gap: 14px; width: 100%; padding: 10px 14px 10px 10px; border-radius: 14px; cursor: pointer; text-align: left;
+  color: var(--text); background: rgba(255,255,255,0.03); border: 1px solid var(--line-strong);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.sl-machine:hover { background: rgba(214,178,110,0.08); }
+.sl-machine.on { border-color: rgba(214,178,110,0.7); background: rgba(214,178,110,0.1); }
+.sl-machine img { width: 64px; height: 64px; border-radius: 12px; flex-shrink: 0; }
+.sl-machine.look-chrome img { box-shadow: 0 0 0 2px #c9ced8; }
+.sl-machine.look-platinum img { box-shadow: 0 0 0 2px #b9c8e6; }
+.sl-machine.look-gold img { box-shadow: 0 0 0 2px #c9a35a; }
+.sl-machine-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.sl-machine-text b { font-family: var(--brand); font-size: 17px; letter-spacing: 0.06em; color: #f3e4c4; }
+.sl-machine-text small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.sl-machine-go { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.sl-machine.on .sl-machine-go { color: var(--muted); }
+.sl-lines.three { grid-template-columns: repeat(5, 1fr); }
+.sl-lines.three .sl-line svg { max-width: 60px; }
+
+.felt-dot.sl-dot.look-gold { background: radial-gradient(circle at 40% 35%, #f0d08a, #8a6224); }
+.felt-dot.sl-dot.look-chrome { background: radial-gradient(circle at 40% 35%, #d8142e, #4a0710); box-shadow: 0 0 0 2px #c9ced8 inset; }
+.felt-dot.sl-dot.look-platinum { background: radial-gradient(circle at 40% 35%, #3a5ab0, #0a1230); box-shadow: 0 0 0 2px #c9d4ea inset; }
+.felt-dot.sl-dot.look-jade { background: radial-gradient(circle at 40% 35%, #3fb27f, #0b3d2a); box-shadow: 0 0 0 2px #e2c27a inset; }
