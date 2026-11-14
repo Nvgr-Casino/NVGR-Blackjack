@@ -77,10 +77,25 @@ function backdropTexture() {
   v.addColorStop(1, '#140f0b');
   ctx.fillStyle = v;
   ctx.fillRect(0, 0, W, H);
-  // Faint gold pinstripes, far apart.
-  ctx.strokeStyle = 'rgba(214, 178, 108, 0.12)';
-  ctx.lineWidth = 2;
-  for (let x = 0; x <= W; x += W / 48) { ctx.beginPath(); ctx.moveTo(x, H * 0.2); ctx.lineTo(x, H); ctx.stroke(); }
+  // Gold pillars round the room: each shaded as a rounded column — dark at
+  // its edges, bright down its middle — with a capital and a base.
+  const COLS = 16;
+  for (let k = 0; k < COLS; k++) {
+    const x = (k + 0.5) * (W / COLS);
+    const w = 11;
+    const g = ctx.createLinearGradient(x - w / 2, 0, x + w / 2, 0);
+    g.addColorStop(0, '#3a2508');
+    g.addColorStop(0.32, '#b8841f');
+    g.addColorStop(0.5, '#f2cf72');
+    g.addColorStop(0.68, '#a87418');
+    g.addColorStop(1, '#2e1d06');
+    ctx.fillStyle = g;
+    ctx.fillRect(x - w / 2, H * 0.16, w, H * 0.84);
+    ctx.fillStyle = '#c8952e';
+    ctx.fillRect(x - w * 1.1, H * 0.15, w * 2.2, 8);
+    ctx.fillRect(x - w * 0.9, H * 0.135, w * 1.8, 5);
+    ctx.fillRect(x - w * 1.1, H - 10, w * 2.2, 10);
+  }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.wrapS = THREE.RepeatWrapping;
@@ -88,10 +103,9 @@ function backdropTexture() {
   return t;
 }
 
-// Behind the tables, the room's own architecture: a great curved wall in
-// the Art Deco manner, following their arc — a dark panel with gold rays
-// fanning up from behind the middle table, tiers of gold arches, fluted
-// gold pilasters, and the NVGR crest high at its centre, glowing softly.
+// Behind the tables, the room's own architecture: a great curved wall
+// following their arc — a dark panel framed by fluted gold pilasters, the
+// NVGR crest grand at its centre in a soft gold halo.
 // It fills the space behind the dealer as part of the room rather than as
 // a thing stood in it.
 const WALL_W = 2048, WALL_H = 960;
@@ -106,33 +120,16 @@ function paintDecoWall(ctx, crest) {
   ctx.fillRect(0, 0, W, H);
   const gold = (a) => `rgba(222, 186, 112, ${a})`;
   const cx = W / 2, cy = H * 1.02;
-  // The rays.
-  ctx.lineWidth = 3;
-  for (let k = -24; k <= 24; k++) {
-    const a = -Math.PI / 2 + k * (Math.PI / 52);
-    ctx.strokeStyle = gold(k % 4 === 0 ? 0.55 : 0.22);
-    ctx.beginPath();
-    ctx.moveTo(cx + Math.cos(a) * H * 0.18, cy + Math.sin(a) * H * 0.18);
-    ctx.lineTo(cx + Math.cos(a) * H * 1.3, cy + Math.sin(a) * H * 1.3);
-    ctx.stroke();
-  }
-  // Tiers of arches round the same point.
-  [0.42, 0.62, 0.84].forEach((r, n) => {
-    ctx.strokeStyle = gold(0.75 - n * 0.15);
-    ctx.lineWidth = 7 - n * 1.5;
-    ctx.beginPath();
-    ctx.arc(cx, cy, H * r, Math.PI * 1.08, Math.PI * 1.92);
-    ctx.stroke();
-  });
   // Fluted pilasters, in pairs, out toward the ends.
   [0.06, 0.16, 0.84, 0.94].forEach((u) => {
     const x = W * u;
     const g = ctx.createLinearGradient(x - 26, 0, x + 26, 0);
-    g.addColorStop(0, gold(0.08)); g.addColorStop(0.5, gold(0.5)); g.addColorStop(1, gold(0.08));
+    g.addColorStop(0, '#2e1d06'); g.addColorStop(0.32, '#b8841f'); g.addColorStop(0.5, '#f2cf72');
+    g.addColorStop(0.68, '#a87418'); g.addColorStop(1, '#2e1d06');
     ctx.fillStyle = g;
     ctx.fillRect(x - 26, H * 0.08, 52, H * 0.92);
-    ctx.fillStyle = gold(0.8);
-    ctx.fillRect(x - 34, H * 0.06, 68, 10);
+    ctx.fillStyle = '#c8952e';
+    ctx.fillRect(x - 36, H * 0.06, 72, 12);
   });
   // A gold cornice along the top and a base line.
   ctx.fillStyle = gold(0.85);
@@ -152,11 +149,17 @@ function paintDecoWall(ctx, crest) {
   ctx.fillStyle = fy;
   ctx.fillRect(0, 0, W, H);
   ctx.restore();
-  // The crest, at the heart of the arches.
+  // The NVGR crest, grand at the centre.
   if (crest) {
-    // Within the arches, clear of the page's title above it.
-    const s = H * 0.36;
-    ctx.drawImage(crest, cx - s / 2, H * 0.34, s, s);
+    // Grand, between the pillars, with a soft gold halo behind it.
+    const s = H * 0.66;
+    const top = H * 0.285;
+    const halo = ctx.createRadialGradient(cx, top + s / 2, s * 0.1, cx, top + s / 2, s * 0.75);
+    halo.addColorStop(0, gold(0.22));
+    halo.addColorStop(1, gold(0));
+    ctx.fillStyle = halo;
+    ctx.fillRect(cx - s, top - s * 0.25, s * 2, s * 1.5);
+    // (The crest itself stands in front, on its own: see decoWall.)
   }
 }
 function decoWall(room) {
@@ -178,9 +181,30 @@ function decoWall(room) {
   // Round the arc's centre, so it follows the tables' curve.
   wall.position.set(0, FLOOR_Y + H / 2, -ARC_R);
   room.add(wall);
-  const img = new Image();
-  img.onload = () => { paintDecoWall(c.getContext('2d'), img); tex.needsUpdate = true; };
-  img.src = LOGO_URL;
+  paintDecoWall(c.getContext('2d'), true);
+  tex.needsUpdate = true;
+  // The crest on a surface of its own just in front of the wall, so it
+  // keeps the logo's full resolution — painted into the wall it was shrunk
+  // with it — and shown unlit and clear of the haze, sharp at any distance.
+  const crestSize = m(4.4);
+  const crest = new THREE.Mesh(
+    new THREE.PlaneGeometry(crestSize, crestSize),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, toneMapped: false, fog: false }),
+  );
+  crest.position.set(0, FLOOR_Y + m(3.0), -ARC_R - R + m(0.25));
+  // Drawn after the wall: both are see-through, and the wall's centre (the
+  // arc's) is nearer the camera, so by distance alone it would paint over.
+  crest.renderOrder = 2;
+  room.add(crest);
+  new THREE.TextureLoader().load(LOGO_URL, (t) => {
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 16;
+    t.generateMipmaps = true;
+    t.minFilter = THREE.LinearMipmapLinearFilter;
+    crest.material.map = t;
+    crest.material.opacity = 1;
+    crest.material.needsUpdate = true;
+  });
   // A soft light washing down its face.
   const spot = new THREE.SpotLight(0xffe2b0, 160, m(22), 0.7, 0.8, 1.4);
   spot.position.set(0, FLOOR_Y + H + m(2), -ARC_R + m(4));
@@ -206,7 +230,8 @@ export function createLobbyRoom() {
   // The backdrop: a great curtain of warm dark round the floor, open above.
   const wall = new THREE.Mesh(
     new THREE.CylinderGeometry(HALF * 0.92, HALF * 0.92, CEILING - FLOOR_Y + 6, 96, 1, true),
-    new THREE.MeshBasicMaterial({ map: backdropTexture(), side: THREE.BackSide, fog: true }),
+    // Shown as painted: tone mapping softened its gold toward grey.
+    new THREE.MeshBasicMaterial({ map: backdropTexture(), side: THREE.BackSide, fog: true, toneMapped: false }),
   );
   wall.position.y = (CEILING + FLOOR_Y) / 2 + 2;
   room.add(wall);
