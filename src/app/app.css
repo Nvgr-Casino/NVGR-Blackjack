@@ -1448,3 +1448,79 @@ input:focus { outline: none; border-color: var(--accent); }
   color: #f3e6c8; font-size: 13px; line-height: 1.45; text-align: center; opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s;
 }
 .voice-hint.on { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- How to play (rulesGuide.js) ---------- */
+.rg-overlay {
+  position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
+  padding: max(16px, env(safe-area-inset-top, 0px)) 16px max(16px, env(safe-area-inset-bottom, 0px));
+  background: rgba(6, 5, 4, 0.72); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  opacity: 0; transition: opacity 0.22s ease;
+}
+.rg-overlay.on { opacity: 1; }
+.rg-panel {
+  position: relative; width: min(680px, 100%); max-height: 100%; display: flex; flex-direction: column;
+  border-radius: 18px; overflow: hidden;
+  background: linear-gradient(180deg, #1b1714 0%, #12100e 100%);
+  border: 1px solid rgba(200, 164, 106, 0.32);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 236, 200, 0.06);
+  transform: translateY(10px) scale(0.985); transition: transform 0.25s cubic-bezier(.2,.8,.2,1);
+}
+.rg-overlay.on .rg-panel { transform: none; }
+.rg-head { position: relative; padding: 22px 56px 16px 24px; border-bottom: 1px solid rgba(200, 164, 106, 0.18);
+  background: radial-gradient(120% 140% at 0% 0%, rgba(200, 164, 106, 0.12), transparent 60%); }
+.rg-kicker { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); }
+.rg-head h2 { margin: 4px 0 6px; font-family: var(--brand); font-weight: 700; font-size: 28px; letter-spacing: 0.04em; color: #f3e4c4; }
+.rg-lede { margin: 0; color: var(--muted); font-size: 15px; }
+.rg-close { position: absolute; top: 14px; right: 14px; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line-strong);
+  background: rgba(255, 255, 255, 0.04); color: var(--text); font-size: 22px; line-height: 1; cursor: pointer; }
+.rg-close:hover { background: rgba(255, 255, 255, 0.09); }
+.rg-body { overflow-y: auto; padding: 6px 24px 8px; -webkit-overflow-scrolling: touch; }
+.rg-body section { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.rg-body section:last-child { border-bottom: 0; }
+.rg-body h3 { margin: 0 0 10px; font-family: var(--brand); font-size: 15px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+.rg-body p { margin: 0 0 8px; color: var(--text); line-height: 1.6; }
+.rg-body b { color: #f3e4c4; }
+.rg-steps { margin: 0; padding-left: 0; list-style: none; counter-reset: rg; }
+.rg-steps li { position: relative; padding: 4px 0 8px 36px; line-height: 1.55; counter-increment: rg; }
+.rg-steps li::before { content: counter(rg); position: absolute; left: 0; top: 3px; width: 24px; height: 24px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 12px; font-weight: 700; color: var(--accent-ink);
+  background: linear-gradient(180deg, #e7c98c, #b8914f); }
+.rg-moves { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; }
+.rg-moves dt { font-weight: 700; color: #f3e4c4; }
+.rg-moves dd { margin: 0; color: var(--text); line-height: 1.5; }
+.rg-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.rg-table th { text-align: left; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--line-strong); }
+.rg-table td { padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; line-height: 1.45; }
+.rg-table td:last-child { color: #f3e4c4; font-weight: 600; min-width: 5.6em; }
+.rg-table tr:last-child td { border-bottom: 0; }
+.rg-cards { display: inline-flex; gap: 3px; vertical-align: middle; }
+.rg-card { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; width: 26px; height: 36px; border-radius: 4px;
+  background: linear-gradient(180deg, #fbf8f1, #e9e3d6); color: #16130f; box-shadow: 0 1px 2px rgba(0,0,0,0.5); font-family: Georgia, serif; line-height: 1; }
+.rg-card b { font-size: 12px; color: inherit !important; }
+.rg-card i { font-style: normal; font-size: 13px; }
+.rg-card.red { color: #b0182c; }
+.rg-dice { display: inline-flex; gap: 3px; vertical-align: middle; margin-right: 4px; }
+.rg-die { display: inline-grid; grid-template-columns: repeat(3, 1fr); gap: 1px; width: 22px; height: 22px; padding: 3px; border-radius: 5px;
+  background: linear-gradient(180deg, #c8182e, #8f0f1f); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 1px 2px rgba(0,0,0,0.5); }
+.rg-die i { border-radius: 50%; }
+.rg-die i.on { background: #fff; }
+.rg-foot { padding: 14px 24px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; }
+@media (max-width: 560px) {
+  .rg-head { padding: 18px 52px 14px 18px; }
+  .rg-head h2 { font-size: 24px; }
+  .rg-body { padding: 4px 18px 6px; }
+  .rg-table { font-size: 13px; }
+  .rg-moves { grid-template-columns: 1fr; gap: 2px 0; }
+  .rg-moves dd { margin-bottom: 8px; }
+}
+/* A middling screen: the labelled buttons go to icons before the bar runs
+   off the edge (the Rules button made one more of them). */
+@media (min-width: 641px) and (max-width: 1040px) {
+  .hud-left { flex: 1 1 auto; min-width: 0; }
+  .hud-right, .hud-right > * { flex-shrink: 0; }
+  .hud-table { min-width: 0; overflow: hidden; }
+  .hud-code, .hud-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hud-labelled { width: 36px; padding: 0; justify-content: center; position: relative; }
+  .hud-labelled .hud-label { display: none; }
+  .hud-labelled .count { position: absolute; top: -4px; right: -4px; }
+}

@@ -32,6 +32,7 @@ import { ROULETTE_SEATS_3D } from '../scene/rouletteTable.js';
 import { BACCARAT_SEATS_3D } from '../scene/baccaratTable.js';
 import { audio, masterOut, isSoundOn, setSoundOn, isMusicOn, setMusicOn } from '../scene/sfx.js';
 import { fullscreenButton, attachFullscreen } from './fullscreen.js';
+import { rulesButton } from './rulesGuide.js';
 import * as S from './session.js';
 
 const ICE = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
@@ -445,7 +446,8 @@ export function attachMusicButton() {
 
 /** The Sound and Music switches, and the Mic button where there's anyone to talk to. */
 export function voiceButtons(r) {
-  const sound = fullscreenButton() + musicButton() + `<button class="hud-btn hud-icon ${isSoundOn() ? '' : 'off'}" id="soundToggleBtn" title="${isSoundOn() ? 'Sound on — tap to turn off' : 'Sound off — tap to turn on'}" aria-label="Sound ${isSoundOn() ? 'on' : 'off'}">${isSoundOn() ? ICON_SOUND : ICON_SOUND_OFF}</button>`;
+  // Every table's How to play guide sits first among these.
+  const sound = rulesButton((r && r.game) || 'blackjack') + fullscreenButton() + musicButton() + `<button class="hud-btn hud-icon ${isSoundOn() ? '' : 'off'}" id="soundToggleBtn" title="${isSoundOn() ? 'Sound on — tap to turn off' : 'Sound off — tap to turn on'}" aria-label="Sound ${isSoundOn() ? 'on' : 'off'}">${isSoundOn() ? ICON_SOUND : ICON_SOUND_OFF}</button>`;
   if (!voiceAvailable(r)) {
     // Seated at a real table but nobody to talk to yet: the mic is still
     // shown, and a tap says why it's quiet and how to change that.

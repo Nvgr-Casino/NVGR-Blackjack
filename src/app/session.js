@@ -3,6 +3,7 @@
 // structural difference is that instead of a single global render() this
 // calls whatever render callback main.js registers via setOnChange(), so
 // this module doesn't need to know about the DOM or the 3D scene.
+import { closeRules } from './rulesGuide.js';
 import {
   GoogleAuthProvider, signInWithPopup,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
@@ -580,6 +581,7 @@ export async function joinSpecificPublicTable(code) {
 }
 
 export async function leaveTable() {
+  closeRules();
   const code = session.code;
   const key = safeKey(session.uid);
   const wasPublic = session.room && session.room.isPublic;
