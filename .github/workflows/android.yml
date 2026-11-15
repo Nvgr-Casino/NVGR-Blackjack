@@ -1,9 +1,9 @@
 name: Android APK
 
-# Builds the Android app from the same code as the website on every push,
-# and publishes it as NVGR-Casino.apk on the repository's "android" release,
-# so one link always downloads the newest app:
-#   https://github.com/Nvgr-Casino/NVGR-Blackjack/releases/download/android/NVGR-Casino.apk
+# Builds the Android app (Golden Ace Casino) from the same code as the
+# website on every push, and publishes it as Golden-Ace-Casino.apk on the
+# repository's "android" release, so one link always downloads the newest:
+#   https://github.com/Nvgr-Casino/NVGR-Blackjack/releases/download/android/Golden-Ace-Casino.apk
 on:
   push:
     branches: [main]
@@ -68,7 +68,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp "$APK_PATH" NVGR-Casino.apk
-          gh release view android >/dev/null 2>&1 || gh release create android --title "NVGR Casino for Android" --notes "The newest Android app. Download NVGR-Casino.apk on your phone and open it to install."
-          gh release upload android NVGR-Casino.apk --clobber
-          gh release edit android --notes "The newest Android app (version 1.0.${{ github.run_number }}, built from ${GITHUB_SHA::7}). Download NVGR-Casino.apk on your phone and open it to install."
+          cp "$APK_PATH" Golden-Ace-Casino.apk
+          gh release view android >/dev/null 2>&1 || gh release create android --title "Golden Ace Casino for Android" --notes "The newest Android app."
+          gh release upload android Golden-Ace-Casino.apk --clobber
+          gh release delete-asset android NVGR-Casino.apk -y 2>/dev/null || true
+          gh release edit android --title "Golden Ace Casino for Android" --notes "Golden Ace Casino, presented by NVGR Casino: version 1.0.${{ github.run_number }}, built from ${GITHUB_SHA::7}. Download Golden-Ace-Casino.apk on your Android phone and open it to install."
