@@ -300,3 +300,40 @@ function burstFrom(el) {
     requestAnimationFrame(tick);
   }
 }
+
+// ---------- meet the house ----------
+const ROSTER = [
+  { key: 'm4', name: 'Victor', tag: 'High-limit tables', line: 'Black waistcoat, silk bow tie, and a poker face carved from marble. Victor has seen every bluff twice and still tips his head at a good one.' },
+  { key: 'f5', name: 'Elena', tag: 'Blackjack', line: 'Deals faster than you can say “hit me”, and smiles a little when you double down on eleven.' },
+  { key: 'm5', name: 'Marcus', tag: 'Roulette', line: 'Spins the wheel like a conductor raising the baton. Red or black, he is rooting for you. Officially, he is neutral.' },
+  { key: 'f4', name: 'Sofia', tag: 'Baccarat', line: 'Calm, precise, unflappable. Banker or player, Sofia has watched fortunes turn on a single nine.' },
+  { key: 'm1', name: 'James', tag: 'Everyday tables', line: 'The first friendly face on the floor. Patient with beginners, ruthless at shuffling.' },
+];
+const houseEl = document.getElementById('house');
+const namesEl = document.getElementById('houseNames');
+const card = document.getElementById('houseCard');
+let house = null;
+function showDealer(i) {
+  [...namesEl.children].forEach((b, k) => b.classList.toggle('on', k === i));
+  const d = i >= 0 ? ROSTER[i] : null;
+  card.classList.add('swap');
+  setTimeout(() => {
+    document.getElementById('houseTag').textContent = d ? d.tag : 'The house';
+    document.getElementById('houseName').textContent = d ? d.name : 'Five dealers. One floor.';
+    document.getElementById('houseLine').textContent = d ? d.line : 'Pick a name below to meet them.';
+    card.classList.remove('swap');
+  }, 220);
+}
+new IntersectionObserver(([e], obs) => {
+  if (!e.isIntersecting) return;
+  obs.disconnect();
+  import('./house3d.js').then(({ startHouse }) => {
+    house = startHouse(document.getElementById('house3d'), ROSTER, (i) => showDealer(i));
+    if (!house) return;
+    namesEl.innerHTML = ROSTER.slice(0, house.count).map((d, i) => `<button role="tab" class="auto" data-i="${i}">${d.name}<span class="bar"><i></i></span></button>`).join('');
+    namesEl.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+      namesEl.querySelectorAll('button').forEach((x) => x.classList.remove('auto'));
+      house.setFocus(Number(b.dataset.i));
+    }));
+  }).catch(() => { /* the card still introduces them */ });
+}, { rootMargin: '500px 0px' }).observe(houseEl);

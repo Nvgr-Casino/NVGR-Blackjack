@@ -7,6 +7,7 @@
 // back plays it backwards.
 import * as THREE from 'three';
 import { canvasTex, chipFace, chipEdge, cardBack } from './props3d.js';
+import { loadFigure } from './figures3d.js';
 
 const SMALL = window.matchMedia('(max-width: 760px)').matches;
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
@@ -65,7 +66,7 @@ export function startStory(canvas, onProgress) {
   renderer.setClearColor(0x070708, 1);
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0x070708, 7, 16);
+  scene.fog = new THREE.Fog(0x070708, 14, 34);
   const camera = new THREE.PerspectiveCamera(SMALL ? 52 : 38, 1, 0.1, 60);
 
   // A warm pool of light on the felt, and a little cool fill.
@@ -75,6 +76,21 @@ export function startStory(canvas, onProgress) {
   spot.castShadow = !SMALL; spot.shadow.mapSize.set(1024, 1024); spot.shadow.bias = -0.0004;
   scene.add(spot, spot.target);
   const rim = new THREE.DirectionalLight(0xc8d4ff, 0.35); rim.position.set(-4, 3, -4); scene.add(rim);
+
+  // The dealer, behind the table: one of the game's own (figures3d.js), in
+  // the high-limit black waistcoat, on the game's idle. The table's units
+  // are about a tenth of a metre (a card is 0.62 wide), so a 1.72 m dealer
+  // is some seventeen of them, standing with the felt at his waist.
+  const dealerLight = new THREE.SpotLight(0xffe6c0, 160, 40, 0.38, 0.7, 1.2);
+  dealerLight.position.set(0, 16, 6); dealerLight.target.position.set(0, 5, -3.9);
+  scene.add(dealerLight, dealerLight.target);
+  let dealerMixer = null;
+  loadFigure('m4', 17).then(({ group, mixer }) => {
+    group.position.set(0, -8.1, -3.9);
+    scene.add(group);
+    dealerMixer = mixer;
+    shown = -1;
+  }).catch(() => { /* the table plays without him */ });
 
   // The table: felt, and a padded rail with a gold line along it.
   const felt = new THREE.Mesh(new THREE.PlaneGeometry(10, 6), new THREE.MeshStandardMaterial({ map: feltTexture(), roughness: 0.95 }));
@@ -130,9 +146,10 @@ export function startStory(canvas, onProgress) {
   const mkChip = (mat) => { const c = new THREE.Mesh(chipGeo, mat); c.castShadow = true; c.receiveShadow = true; scene.add(c); return c; };
   const bet = [BLACK, GOLD, BLACK, WINE, BLACK].map(mkChip);
   const win = [GOLD, GOLD, BLACK, GOLD, WINE, GOLD, BLACK].map(mkChip);
-  const WIN_AT = new THREE.Vector3(0.55, 0, 2.15);
+  const WIN_AT = new THREE.Vector3(0.62, 0, 2.45);
 
-  const camFrom = { pos: new THREE.Vector3(0, 10.5, 1.2), look: new THREE.Vector3(0, 0, -0.2) };
+  // From the seat, facing the dealer; then down to the felt for the hand.
+  const camFrom = { pos: new THREE.Vector3(0, 6.4, SMALL ? 14 : 12), look: new THREE.Vector3(0, 4.6, -3.6) };
   const camTo = { pos: new THREE.Vector3(0, SMALL ? 4.6 : 3.9, SMALL ? 6.4 : 5.6), look: new THREE.Vector3(0, 0, 0.55) };
   const tmp = new THREE.Vector3();
 
@@ -200,6 +217,8 @@ export function startStory(canvas, onProgress) {
     // frame, so a slow device keeps up with the scroll.
     p += (target - p) * (1 - Math.exp(-dt * 9));
     if (Math.abs(target - p) < 0.0005) p = target;
+    // The dealer breathes and shifts whether or not the page is scrolling.
+    if (dealerMixer) { dealerMixer.update(dt); shown = -1; }
     if (Math.abs(p - shown) < 0.0004) return;
     shown = p;
     pose(p);

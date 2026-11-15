@@ -30,7 +30,7 @@
   <link rel="icon" type="image/png" href="./src/assets/nvgr-mark.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800;900&family=Space+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
 </head>
 <body>
   <div class="progress" aria-hidden="true"><i></i></div>
@@ -41,11 +41,10 @@
     <a href="#top" class="nav-brand"><img src="./src/assets/nvgr-mark.png" alt="NVGR Casino" /><span>NVGR<em>CASINO</em></span></a>
     <div class="nav-links">
       <a href="#story">How it plays</a>
+      <a href="#house">Dealers</a>
       <a href="#games">Games</a>
       <a href="#together">With friends</a>
       <a href="#feedback">Feedback</a>
-      <a href="#spin">Try a spin</a>
-      <a href="#install">Install</a>
     </div>
     <a class="nav-play" href="./play/"><span>Play now</span></a>
   </nav>
@@ -58,7 +57,7 @@
       <span class="pill reveal"><i></i> Testing phase <b>·</b> official launch soon</span>
       <h1 class="headline" aria-label="The casino of the future">
         <span class="line"><span>The casino</span></span>
-        <span class="line"><span class="holo">of the future.</span></span>
+        <span class="line"><span class="holo serif">of the future.</span></span>
       </h1>
       <p class="lede reveal">Pull up a leather chair high above the city lights. Blackjack, Hold'em, roulette, baccarat, craps and six dazzling slot machines, all in breathtaking 3D. Host a table for your friends, talk over voice chat, and play until sunrise.</p>
       <div class="cta reveal">
@@ -108,8 +107,22 @@
       </div>
     </section>
 
+    <section class="house" id="house">
+      <h2 class="title reveal"><span class="eyebrow">The house</span>Meet your <em class="serif">dealers.</em></h2>
+      <p class="house-lede reveal">Every table has its own dealer, dressed for its stakes, from crisp white shirts on the everyday tables to bow ties and black satin in the high-limit rooms.</p>
+      <div class="stage reveal">
+        <canvas class="stage-3d" id="house3d" aria-hidden="true"></canvas>
+        <div class="stage-card" id="houseCard" aria-live="polite">
+          <span class="tag" id="houseTag">The house</span>
+          <h3 id="houseName">Five dealers. One floor.</h3>
+          <p id="houseLine">Pick a name below to meet them.</p>
+        </div>
+        <div class="stage-names" id="houseNames" role="tablist" aria-label="Dealers"></div>
+      </div>
+    </section>
+
     <section class="games" id="games">
-      <h2 class="title reveal"><span class="eyebrow">The floor</span>Pull up a chair.</h2>
+      <h2 class="title reveal"><span class="eyebrow">The floor</span>Pull up a <em class="serif">chair.</em></h2>
       <div class="cards">
         <article class="card tilt reveal"><div class="card-img"><img src="/site/blackjack.webp" alt="A blackjack table with a dealer and players" loading="lazy" /></div><div class="card-body"><span class="tag">Live tables</span><h3>Blackjack</h3><p>Feel the tension of every card. Split, double down, buy insurance, and battle it out in tournaments.</p></div><i class="sheen"></i></article>
         <article class="card tilt reveal"><div class="card-img"><img src="/site/holdem.webp" alt="A Texas Hold'em poker table" loading="lazy" /></div><div class="card-body"><span class="tag">With friends</span><h3>Texas Hold'em</h3><p>Read the table, push all-in, and watch your friends sweat. Bluffing has never looked this good.</p></div><i class="sheen"></i></article>
@@ -119,7 +132,7 @@
     </section>
 
     <section class="together" id="together">
-      <h2 class="title reveal"><span class="eyebrow">Better with friends</span>Your table. Your crew.</h2>
+      <h2 class="title reveal"><span class="eyebrow">Better with friends</span>Your table. Your <em class="serif">crew.</em></h2>
       <div class="together-grid">
         <article class="feat reveal">
           <div class="feat-art invite" aria-hidden="true">
@@ -149,7 +162,7 @@
     </section>
 
     <section class="spin" id="spin">
-      <h2 class="title reveal"><span class="eyebrow">Six machines inside</span>Try a spin.</h2>
+      <h2 class="title reveal"><span class="eyebrow">Six machines inside</span>Try a <em class="serif">spin.</em></h2>
       <div class="machine reveal">
         <div class="machine-glow" aria-hidden="true"></div>
         <div class="reels" id="reels">
@@ -169,14 +182,14 @@
       <img src="/site/app-icon.webp" alt="" class="notice-icon" />
       <div class="notice-text">
         <span class="eyebrow">Status</span>
-        <h2>We're in testing.</h2>
+        <h2>We're in <em class="serif">testing.</em></h2>
         <p>You're among the first to play NVGR Casino. Things may change from one build to the next, and now and then something may not work as it should. The official release on Google Play and the App Store is coming soon.</p>
         <p class="build"><span class="dot"></span> Latest build: <b class="apk-version">checking…</b></p>
       </div>
     </section>
 
     <section class="pilots" id="pilots">
-      <h2 class="title reveal"><span class="eyebrow">Choose your side</span>Android or iPhone?</h2>
+      <h2 class="title reveal"><span class="eyebrow">Choose your side</span>Android <em class="serif">or</em> iPhone?</h2>
       <div class="pilots-grid">
         <article class="pilot reveal">
           <span class="pilot-badge">Test pilots wanted</span>
@@ -196,7 +209,7 @@
     </section>
 
     <section class="install" id="install">
-      <h2 class="title reveal"><span class="eyebrow">Android</span>Installed in a minute.</h2>
+      <h2 class="title reveal"><span class="eyebrow">Android</span>Installed in a <em class="serif">minute.</em></h2>
       <ol class="timeline">
         <li class="reveal"><span class="step">01</span><div><b>Download</b><p>Tap <em>Download for Android</em> on your phone, or scan the code. The file is NVGR-Casino.apk.</p></div></li>
         <li class="reveal"><span class="step">02</span><div><b>Allow the install</b><p>Open the file. Android asks to allow installs from your browser: allow it, just this once.</p></div></li>
@@ -207,7 +220,7 @@
     </section>
 
     <section class="feedback" id="feedback">
-      <h2 class="title reveal"><span class="eyebrow">The house is listening</span>What should we build next?</h2>
+      <h2 class="title reveal"><span class="eyebrow">The house is listening</span>What should we build <em class="serif">next?</em></h2>
       <form class="fb reveal" id="fbForm" novalidate>
         <p class="fb-lead">Pick everything you'd love to see. Go wild; we read every single one.</p>
         <div class="fb-chips" role="group" aria-label="Ideas">
@@ -238,7 +251,7 @@
 
     <section class="final reveal">
       <div class="final-orb" aria-hidden="true"></div>
-      <h2>Your seat is waiting.</h2>
+      <h2>Your seat is <em class="serif">waiting.</em></h2>
       <p class="final-sub">Bring your friends. The table is open all night.</p>
       <div class="cta">
         <a class="btn-neon" href="https://github.com/Nvgr-Casino/NVGR-Blackjack/releases/download/android/NVGR-Casino.apk">
