@@ -1772,3 +1772,15 @@ input:focus { outline: none; border-color: var(--accent); }
   main.auth .auth-panel input { padding-top: 8px; padding-bottom: 8px; }
   main.auth .auth-panel .btn { padding-top: 9px; padding-bottom: 9px; }
 }
+
+/* A phone on its side, every table: the status drops from the crowded top
+   bar to the free corner under Leave, and the blackjack bet panel's chips
+   and buttons tighten so its last button stays on screen. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .wrap.on-table .hud-status { top: calc(52px + env(safe-area-inset-top, 0px)); left: max(12px, env(safe-area-inset-left, 0px)); right: auto; transform: none; align-items: flex-start; max-width: 46vw; }
+  .dock-bet { gap: 12px; }
+  .dock-bet .chip-btn { width: 40px; height: 40px; }
+  .dock-bet .chip-row { gap: 8px; }
+  .dock-bet .dock-actions .grow { min-width: 0; }
+  .dock-bet .dock-actions .btn { padding-left: 12px; padding-right: 12px; white-space: nowrap; }
+}
