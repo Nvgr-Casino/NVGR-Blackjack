@@ -10,5 +10,9 @@
 export const IN_APP = !!(globalThis.Capacitor && globalThis.Capacitor.isNativePlatform && globalThis.Capacitor.isNativePlatform())
   || (import.meta.env.DEV && /[?&]app=1/.test(location.search));
 
-const PHONE_SCREEN = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820;
+// PHONE_SCREEN: a phone, whatever it is running in. Its GPU is the limit, so
+// it gets the lighter workload (shadows redrawn a few times a second, the
+// room's animations on alternate frames, a lower starting resolution) even
+// where it keeps the full textures.
+export const PHONE_SCREEN = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820;
 export const PHONE_LITE = PHONE_SCREEN && !IN_APP;

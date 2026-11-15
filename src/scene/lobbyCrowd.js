@@ -7,7 +7,7 @@ import { POKER_SEATS_3D } from './pokerTable.js';
 import { ROULETTE_SEATS_3D } from './rouletteTable.js';
 import { BACCARAT_SEATS_3D, betSpot as baccaratBetSpot } from './baccaratTable.js';
 import { CRAPS_SEATS_3D } from './crapsTable.js';
-import { PHONE_LITE } from '../platform.js';
+import { PHONE_SCREEN } from '../platform.js';
 
 // The lobby carousel's players: a few guests seated at each game's table
 // as it glides past, cards in front of them and chips out, so the floor
@@ -26,7 +26,9 @@ const CAST = {
   craps: [[0, 'rb_bm03'], [2, 'rb_bf04'], [5, 'rb_bm02'], [3, 'rb_bf01']],
 };
 // A phone has the memory for fewer: two guests a table, of four figures.
-const PHONE = PHONE_LITE;
+// Fewer figures and machines on any phone: each animated figure costs the
+// phone's processor every frame, whatever its textures.
+const PHONE = PHONE_SCREEN;
 const PHONE_FIGURES = { rb_bf03: 'rb_bf01', rb_bf04: 'rb_bf02', rb_bm03: 'rb_bm01', rb_bm05: 'rb_bm02' };
 const HANDS = [['K', 'S', '7', 'H'], ['A', 'D', '9', 'C'], ['Q', 'H', '8', 'S'], ['10', 'C', 'J', 'D']];
 

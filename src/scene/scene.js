@@ -19,7 +19,7 @@ import { cameraOverride } from './cameraFocus.js';
 import { createService } from './service.js';
 import { createLobbyCrowd } from './lobbyCrowd.js';
 import { createSlotSalon } from './slotSalon.js';
-import { PHONE_LITE } from '../platform.js';
+import { PHONE_LITE, PHONE_SCREEN } from '../platform.js';
 
 // Step 1-2: static table + deal animation. Step 3 (current): seats, a
 // dealer figure, and empty chairs around the table — no fixed "you" seat or
@@ -55,6 +55,10 @@ export function initScene(canvas) {
   // a shadow lookup on top. So the mobile tier trims per-pixel work — a
   // smaller shadow map, fewer decorative lights — rather than detail.
   const lowPower = PHONE_LITE;
+  // The app plays at full texture quality on a phone, but a phone's GPU is
+  // still a phone's: it gets the lighter workload all the same (phoneWork).
+  // Given the desktop's every frame, the Android app ran visibly laggy.
+  const phoneWork = PHONE_SCREEN;
 
   // Render resolution, though, is not guessed from the device any more.
   // Capping phones at 1.5x while their screens are 3x meant the whole image
@@ -71,10 +75,12 @@ export function initScene(canvas) {
   // On a phone's 3x screen, though, even 1x is a third of its resolution
   // and everything — the scoreboards' lettering most of all — went soft;
   // a high-density screen never steps below 1.5x.
-  const MIN_DPR = window.devicePixelRatio >= 2 ? 1.5 : 1;
+  const MIN_DPR = phoneWork && !lowPower ? 1.1 : window.devicePixelRatio >= 2 ? 1.5 : 1;
   // A phone starts a step lower: its framebuffers count against the same
   // tight memory as everything else (see the texture cap below).
-  const DPR_STEPS = (lowPower ? [1.75, 1.5, 1.25, 1] : [2, 1.75, 1.5, 1.25, 1]).filter((d) => d >= MIN_DPR);
+  // The app on a phone starts at 1.5x and may step down to 1.1x: its HUD is
+  // drawn by the page at full sharpness, so only the 3D scene softens.
+  const DPR_STEPS = (lowPower ? [1.75, 1.5, 1.25, 1] : phoneWork ? [1.5, 1.3, 1.1] : [2, 1.75, 1.5, 1.25, 1]).filter((d) => d >= MIN_DPR);
   let dprStep = 0;
   const applyPixelRatio = () => renderer.setPixelRatio(Math.min(window.devicePixelRatio, DPR_STEPS[dprStep]));
 
@@ -86,6 +92,8 @@ export function initScene(canvas) {
   // tables and figures came to about 900 MB of texture, and iPhone Safari
   // killed the page ("A problem repeatedly occurred").
   if (lowPower) renderer.capabilities.maxTextureSize = Math.min(renderer.capabilities.maxTextureSize, 1024);
+  // The app keeps the dealers' 2048 px skin; nothing larger, on a phone.
+  else if (phoneWork) renderer.capabilities.maxTextureSize = Math.min(renderer.capabilities.maxTextureSize, 2048);
   renderer.shadowMap.enabled = true;
   // Plain PCF everywhere: the soft variant's extra taps cost about a quarter
   // of the frame on integrated graphics, for edges hardly anyone notices.
@@ -93,7 +101,7 @@ export function initScene(canvas) {
   // A phone draws the shadows a few times a second rather than every frame:
   // the shadow pass draws the whole table a second time, and what casts
   // them — figures, cards, chips — moves too little to see the difference.
-  if (lowPower) renderer.shadowMap.autoUpdate = false;
+  if (phoneWork) renderer.shadowMap.autoUpdate = false;
   let shadowFrame = 0;
   // AgX rather than ACES: ACES pushes saturated colours toward neon as they
   // brighten, which is a good part of why the red felt and the gold glared.
@@ -136,7 +144,7 @@ export function initScene(canvas) {
   key.target.position.set(0, FLOOR_Y, -0.2);
   scene.add(key.target);
   key.castShadow = true;
-  const SHADOW_MAP = lowPower ? 1024 : 1536;
+  const SHADOW_MAP = phoneWork ? 1024 : 1536;
   key.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);
   key.shadow.camera.near = 2;
   key.shadow.camera.far = 12;
@@ -479,7 +487,7 @@ export function initScene(canvas) {
     if (sharp !== backdropSharp) {
       backdropSharp = sharp;
       if (sharp) applyPixelRatio();
-      else renderer.setPixelRatio(Math.min(window.devicePixelRatio, lowPower ? 1 : 1.25));
+      else renderer.setPixelRatio(Math.min(window.devicePixelRatio, phoneWork ? 1 : 1.25));
     }
   }
   let backdropSharp = true;
@@ -613,7 +621,7 @@ export function initScene(canvas) {
       if (room && room.userData.update) room.userData.update(d, now);
       if (carousel.on) { stepCarousel(d); placeCarouselCamera(d); updateSeatedCharacters(d); }
       else placeBackdropCamera(d);
-      if (lowPower && ++shadowFrame % 4 === 0) renderer.shadowMap.needsUpdate = true;
+      if (phoneWork && ++shadowFrame % 4 === 0) renderer.shadowMap.needsUpdate = true;
       renderer.render(scene, camera);
       return;
     }
@@ -627,12 +635,12 @@ export function initScene(canvas) {
     // Anything in the room that moves: the sea, a fire, the lights. A phone
     // moves them every other frame, with the time of both.
     roomDelta += delta;
-    if (room && room.userData.update && (!lowPower || ++roomFrame % 2 === 0)) {
+    if (room && room.userData.update && (!phoneWork || ++roomFrame % 2 === 0)) {
       room.userData.update(Math.min(0.1, roomDelta), now);
       roomDelta = 0;
     }
     if (!cameraOverride.active) controls.update();
-    if (lowPower && ++shadowFrame % 4 === 0) renderer.shadowMap.needsUpdate = true;
+    if (phoneWork && ++shadowFrame % 4 === 0) renderer.shadowMap.needsUpdate = true;
     renderer.render(scene, camera);
   }
   animate();

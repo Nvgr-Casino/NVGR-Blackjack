@@ -204,6 +204,7 @@ export function openRules(game) {
       <div class="rg-body">
         ${g.sections.map(([h, body]) => `<section><h3>${h}</h3>${body}</section>`).join('')}
       </div>
+      <p class="rg-credit">Music: “Airport Lounge” by Kevin MacLeod (incompetech.com), licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">Creative Commons Attribution 4.0</a>.</p>
       <footer class="rg-foot"><button class="btn btn-primary" data-rg-close>Got it</button></footer>
     </div>`;
   overlay.addEventListener('click', (e) => {

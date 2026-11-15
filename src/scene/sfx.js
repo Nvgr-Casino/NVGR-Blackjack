@@ -348,188 +348,45 @@ export function croupierSay(text) {
 }
 
 // ---------- music ----------
-// Quiet lounge jazz under the room: an electric piano comping two eight-bar
-// sets of changes, a walking bass, brushes on the snare and a whisper of
-// ride, a soft pad beneath. Played live, note by note, it broke up
-// whenever the page was busy drawing the room, so it is rendered once, in
-// the background (an OfflineAudioContext), into a loop of a little under a
-// minute whose tail is folded back into its head, and played from that:
-// seamless, and costing next to nothing. Its own switch (on by default,
-// remembered), and the Sound switch silences it with everything else.
+// Lounge jazz under the room: "Airport Lounge" by Kevin MacLeod
+// (incompetech.com), licensed under Creative Commons Attribution 4.0
+// (credited in public/assets/music/CREDITS.txt, the game's rules and the
+// website). A real recording, streamed from the game's own files: the
+// electric piano, bass and brushes this used to synthesise in the browser
+// came out muddy. It plays through the sound's own chain, so the Sound
+// switch silences it with everything else; it has its own switch too (on
+// by default, remembered), fades in and out, and loops.
+const MUSIC_URL = import.meta.env.BASE_URL + 'assets/music/airport-lounge.mp3';
 let musicOn = (() => { try { return localStorage.getItem('nvgr-music') !== 'off'; } catch { return true; } })();
 let musicBus = null;
-let musicBuffer = null;
-let musicBuilding = null;
+let musicEl = null;
 let musicSource = null;
-const MUSIC_LEVEL = 0.3;
-const BPM = 72;
-const BEAT = 60 / BPM;
-const BARS = 16;
-const midi = (n) => 440 * Math.pow(2, (n - 69) / 12);
-// Two progressions in F, eight bars each: ii–V–I–vi, then IV–iii–ii–V.
-const CHANGES = [
-  [{ bass: 43, notes: [58, 62, 65, 69] }, { bass: 48, notes: [58, 64, 69, 74] }, { bass: 41, notes: [57, 60, 64, 67] }, { bass: 50, notes: [53, 57, 60, 64] }],
-  [{ bass: 46, notes: [57, 62, 65, 69] }, { bass: 45, notes: [55, 60, 64, 67] }, { bass: 43, notes: [58, 62, 65, 69] }, { bass: 48, notes: [58, 64, 67, 72] }],
-];
-const chordAt = (bar) => CHANGES[Math.floor(bar / 8) % CHANGES.length][Math.floor((bar % 8) / 2)];
-
-function epiano(c, bus, at, n, gain) {
-  const f = midi(n);
-  const car = c.createOscillator();
-  car.frequency.value = f;
-  const mod = c.createOscillator();
-  mod.frequency.value = f;
-  const depth = c.createGain();
-  depth.gain.setValueAtTime(f * 1.3, at);
-  depth.gain.exponentialRampToValueAtTime(f * 0.04, at + 0.5);
-  mod.connect(depth).connect(car.frequency);
-  const lp = c.createBiquadFilter();
-  lp.type = 'lowpass';
-  lp.frequency.value = 2300;
-  const g = c.createGain();
-  g.gain.setValueAtTime(0, at);
-  g.gain.linearRampToValueAtTime(gain, at + 0.008);
-  g.gain.exponentialRampToValueAtTime(gain * 0.35, at + 0.6);
-  g.gain.exponentialRampToValueAtTime(0.0001, at + 2.4);
-  car.connect(lp).connect(g).connect(bus);
-  car.start(at); mod.start(at);
-  car.stop(at + 2.5); mod.stop(at + 2.5);
-}
-function bassNote(c, bus, at, n, gain) {
-  const o = c.createOscillator();
-  o.type = 'triangle';
-  o.frequency.value = midi(n);
-  const lp = c.createBiquadFilter();
-  lp.type = 'lowpass';
-  lp.frequency.value = 520;
-  const g = c.createGain();
-  g.gain.setValueAtTime(0, at);
-  g.gain.linearRampToValueAtTime(gain, at + 0.02);
-  g.gain.exponentialRampToValueAtTime(gain * 0.4, at + 0.25);
-  g.gain.exponentialRampToValueAtTime(0.0001, at + BEAT * 0.95);
-  o.connect(lp).connect(g).connect(bus);
-  o.start(at);
-  o.stop(at + BEAT);
-}
-function brush(c, bus, buf, at, gain, long, rand) {
-  const src = c.createBufferSource();
-  src.buffer = buf;
-  const f = c.createBiquadFilter();
-  f.type = long ? 'bandpass' : 'highpass';
-  f.frequency.value = long ? 3800 : 7500;
-  f.Q.value = 0.6;
-  const g = c.createGain();
-  g.gain.setValueAtTime(0, at);
-  g.gain.linearRampToValueAtTime(gain, at + (long ? 0.05 : 0.004));
-  g.gain.exponentialRampToValueAtTime(0.0001, at + (long ? 0.28 : 0.07));
-  src.connect(f).connect(g).connect(bus);
-  src.start(at, rand() * 0.5, 0.35);
-}
-function pad(c, bus, at, notes, dur) {
-  notes.forEach((n) => {
-    [-6, 6].forEach((cents) => {
-      const o = c.createOscillator();
-      o.type = 'sawtooth';
-      o.frequency.value = midi(n - 12);
-      o.detune.value = cents;
-      const lp = c.createBiquadFilter();
-      lp.type = 'lowpass';
-      lp.frequency.value = 700;
-      const g = c.createGain();
-      g.gain.setValueAtTime(0, at);
-      g.gain.linearRampToValueAtTime(0.006, at + dur * 0.4);
-      g.gain.linearRampToValueAtTime(0.0001, at + dur);
-      o.connect(lp).connect(g).connect(bus);
-      o.start(at);
-      o.stop(at + dur + 0.05);
-    });
-  });
-}
-function playBeat(c, bus, buf, at, i, rand) {
-  const bar = Math.floor(i / 4), beat = i % 4;
-  const chord = chordAt(bar);
-  const next = chordAt(bar + 1);
-  const swing = BEAT * 0.66;
-  const walk = [chord.bass, chord.bass + (rand() < 0.5 ? 7 : 4), chord.bass + (rand() < 0.5 ? 12 : 10), next.bass + (rand() < 0.5 ? -1 : 1)];
-  bassNote(c, bus, at, walk[beat], beat === 0 ? 0.17 : 0.13);
-  if (beat === 1 || beat === 3) brush(c, bus, buf, at, 0.016, true, rand);
-  brush(c, bus, buf, at, 0.006, false, rand);
-  if (rand() < 0.6) brush(c, bus, buf, at + swing, 0.004, false, rand);
-  const onChord = bar % 2 === 0 && beat === 0;
-  const push = beat === 1 && rand() < 0.45;
-  if (onChord || push) {
-    const notes = chord.notes.map((n) => n + (rand() < 0.2 ? 12 : 0));
-    const when = push ? at + swing : at;
-    notes.forEach((n, k) => epiano(c, bus, when + k * 0.012, n, push ? 0.022 : 0.03));
-  }
-  if (bar % 2 === 0 && beat === 0) pad(c, bus, at, chord.notes, BEAT * 8);
-}
-// Renders the loop once; the same promise for anyone who asks again.
-function buildMusic() {
-  if (musicBuilding) return musicBuilding;
-  const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-  if (!Offline) return Promise.resolve(null);
-  const sr = 44100;
-  const dur = BARS * 4 * BEAT;
-  const tail = 3;
-  const oc = new Offline(2, Math.ceil((dur + tail) * sr), sr);
-  const buf = oc.createBuffer(1, sr, sr);
-  const d = buf.getChannelData(0);
-  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-  // A little room, baked in.
-  const len = Math.round(sr * 1.6);
-  const ir = oc.createBuffer(2, len, sr);
-  for (let ch = 0; ch < 2; ch++) { const x = ir.getChannelData(ch); for (let i = 0; i < len; i++) x[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
-  const conv = oc.createConvolver();
-  conv.buffer = ir;
-  const wet = oc.createGain();
-  wet.gain.value = 0.3;
-  const bus = oc.createGain();
-  bus.connect(oc.destination);
-  bus.connect(conv).connect(wet).connect(oc.destination);
-  let seed = 7;
-  const rand = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-  for (let i = 0; i < BARS * 4; i++) playBeat(oc, bus, buf, i * BEAT, i, rand);
-  musicBuilding = oc.startRendering().then((rendered) => {
-    // The tail, rung on past the loop's end, laid back over its start, so
-    // the join cannot be heard.
-    const n = Math.ceil(dur * sr);
-    const out = new AudioBuffer({ numberOfChannels: 2, length: n, sampleRate: sr });
-    for (let ch = 0; ch < 2; ch++) {
-      const src = rendered.getChannelData(ch), dst = out.getChannelData(ch);
-      for (let i = 0; i < n; i++) dst[i] = src[i] + (i + n < src.length ? src[i + n] : 0);
-    }
-    musicBuffer = out;
-    return out;
-  }).catch(() => null);
-  return musicBuilding;
-}
-async function startMusic() {
+const MUSIC_LEVEL = 0.2;
+function startMusic() {
   const c = audio();
   if (!c || musicSource || !musicOn || document.hidden || c.state !== 'running') return;
-  const buffer = musicBuffer || await buildMusic();
-  if (!buffer || musicSource || !musicOn || document.hidden) return;
-  if (!musicBus) {
+  if (!musicEl) {
+    musicEl = new Audio(MUSIC_URL);
+    musicEl.loop = true;
+    musicEl.preload = 'auto';
     musicBus = c.createGain();
-    musicBus.connect(master);
+    musicBus.gain.value = 0;
+    c.createMediaElementSource(musicEl).connect(musicBus).connect(master);
   }
-  const src = c.createBufferSource();
-  src.buffer = buffer;
-  src.loop = true;
-  src.connect(musicBus);
   musicBus.gain.cancelScheduledValues(c.currentTime);
-  musicBus.gain.setValueAtTime(0, c.currentTime);
+  musicBus.gain.setValueAtTime(musicBus.gain.value, c.currentTime);
   musicBus.gain.linearRampToValueAtTime(MUSIC_LEVEL, c.currentTime + 3);
-  src.start();
-  musicSource = src;
+  musicSource = musicEl;
+  const playing = musicEl.play();
+  if (playing) playing.catch(() => { if (musicSource === musicEl) musicSource = null; });
 }
 function stopMusic() {
-  const src = musicSource;
+  const el = musicSource;
   musicSource = null;
-  if (!src || !context) return;
+  if (!el || !context) return;
   musicBus.gain.cancelScheduledValues(context.currentTime);
   musicBus.gain.setTargetAtTime(0, context.currentTime, 0.25);
-  src.stop(context.currentTime + 1.2);
+  setTimeout(() => { if (!musicSource) el.pause(); }, 1200);
 }
 export const isMusicOn = () => musicOn;
 export function setMusicOn(on) {

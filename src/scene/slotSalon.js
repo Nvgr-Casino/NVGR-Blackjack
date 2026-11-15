@@ -4,7 +4,7 @@ import { place } from './furniture.js';
 import { createCharacter } from './character.js';
 import { m, FLOOR_Y } from './scale.js';
 import { DEFAULT_GAME } from '../slots/games.js';
-import { PHONE_LITE } from '../platform.js';
+import { PHONE_SCREEN } from '../platform.js';
 
 // The high-limit slot salon: a gently curved bank of the house's machines,
 // all three games side by side, yours in the middle (whichever you choose), a chair before each, guests at a couple of them,
@@ -14,7 +14,9 @@ import { PHONE_LITE } from '../platform.js';
 // The set stands with your machine's front just behind the origin, facing
 // +z, so it sits in the lobby's carousel like any table.
 
-const PHONE = PHONE_LITE;
+// Fewer figures and machines on any phone: each animated figure costs the
+// phone's processor every frame, whatever its textures.
+const PHONE = PHONE_SCREEN;
 const COUNT = PHONE ? 3 : 5;
 const MINE = Math.floor(COUNT / 2);
 // The arc the bank stands on, concave toward the player.

@@ -1715,3 +1715,7 @@ input:focus { outline: none; border-color: var(--accent); }
 }
 .sl-free.on { opacity: 1; transform: translate(-50%, 0); }
 .sl-free b { color: #ffd88e; font-size: 16px; }
+
+/* The music's credit, under every game's rules. */
+.rg-credit { margin: 0; padding: 10px 22px 0; font-size: 11px; color: rgba(243, 223, 174, 0.5); }
+.rg-credit a { color: inherit; }
