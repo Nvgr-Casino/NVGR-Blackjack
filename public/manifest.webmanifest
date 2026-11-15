@@ -2,7 +2,7 @@
   "name": "NVGR Casino",
   "short_name": "NVGR Casino",
   "description": "Blackjack, Texas Hold'em, Roulette and Baccarat in 3D — free, play chips only.",
-  "start_url": "./",
+  "start_url": "./play/",
   "scope": "./",
   "display": "fullscreen",
   "display_override": ["fullscreen", "standalone"],

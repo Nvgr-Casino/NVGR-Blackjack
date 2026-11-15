@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/site-layout.mjs",
     "preview": "vite preview",
     "models": "node scripts/optimize-models.mjs",
     "character": "node scripts/import-character.mjs",
@@ -13,7 +13,7 @@
     "rocketbox": "node scripts/import-rocketbox.mjs",
     "polyhaven": "node scripts/import-polyhaven.mjs",
     "test": "node tests/blackjack-rules.test.mjs && node tests/holdem-rules.test.mjs && node tests/mental-poker.test.mjs && node tests/holdem-bots.test.mjs && node tests/holdem-tournament.test.mjs && node tests/blackjack-tournament.test.mjs && node tests/roulette-rules.test.mjs && node tests/baccarat-rules.test.mjs && node tests/slots-rules.test.mjs && node tests/craps-rules.test.mjs",
-    "build:app": "vite build --base ./ --outDir dist-app",
+    "build:app": "vite build --mode app --base ./ --outDir dist-app",
     "android": "npm run build:app && npx cap sync android"
   },
   "dependencies": {
