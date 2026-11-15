@@ -242,7 +242,11 @@ export async function signInGoogle() {
   } catch (e) {
     // Closing the picker isn't a failure worth a message.
     const msg = String((e && (e.message || e.code)) || '');
-    formError = /cancel|closed|abort/i.test(msg) ? '' : 'Google sign-in failed. Please try again.';
+    // Keep the underlying code visible (e.g. "10" = the app's signing key is
+    // not registered with Firebase) so a failure can be diagnosed.
+    const code = String((e && (e.code || e.message)) || '').slice(0, 60);
+    formError = /cancel|closed|abort/i.test(msg) ? ''
+      : 'Google sign-in failed. Please try again.' + (code ? ' (' + code + ')' : '');
   }
   authBusy = false; render();
 }
