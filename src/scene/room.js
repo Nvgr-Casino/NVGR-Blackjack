@@ -3,6 +3,7 @@ import { createLobbyRoom } from './lobbyRoom.js';
 import { drawCasinoCrest } from './crest.js';
 import { FLOOR_Y, m } from './scale.js';
 import { ROOM_THEMES } from './rooms.js';
+import { PHONE_LITE } from '../platform.js';
 
 // The room the table stands in — one for each stakes tier, from a bright
 // lounge to a penthouse (rooms.js holds the themes; this paints them).
@@ -394,7 +395,7 @@ function createCarpetTexture(theme) {
 // back and both sides. One photograph taken from that height, so the city
 // lies below the windows as it would. Its horizon is set just under a
 // seated player's eye. Unlit and unfogged: it is the light of the city.
-const smallScreen = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820;
+const smallScreen = PHONE_LITE;
 const SKYLINE_URL = import.meta.env.BASE_URL + 'assets/skyline/' + (smallScreen ? 'night_skyline_ny_4k.webp' : 'night_skyline_ny.webp');
 const SKYLINE_ASPECT = 8192 / 2237;
 // Where the horizon is in the photograph, from its top.

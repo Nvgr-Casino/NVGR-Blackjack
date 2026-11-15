@@ -1,3 +1,4 @@
+import { PHONE_LITE } from '../platform.js';
 // On a phone, the 3D models' textures cost more memory than the screen can
 // show for them: each figure carries several 1024 px colour and normal
 // maps, every piece of furniture its own set. iPhone Safari gives a page
@@ -5,7 +6,7 @@
 // a phone a model keeps its colour, at most 512 px, and gives up the fine
 // surface maps — at a figure's size on a phone screen they are not seen.
 
-export const PHONE = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820;
+export const PHONE = PHONE_LITE;
 
 const DROP = ['normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'bumpMap'];
 const MAX = 512;

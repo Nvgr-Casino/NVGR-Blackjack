@@ -1,6 +1,7 @@
 // The Android app's launcher icons and splash screens. The icons are the
-// Golden Ace art (assets-src/golden-ace-icon.png: a gold-rimmed ace of
-// spades fanned over a second card, on crimson velvet), as the classic
+// Golden Ace art (assets-src/golden-ace-icon.png: an ivory ace of spades
+// with a great gold spade, fanned over a royal-purple card, red, gold and
+// black chips in front, on a ruby sunburst with gold light), as the classic
 // square and round icons and, with the cards drawn smaller so the
 // launcher's mask never clips them, as the adaptive icon's layer. The
 // splash, shown while the game loads, is NVGR Casino's logo on black,

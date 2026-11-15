@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { m } from './scale.js';
+import { PHONE_LITE } from '../platform.js';
 
 // The dice: casino red with white pips, sharp-cornered as precision dice
 // are. A throw is a flight from the shooter's hand to the back wall, a
@@ -9,7 +10,7 @@ import { m } from './scale.js';
 // sees the same dice do the same thing.
 
 export const DIE = m(0.04);
-const PHONE = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820;
+const PHONE = PHONE_LITE;
 
 // Faces in the order a box's sides come: +x, −x, +y, −y, +z, −z. Opposite
 // faces add to seven.

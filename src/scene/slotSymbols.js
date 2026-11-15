@@ -9,8 +9,9 @@
 // sit on one continuous strip round the reel as on a real machine.
 
 import { LOGO_URL } from '../app/uiHelpers.js';
+import { PHONE_LITE } from '../platform.js';
 
-const PHONE = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820;
+const PHONE = PHONE_LITE;
 // Pixels across a square cell; a wider cell (three reels) is wider still.
 export const CELL = PHONE ? 256 : 512;
 const S = 512; // every symbol is drawn in a 512 square and scaled to the cell

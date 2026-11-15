@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { m } from './scale.js';
+import { PHONE_LITE } from '../platform.js';
 
 // Materials and small things the casino rooms are made of: canvas
 // textures, felt, marble, wood, velvet, metals, stacks of chips, bottles.
@@ -8,7 +9,7 @@ import { m } from './scale.js';
 // A phone paints these at most 1024 px on a side: the same picture, drawn
 // smaller, so it costs a quarter of the memory (the renderer caps what it
 // uploads there at 1024 anyway — see scene.js).
-const PHONE = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820;
+const PHONE = PHONE_LITE;
 export function canvasTex(w, h, draw, { repeat = false } = {}) {
   const c = document.createElement('canvas');
   const k = PHONE ? Math.min(1, 1024 / Math.max(w, h)) : 1;

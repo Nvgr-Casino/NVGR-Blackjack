@@ -5,6 +5,7 @@ import { addTableGlow, PEDESTAL_LACQUER } from './tableLux.js';
 import { createDice } from './crapsDice.js';
 import { CRAPS_SEATS } from '../craps/rules.js';
 import { BOARD_W, BOARD_H, paintLayout, puckSpot } from '../craps/layout.js';
+import { PHONE_LITE } from '../platform.js';
 
 // The craps table: a deep tub of green baize walled in diamond-studded
 // rubber for the dice to rebound from, under a padded leather armrest and a
@@ -13,7 +14,7 @@ import { BOARD_W, BOARD_H, paintLayout, puckSpot } from '../craps/layout.js';
 // stickman stands across from the players by the propositions; the puck
 // marks the point; a board beside him keeps the rolls.
 
-const PHONE = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820;
+const PHONE = PHONE_LITE;
 export const FELT_W = m(2.7);
 export const FELT_D = m(1.35);
 const TOP = 0;

@@ -9,6 +9,7 @@ import {
   BOARD_W, BOARD_H, MARGIN, ZERO_W, COLUMN_W, ROW_H, BAND_H, CELL_W, GRID_X, GRID_BOTTOM,
   EVEN_CHANCES, spotOf, cellX, cellY, numberFill, FELT_COLOR, LINE_COLOR,
 } from '../roulette/layout.js';
+import { PHONE_LITE } from '../platform.js';
 
 // The roulette table the game is played at: a mahogany cabinet on turned
 // legs, green baize, a padded rail; the wheel in its bowl at the left end
@@ -390,7 +391,7 @@ export function createRouletteTable() {
   // resolution and shown unlit so its numbers read sharp from every seat.
   const BOARD_PW = 1000, BOARD_PH = 540;
   // Sharp on a big screen; a phone shows it far smaller, and has less memory.
-  const BOARD_SCALE = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820 ? 1.0 : 2.2;
+  const BOARD_SCALE = PHONE_LITE ? 1.0 : 2.2;
   const towerCanvas = document.createElement('canvas');
   towerCanvas.width = Math.round(BOARD_PW * BOARD_SCALE);
   towerCanvas.height = Math.round(BOARD_PH * BOARD_SCALE);

@@ -4,6 +4,7 @@ import { m } from './scale.js';
 import { createSymbolAtlas } from './slotSymbols.js';
 import { gameOf, DEFAULT_GAME } from '../slots/games.js';
 import { LOGO_URL } from '../app/uiHelpers.js';
+import { PHONE_LITE } from '../platform.js';
 
 // A slot machine, built as the high-limit cabinets on a real casino floor
 // are: a lacquered cabinet with metal inlay, a framed reel window with real
@@ -15,7 +16,7 @@ import { LOGO_URL } from '../app/uiHelpers.js';
 // The machine stands on the floor at its own origin, its back at z = 0 and
 // its face toward +z. Measurements are real ones, in metres (m()).
 
-const PHONE = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820;
+const PHONE = PHONE_LITE;
 
 // ---------- dimensions ----------
 export const CAB_W = 0.74;          // cabinet width

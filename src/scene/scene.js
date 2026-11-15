@@ -19,6 +19,7 @@ import { cameraOverride } from './cameraFocus.js';
 import { createService } from './service.js';
 import { createLobbyCrowd } from './lobbyCrowd.js';
 import { createSlotSalon } from './slotSalon.js';
+import { PHONE_LITE } from '../platform.js';
 
 // Step 1-2: static table + deal animation. Step 3 (current): seats, a
 // dealer figure, and empty chairs around the table — no fixed "you" seat or
@@ -53,7 +54,7 @@ export function initScene(canvas) {
   // of a 1x screen, and each one then pays for every light in the scene and
   // a shadow lookup on top. So the mobile tier trims per-pixel work — a
   // smaller shadow map, fewer decorative lights — rather than detail.
-  const lowPower = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820;
+  const lowPower = PHONE_LITE;
 
   // Render resolution, though, is not guessed from the device any more.
   // Capping phones at 1.5x while their screens are 3x meant the whole image

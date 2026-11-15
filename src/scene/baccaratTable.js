@@ -10,6 +10,7 @@ export const CARD_K = 1.3;
 const CARD_WIDTH = CW0 * CARD_K, CARD_HEIGHT = CH0 * CARD_K;
 import { BACCARAT_SEATS } from '../baccarat/rules.js';
 import { FELT_COLOR, LINE_COLOR } from '../roulette/layout.js';
+import { PHONE_LITE } from '../platform.js';
 
 // The baccarat table: a grand kidney of mahogany and emerald baize, seven
 // seats round its curve, an oxblood armrest studded with brass along it;
@@ -378,7 +379,7 @@ export function createBaccaratTable() {
   // so its lettering stays sharp.
   const BOARD_W = 1000, BOARD_H = 540;
   // Sharp on a big screen; a phone shows it far smaller, and has less memory.
-  const BOARD_SCALE = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820 ? 1.0 : 2.2;
+  const BOARD_SCALE = PHONE_LITE ? 1.0 : 2.2;
   const boardCanvas = document.createElement('canvas');
   boardCanvas.width = Math.round(BOARD_W * BOARD_SCALE);
   boardCanvas.height = Math.round(BOARD_H * BOARD_SCALE);
