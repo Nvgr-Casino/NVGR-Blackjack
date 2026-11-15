@@ -158,8 +158,8 @@ em { font-style: italic; }
 .story-steps b { display: block; font: 400 clamp(28px, 3vw, 42px)/1.05 var(--serif); }
 .story-steps p { margin: 0; color: var(--muted); font-size: 15.5px; max-height: 0; overflow: hidden; transition: max-height 0.8s var(--ease), margin 0.8s var(--ease); }
 .story-steps li.on p { max-height: 110px; margin-top: 8px; }
-.story-21 { position: absolute; left: 63%; top: 20%; transform: translate(-50%, -50%) scale(calc(0.7 + var(--win, 0) * 0.3)); opacity: var(--win, 0); text-align: center; pointer-events: none; }
-.story-21 span { display: block; font: italic 400 clamp(52px, 8vw, 128px)/0.9 var(--serif); color: transparent; background: linear-gradient(180deg, #f7ead0, var(--brass) 85%); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.8)); }
+.story-21 { position: absolute; left: 80%; top: 50%; transform: translate(-50%, -50%) scale(calc(0.7 + var(--win, 0) * 0.3)); opacity: var(--win, 0); text-align: center; pointer-events: none; }
+.story-21 span { display: block; font: italic 400 clamp(48px, 6vw, 104px)/0.9 var(--serif); color: transparent; background: linear-gradient(180deg, #f7ead0, var(--brass) 85%); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.8)); }
 .story-21 small { display: block; margin-top: 8px; font: 600 12px var(--sans); letter-spacing: 0.4em; text-transform: uppercase; color: var(--brass-hi); }
 .story-bar { position: absolute; left: var(--pad); bottom: 48px; width: min(440px, 40vw); height: 1px; background: rgba(243, 238, 227, 0.12); }
 .story-bar i { position: absolute; inset: 0; transform-origin: left; transform: scaleX(var(--p, 0)); background: var(--brass); }
@@ -291,4 +291,55 @@ em { font-style: italic; }
   *, *::before, *::after { animation-duration: 0.01s !important; animation-iteration-count: 1 !important; transition-duration: 0.01s !important; }
   .rise, .reveal { opacity: 1; transform: none; }
   .reveal-lines .rl > span, .hero-title .word { transform: none; }
+}
+
+/* ---------- refinements: section numbers, the niche, the floor band ---------- */
+.kicker b { font: italic 500 17px var(--serif); letter-spacing: 0; color: var(--brass-hi); padding-right: 14px; margin-right: 4px; border-right: 1px solid var(--line); }
+.bar-brand span { letter-spacing: 0.24em; text-transform: uppercase; font-size: 13px; }
+
+/* A classical niche behind the dealer: an arch drawn in a hairline of brass. */
+.hero-arch { position: absolute; z-index: -1; left: 70%; bottom: 0; top: 13%; width: min(33vw, 500px); transform: translateX(-50%); border-radius: 999px 999px 0 0;
+  border: 1px solid rgba(201, 168, 106, 0.32); border-bottom: 0; background: linear-gradient(180deg, rgba(15, 58, 45, 0.75), rgba(15, 58, 45, 0.18) 70%, transparent);
+  box-shadow: inset 0 0 0 10px rgba(10, 11, 10, 0.35), inset 0 0 0 11px rgba(201, 168, 106, 0.14); opacity: 0; transition: opacity 1.8s ease 0.4s; }
+.ready .hero-arch { opacity: 1; }
+.hero-fine { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin: 30px 0 0; font-size: 11px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--faint); }
+.hero-fine i { width: 3px; height: 3px; border-radius: 50%; background: var(--brass); }
+.hero-plate { font-size: 11px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); }
+.hero-plate em { letter-spacing: 0.14em; }
+
+.intro .kicker { margin-bottom: 34px; }
+.t-lede, .f-lede { color: var(--muted); font-size: 17px; margin: 26px 0 0; max-width: 440px; }
+.f-lede { margin-left: auto; margin-right: auto; max-width: 560px; }
+
+/* The floor, full width, with the figures set along its foot. */
+.band { padding: 0 var(--pad) clamp(90px, 12vw, 170px); }
+.band-frame { position: relative; max-width: 1500px; margin: 0 auto; height: min(78vh, 760px); overflow: hidden; border-radius: 4px; border: 1px solid rgba(201, 168, 106, 0.18); }
+.band-frame img { position: absolute; left: 0; top: -12%; width: 100%; height: 124%; object-fit: cover; will-change: transform; filter: saturate(0.92) contrast(1.04); }
+.band-shade { position: absolute; inset: 0; background: linear-gradient(0deg, rgba(10, 11, 10, 0.94) 0%, rgba(10, 11, 10, 0.35) 38%, transparent 62%), linear-gradient(180deg, rgba(10, 11, 10, 0.45), transparent 22%); }
+.band-stats { position: absolute; left: 0; right: 0; bottom: 0; list-style: none; margin: 0; padding: 0 clamp(22px, 4vw, 56px) clamp(24px, 3.4vw, 44px); display: grid; grid-template-columns: repeat(4, 1fr); }
+.band-stats li { padding: 0 24px; border-left: 1px solid var(--line); }
+.band-stats li:first-child { padding-left: 0; border-left: 0; }
+.band-stats b { display: block; font: 300 clamp(48px, 5.6vw, 92px)/0.95 var(--serif); letter-spacing: -0.02em; color: transparent; background: linear-gradient(180deg, #f7ead0, var(--brass) 85%); -webkit-background-clip: text; background-clip: text; }
+.band-stats span { display: block; margin-top: 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.24em; text-transform: uppercase; color: var(--muted); }
+
+.last-crest { width: min(150px, 34vw); margin: 0 auto 30px; }
+
+@media (max-width: 900px) {
+  .hero-arch { left: 50%; top: 9%; bottom: auto; height: 40%; width: min(70vw, 340px); }
+  .hero-fine { margin-top: 24px; gap: 10px; font-size: 10px; letter-spacing: 0.16em; }
+  .band-frame { height: 70vh; }
+  .band-stats { grid-template-columns: repeat(2, 1fr); row-gap: 22px; }
+  .band-stats li:nth-child(3) { padding-left: 0; border-left: 0; }
+  .t-lede { max-width: none; }
+}
+
+/* The hero on a phone: the dealer in his niche has the top of the screen,
+   and the words begin beneath him; the headline keeps to two lines. */
+@media (max-width: 900px) {
+  .hero { align-items: flex-start; padding-top: 45svh; padding-bottom: 56px; }
+  .hero-dealer { height: 46svh; }
+  .hero-arch { top: 9svh; height: 37svh; bottom: auto; }
+  .hero-title { font-size: clamp(40px, 12.4vw, 78px); margin-bottom: 20px; }
+  .hero-title .serif-i { font-size: 0.8em; }
+  .kicker { margin-bottom: 16px; font-size: 11px; letter-spacing: 0.26em; }
 }

@@ -1,5 +1,5 @@
-// The front page of nvgrcasino.com: the opening curtain, the dealer who
-// watches your cursor, the film strip of games, the hand played by
+// The front page of nvgrcasino.com: the opening curtain, the dealer in the hero,
+// the film strip of games, the hand played by
 // scrolling, and everything that rises into view on the way down.
 import './landing.css';
 import Lenis from 'lenis';
@@ -145,6 +145,17 @@ function games() {
 window.addEventListener('resize', games);
 onScroll();
 
+// ---------- the floor band drifts as it passes ----------
+const bandImg = document.getElementById('bandImg');
+function band() {
+  const r = bandImg.parentElement.getBoundingClientRect();
+  if (r.bottom < 0 || r.top > window.innerHeight) return;
+  const k = (r.top + r.height / 2 - window.innerHeight / 2) / window.innerHeight;
+  bandImg.style.transform = `translate3d(0, ${(-k * 8).toFixed(2)}%, 0) scale(1.02)`;
+}
+window.addEventListener('scroll', band, { passive: true });
+band();
+
 // ---------- the hand, played by scrolling ----------
 const story = document.getElementById('hand');
 const steps = [...story.querySelectorAll('.story-steps li')];
@@ -188,11 +199,11 @@ fb.addEventListener('submit', (e) => {
   const ideas = data.getAll('idea');
   const note = String(data.get('note') || '').trim();
   const done = document.getElementById('fbDone');
-  if (!ideas.length && !note) { done.textContent = 'Pick an idea or write us a line first. We\'re all ears.'; return; }
+  if (!ideas.length && !note) { done.textContent = 'Please select a feature or add a comment.'; return; }
   const name = String(data.get('name') || '').trim();
-  const body = [ideas.length ? `I'd love to see:\n- ${ideas.join('\n- ')}` : '', note ? `\nMore:\n${note}` : '', `\nPlaying on: ${data.get('device')}`, name ? `From: ${name}` : ''].filter(Boolean).join('\n');
+  const body = [ideas.length ? `Requested features:\n- ${ideas.join('\n- ')}` : '', note ? `\nComments:\n${note}` : '', `\nPlatform: ${data.get('device')}`, name ? `From: ${name}` : ''].filter(Boolean).join('\n');
   location.href = `mailto:feedback@nvgrcasino.com?subject=${encodeURIComponent('NVGR Casino feedback' + (name ? ' from ' + name : ''))}&body=${encodeURIComponent(body)}`;
-  done.textContent = 'Your email app should open with it all filled in. Hit send, and thank you.';
+  done.textContent = 'Your email app will open with your feedback filled in. Thank you.';
   leaf(fb.querySelector('button'));
 });
 // A little brass leaf from the button.
