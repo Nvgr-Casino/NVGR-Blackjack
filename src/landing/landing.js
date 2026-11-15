@@ -1,6 +1,11 @@
-// The front page of nvgrcasino.com: the testing-phase notice, the Android
-// download and the way into the game (./play/).
+// The front page of nvgrcasino.com: the 3D hero, everything that moves as
+// you scroll, the playable slot, the QR code to the APK and the latest
+// build's details.
 import './landing.css';
+import qrcode from 'qrcode-generator';
+
+const APK = 'https://github.com/Nvgr-Casino/NVGR-Blackjack/releases/download/android/NVGR-Casino.apk';
+const STILL = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // An invite link from before the game moved to /play/ (…/?room=CODE)
 // still takes you to that table.
@@ -8,16 +13,193 @@ if (/[?&]room=/.test(location.search)) location.replace('./play/' + location.sea
 
 document.getElementById('year').textContent = new Date().getFullYear();
 
-// The newest APK's version and size, from the repository's "android" release.
+// The headline rises in once the fonts are ready.
+document.fonts.ready.then(() => requestAnimationFrame(() => document.body.classList.add('ready')));
+setTimeout(() => document.body.classList.add('ready'), 1200);
+
+// The 3D hero, loaded after the page itself so the words come first.
+if (!STILL) {
+  import('./hero3d.js').then(({ startHero }) => {
+    const ok = startHero(document.getElementById('hero3d'));
+    if (ok) document.querySelector('.hero-fallback').style.opacity = '0';
+  }).catch(() => { /* the gradient behind it stays */ });
+}
+
+// ---------- reveals, staggered within each group ----------
+const groups = new Map();
+document.querySelectorAll('.reveal').forEach((el) => {
+  const parent = el.parentElement;
+  const i = groups.get(parent) || 0;
+  groups.set(parent, i + 1);
+  el.style.setProperty('--d', `${Math.min(i, 6) * 0.09}s`);
+});
+const revealer = new IntersectionObserver((entries) => {
+  entries.forEach((e) => {
+    if (!e.isIntersecting) return;
+    e.target.classList.add('in');
+    revealer.unobserve(e.target);
+    const n = e.target.querySelector('[data-count]');
+    if (n) countUp(n);
+  });
+}, { threshold: 0.15, rootMargin: '0px 0px -8% 0px' });
+document.querySelectorAll('.reveal').forEach((el) => revealer.observe(el));
+
+// ---------- counters ----------
+function countUp(el) {
+  const to = Number(el.dataset.count), prefix = el.dataset.prefix || '';
+  const fmt = (v) => prefix + (el.dataset.format === 'k' ? (v >= 1000 ? Math.round(v / 1000) + 'K' : Math.round(v)) : Math.round(v).toLocaleString());
+  if (STILL || !to) { el.textContent = fmt(to); return; }
+  const t0 = performance.now(), ms = 1600;
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / ms);
+    el.textContent = fmt(to * (1 - Math.pow(1 - k, 4)));
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+// ---------- scroll: progress bar, nav, timeline ----------
+const bar = document.querySelector('.progress i');
+const nav = document.getElementById('nav');
+const line = document.querySelector('.timeline-line');
+const timeline = document.querySelector('.timeline');
+let lastY = 0;
+function onScroll() {
+  const y = window.scrollY, max = document.documentElement.scrollHeight - innerHeight;
+  bar.style.transform = `scaleX(${max > 0 ? y / max : 0})`;
+  nav.classList.toggle('scrolled', y > 40);
+  nav.classList.toggle('hide', y > lastY && y > innerHeight * 0.8);
+  lastY = y;
+  const r = timeline.getBoundingClientRect();
+  const fill = Math.max(0, Math.min(1, (innerHeight * 0.7 - r.top) / r.height));
+  line.style.setProperty('--fill', fill.toFixed(3));
+}
+window.addEventListener('scroll', onScroll, { passive: true });
+onScroll();
+
+// ---------- the glow that follows the pointer ----------
+const glow = document.querySelector('.cursor');
+let gx = innerWidth / 2, gy = innerHeight / 2, tx = gx, ty = gy;
+window.addEventListener('pointermove', (e) => { tx = e.clientX; ty = e.clientY; }, { passive: true });
+(function follow() {
+  gx += (tx - gx) * 0.12; gy += (ty - gy) * 0.12;
+  glow.style.transform = `translate(${gx}px, ${gy}px)`;
+  requestAnimationFrame(follow);
+})();
+
+// ---------- cards tilt toward the pointer, with a moving shine ----------
+document.querySelectorAll('.tilt').forEach((card) => {
+  card.addEventListener('pointermove', (e) => {
+    if (e.pointerType === 'touch') return;
+    const r = card.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
+    card.style.transform = `rotateY(${(px - 0.5) * 14}deg) rotateX(${(0.5 - py) * 12}deg) translateZ(10px)`;
+    card.style.setProperty('--mx', `${px * 100}%`);
+    card.style.setProperty('--my', `${py * 100}%`);
+  });
+  card.addEventListener('pointerleave', () => { card.style.transform = ''; });
+});
+
+// ---------- QR code to the APK, for visitors on a computer ----------
+const qr = qrcode(0, 'M');
+qr.addData(APK);
+qr.make();
+document.getElementById('qrHero').innerHTML = qr.createSvgTag({ cellSize: 3, margin: 0, scalable: true });
+
+// ---------- the latest build ----------
 fetch('https://api.github.com/repos/Nvgr-Casino/NVGR-Blackjack/releases/tags/android')
   .then((r) => (r.ok ? r.json() : null))
   .then((rel) => {
-    if (!rel) return;
-    const apk = (rel.assets || []).find((a) => a.name === 'NVGR-Casino.apk');
+    const apk = rel && (rel.assets || []).find((a) => a.name === 'NVGR-Casino.apk');
     if (!apk) return;
-    const version = (rel.body || '').match(/version (\d+\.\d+\.\d+)/);
+    const version = ((rel.body || '').match(/version (\d+\.\d+\.\d+)/) || [])[1];
     const mb = Math.round(apk.size / 1048576);
     const date = new Date(apk.updated_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-    document.getElementById('apkMeta').textContent = `${version ? 'v' + version[1] + ' · ' : ''}${mb} MB · updated ${date}`;
+    document.querySelectorAll('.apk-meta').forEach((el) => { el.textContent = `${version ? 'v' + version + ' · ' : ''}${mb} MB · updated ${date}`; });
+    document.querySelectorAll('.apk-version').forEach((el) => { el.textContent = `${version ? 'v' + version : 'Android'}, ${date}`; });
   })
-  .catch(() => { /* the button works without it */ });
+  .catch(() => { document.querySelectorAll('.apk-version').forEach((el) => { el.textContent = 'Android test build'; }); });
+
+// ---------- the slot ----------
+const SYMBOLS = [
+  { ch: '7', cls: 's7' }, { ch: '♠', cls: 'sg' }, { ch: '♦', cls: 'sc' },
+  { ch: '★', cls: 'sg' }, { ch: '♥', cls: 's7' }, { ch: '♣', cls: 'sv' },
+];
+const reels = [...document.querySelectorAll('#reels .strip')];
+const LEN = 30; // symbols on each strip
+const strips = reels.map(() => Array.from({ length: LEN }, () => Math.floor(Math.random() * SYMBOLS.length)));
+const symH = () => reels[0].parentElement.clientHeight;
+function paint(i) {
+  // Each symbol exactly one window tall, so the reel stops square on it.
+  const h = symH();
+  reels[i].innerHTML = strips[i].map((s) => `<div class="sym ${SYMBOLS[s].cls}" style="height:${h}px">${SYMBOLS[s].ch}</div>`).join('');
+}
+reels.forEach((_, i) => { paint(i); reels[i].style.transform = `translateY(${-(LEN - 1) * symH()}px)`; });
+
+const machine = document.querySelector('.machine');
+const msg = document.getElementById('spinMsg');
+const btn = document.getElementById('spinBtn');
+let spins = 0;
+btn.addEventListener('click', () => {
+  if (btn.disabled) return;
+  btn.disabled = true;
+  machine.classList.remove('win');
+  msg.textContent = 'Good luck…';
+  spins++;
+  // Every few spins, and the first time, the reels are kind.
+  const lucky = spins === 1 || Math.random() < 0.28;
+  const results = lucky ? Array(3).fill(Math.random() < 0.5 ? 0 : Math.floor(Math.random() * SYMBOLS.length)) : SYMBOLS.map((_, k) => k).sort(() => Math.random() - 0.5).slice(0, 3);
+  const h = symH();
+  let done = 0;
+  reels.forEach((strip, i) => {
+    // Keep the symbol showing now at the top, a fresh run below it, and the
+    // result at the bottom; then run from the top to the bottom.
+    const showing = strips[i][LEN - 1];
+    strips[i] = [showing, ...Array.from({ length: LEN - 2 }, () => Math.floor(Math.random() * SYMBOLS.length)), results[i]];
+    paint(i);
+    strip.style.transition = 'none';
+    strip.style.transform = 'translateY(0)';
+    void strip.offsetHeight;
+    strip.classList.add('blur');
+    const ms = 1400 + i * 450;
+    strip.style.transition = `transform ${ms}ms cubic-bezier(.12,.75,.18,1.02)`;
+    strip.style.transform = `translateY(${-(LEN - 1) * h}px)`;
+    setTimeout(() => strip.classList.remove('blur'), ms - 350);
+    setTimeout(() => {
+      done++;
+      if (done < 3) return;
+      btn.disabled = false;
+      const win = results[0] === results[1] && results[1] === results[2];
+      if (win) {
+        machine.classList.add('win');
+        msg.textContent = results[0] === 0 ? 'Triple sevens! Imagine that inside.' : 'Three of a kind! The real machines pay like this.';
+        burst();
+      } else {
+        msg.textContent = ['So close. The real reels are inside.', 'Not this time. Try again?', 'The house thanks you. Spin again?'][spins % 3];
+      }
+    }, ms + 30);
+  });
+});
+
+// Confetti in the casino's colours, from the machine.
+function burst() {
+  if (STILL) return;
+  const r = machine.getBoundingClientRect();
+  const colors = ['#ffcf5a', '#ff2e93', '#29e7ff', '#8b5cff', '#fff1c4'];
+  for (let i = 0; i < 90; i++) {
+    const p = document.createElement('i');
+    p.className = 'confetti';
+    p.style.background = colors[i % colors.length];
+    document.body.appendChild(p);
+    const x0 = r.left + r.width / 2, y0 = r.top + r.height * 0.35;
+    const a = Math.random() * Math.PI * 2, v = 6 + Math.random() * 10;
+    let x = x0, y = y0, vx = Math.cos(a) * v, vy = Math.sin(a) * v - 8, rot = Math.random() * 360, life = 0;
+    const tick = () => {
+      life++; vy += 0.45; vx *= 0.985; x += vx; y += vy; rot += 12;
+      p.style.transform = `translate(${x}px, ${y}px) rotate(${rot}deg)`;
+      p.style.opacity = String(Math.max(0, 1 - life / 110));
+      if (life < 110) requestAnimationFrame(tick); else p.remove();
+    };
+    requestAnimationFrame(tick);
+  }
+}
