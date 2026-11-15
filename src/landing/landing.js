@@ -8,6 +8,10 @@ import qrcode from 'qrcode-generator';
 const APK = 'https://github.com/Nvgr-Casino/NVGR-Blackjack/releases/download/android/NVGR-Casino.apk';
 const STILL = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+// Always the secure address: a visit to http://nvgrcasino.com moves to
+// https (GitHub Pages' "Enforce HTTPS" does the same at the server).
+if (location.protocol === 'http:' && location.hostname.endsWith('nvgrcasino.com')) location.replace('https://' + location.host + location.pathname + location.search + location.hash);
+
 // An invite link from before the game moved to /play/ (…/?room=CODE)
 // still takes you to that table.
 if (/[?&]room=/.test(location.search)) location.replace('./play/' + location.search);

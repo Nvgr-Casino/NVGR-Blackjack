@@ -363,3 +363,19 @@ footer p { max-width: 620px; margin: 0 auto 8px; }
   .stage-card h3 { font-size: 36px; margin: 8px 0 6px; }
   .stage-card p { font-size: 14px; }
 }
+
+/* ---------- the hero on a phone ----------
+   The 3D floats in the top half, around the headline; the paragraph and
+   buttons sit below it over a dark fade, in brighter, larger type, so
+   nothing passes behind the words. */
+@media (max-width: 760px) {
+  .hero { align-items: end; }
+  .hero-vignette { background: linear-gradient(180deg, rgba(7, 7, 8, 0.55) 0%, rgba(7, 7, 8, 0) 18%, rgba(7, 7, 8, 0) 34%, rgba(7, 7, 8, 0.86) 50%, var(--bg) 62%); }
+  .hero-body { padding: 96px 20px 70px; }
+  .pill { font-size: 10px; letter-spacing: 0.18em; padding: 7px 12px 7px 10px; }
+  .headline { font-size: clamp(38px, 11.5vw, 54px); margin: 18px 0 18px; }
+  .headline .serif { display: inline-block; font-size: 1.22em; margin-top: 0.04em; }
+  .lede { color: #f1ebde; font-size: 17px; line-height: 1.6; text-shadow: none; margin-bottom: 26px; }
+  .fine { color: rgba(236, 230, 215, 0.62); }
+  .scroll-cue { display: none; }
+}

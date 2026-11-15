@@ -89,7 +89,9 @@ export function startHero(canvas) {
     const z = rand(-6, 2.5);
     // (Distant ones further out too: perspective pulls them toward the middle.)
     const x = side * (rand(SMALL ? 1.8 : 3.8, SMALL ? 4.2 : 8.5) * (12 - z) / 12 + Math.max(0, z) * 0.6);
-    f.home = new THREE.Vector3(x, rand(-2.4, 3.4), z);
+    // On a phone the words sit in the lower half of the screen, over a dark
+    // fade; the pieces float in the upper half, around the headline.
+    f.home = new THREE.Vector3(x, SMALL ? rand(1.2, 5.2) : rand(-2.4, 3.4), z);
     f.obj.position.copy(f.home);
     f.obj.rotation.set(rand(0, Math.PI), rand(0, Math.PI), rand(0, Math.PI));
     f.bob = rand(0, Math.PI * 2);
