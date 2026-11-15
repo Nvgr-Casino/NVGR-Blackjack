@@ -1,4 +1,5 @@
-// The front page of nvgrcasino.com: the 3D hero, everything that moves as
+// The front page of nvgrcasino.com: the 3D hero, the scroll-played hand of
+// blackjack, everything that moves as
 // you scroll, the playable slot, the QR code to the APK and the latest
 // build's details.
 import './landing.css';
@@ -202,4 +203,58 @@ function burst() {
     };
     requestAnimationFrame(tick);
   }
+}
+
+// ---------- the story: a hand of blackjack, played by scrolling ----------
+const story = document.getElementById('story');
+const steps = [...story.querySelectorAll('.story-steps li')];
+const storyPin = story.querySelector('.story-pin');
+function storyProgress(p) {
+  storyPin.style.setProperty('--p', p.toFixed(4));
+  // The win banner rises with the winnings.
+  const w = Math.max(0, Math.min(1, (p - 0.8) / 0.08));
+  storyPin.style.setProperty('--win', w.toFixed(3));
+  story.classList.toggle('started', p > 0.02);
+  let on = 0;
+  steps.forEach((li, i) => { if (p >= Number(li.dataset.at)) on = i; });
+  steps.forEach((li, i) => { li.classList.toggle('on', i === on); li.classList.toggle('past', i < on); });
+}
+storyProgress(0);
+// Built when it comes near, so the page opens fast.
+new IntersectionObserver(([e], obs) => {
+  if (!e.isIntersecting) return;
+  obs.disconnect();
+  import('./story3d.js').then(({ startStory }) => startStory(document.getElementById('story3d'), storyProgress)).catch(() => { /* captions still read */ });
+}, { rootMargin: '600px 0px' }).observe(story);
+
+// ---------- headings decode into place ----------
+const GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789♠♥♦♣';
+function decode(el) {
+  const node = [...el.childNodes].reverse().find((n) => n.nodeType === 3 && n.textContent.trim());
+  if (!node || STILL) return;
+  const final = node.textContent;
+  const t0 = performance.now(), ms = 900;
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / ms);
+    const fixed = Math.floor(final.length * k);
+    node.textContent = final.slice(0, fixed) + final.slice(fixed).replace(/[^\s.,']/g, () => GLYPHS[Math.floor(Math.random() * GLYPHS.length)]);
+    if (k < 1) requestAnimationFrame(step); else node.textContent = final;
+  };
+  requestAnimationFrame(step);
+}
+const decoder = new IntersectionObserver((entries) => {
+  entries.forEach((e) => { if (e.isIntersecting) { decoder.unobserve(e.target); setTimeout(() => decode(e.target), 150); } });
+}, { threshold: 0.6 });
+document.querySelectorAll('.title').forEach((el) => decoder.observe(el));
+
+// ---------- buttons lean toward the pointer ----------
+if (window.matchMedia('(hover: hover)').matches && !STILL) {
+  document.querySelectorAll('.btn-neon, .btn-glass, .nav-play, .btn-spin').forEach((b) => {
+    b.addEventListener('pointermove', (e) => {
+      const r = b.getBoundingClientRect();
+      const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+      b.style.transform = `translate(${dx * 0.18}px, ${dy * 0.28}px)`;
+    });
+    b.addEventListener('pointerleave', () => { b.style.transform = ''; });
+  });
 }

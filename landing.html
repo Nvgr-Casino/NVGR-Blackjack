@@ -5,10 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#05030a" />
   <title>NVGR Casino: blackjack, poker, roulette and slots in 3D</title>
-  <meta name="description" content="NVGR Casino: a 3D casino with live tables and slot machines. Free play chips, no real money. Now in testing; download the Android app or play in your browser." />
+  <meta name="description" content="NVGR Casino is a free-to-play 3D social casino game: blackjack, Texas Hold'em, roulette, baccarat, craps and slots. Host tables for friends and talk over voice chat. Play chips only, no real money. Get the Android app or play in your browser." />
   <meta property="og:title" content="NVGR Casino" />
   <meta property="og:description" content="A 3D casino with live tables and slot machines. Now in testing: get the Android app." />
   <meta property="og:image" content="https://nvgrcasino.com/site/floor.webp" />
+  <meta property="og:url" content="https://nvgrcasino.com/" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="canonical" href="https://nvgrcasino.com/" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      { "@type": "WebSite", "name": "NVGR Casino", "url": "https://nvgrcasino.com/" },
+      { "@type": "VideoGame", "name": "NVGR Casino", "url": "https://nvgrcasino.com/",
+        "description": "A free-to-play 3D social casino game: blackjack, Texas Hold'em, roulette, baccarat, craps and slot machines, with private tables and voice chat for friends. Play chips only, no real money.",
+        "genre": ["Casino", "Card game", "Social"], "gamePlatform": ["Web browser", "Android"], "applicationCategory": "Game",
+        "playMode": ["MultiPlayer", "SinglePlayer"], "image": "https://nvgrcasino.com/site/floor.webp",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" } }
+    ]
+  }
+  </script>
   <link rel="icon" type="image/png" href="./src/assets/nvgr-mark.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -22,7 +39,9 @@
   <nav class="nav" id="nav">
     <a href="#top" class="nav-brand"><img src="./src/assets/nvgr-mark.png" alt="NVGR Casino" /><span>NVGR<em>CASINO</em></span></a>
     <div class="nav-links">
+      <a href="#story">How it plays</a>
       <a href="#games">Games</a>
+      <a href="#together">With friends</a>
       <a href="#spin">Try a spin</a>
       <a href="#install">Install</a>
     </div>
@@ -39,7 +58,7 @@
         <span class="line"><span>The casino</span></span>
         <span class="line"><span class="holo">of the future.</span></span>
       </h1>
-      <p class="lede reveal">Blackjack, Texas Hold'em, roulette, baccarat, craps and six slot machines, in a 3D casino above the city lights. Play friends at live tables, or spin on your own.</p>
+      <p class="lede reveal">Pull up a leather chair high above the city lights. Blackjack, Hold'em, roulette, baccarat, craps and six dazzling slot machines, all in breathtaking 3D. Host a table for your friends, talk over voice chat, and play until sunrise.</p>
       <div class="cta reveal">
         <a class="btn-neon" id="apkBtn" href="https://github.com/Nvgr-Casino/NVGR-Blackjack/releases/download/android/NVGR-Casino.apk">
           <span class="btn-neon-inner">
@@ -71,13 +90,59 @@
       <div class="stat reveal"><b data-count="0" data-prefix="$">$0</b><span>real money, ever</span></div>
     </section>
 
+    <section class="story" id="story" aria-label="How a hand of blackjack plays">
+      <div class="story-pin">
+        <canvas class="story-3d" id="story3d" aria-hidden="true"></canvas>
+        <div class="story-shade" aria-hidden="true"></div>
+        <ol class="story-steps">
+          <li data-at="0"><span class="n">01</span><div><b>Take your seat.</b><p>Step onto the floor and choose your table. The felt is black, the trim is gold, and the dealer is waiting for you.</p></div></li>
+          <li data-at="0.22"><span class="n">02</span><div><b>Place your bet.</b><p>Stack your chips in the circle. Everyone starts with 100,000 free chips. Go big or play it cool.</p></div></li>
+          <li data-at="0.42"><span class="n">03</span><div><b>Watch the deal.</b><p>Every card slides off the shoe, glides across the felt and flips over, just like at a real table.</p></div></li>
+          <li data-at="0.78"><span class="n">04</span><div><b>Blackjack.</b><p>An ace and a king. Twenty-one. Blackjack pays 3 to 2, and the chips slide straight to you.</p></div></li>
+        </ol>
+        <div class="story-21" aria-hidden="true"><span>Blackjack</span><small>pays 3 to 2</small></div>
+        <div class="story-bar" aria-hidden="true"><i></i></div>
+        <span class="story-hint" aria-hidden="true">Scroll to play the hand</span>
+      </div>
+    </section>
+
     <section class="games" id="games">
       <h2 class="title reveal"><span class="eyebrow">The floor</span>Pull up a chair.</h2>
       <div class="cards">
-        <article class="card tilt reveal"><div class="card-img"><img src="/site/blackjack.webp" alt="A blackjack table with a dealer and players" loading="lazy" /></div><div class="card-body"><span class="tag">Live tables</span><h3>Blackjack</h3><p>A dealer who deals like a real one: splits, doubles, insurance, and tournaments.</p></div><i class="sheen"></i></article>
-        <article class="card tilt reveal"><div class="card-img"><img src="/site/holdem.webp" alt="A Texas Hold'em poker table" loading="lazy" /></div><div class="card-body"><span class="tag">With friends</span><h3>Texas Hold'em</h3><p>Your own table for your friends, or practise against the house's players.</p></div><i class="sheen"></i></article>
-        <article class="card tilt reveal"><div class="card-img"><img src="/site/roulette.webp" alt="A gold and black roulette wheel" loading="lazy" /></div><div class="card-body"><span class="tag">Gold wheel</span><h3>Roulette</h3><p>Watch the ball run round a gold wheel, with every bet on the layout.</p></div><i class="sheen"></i></article>
-        <article class="card tilt reveal"><div class="card-img"><img src="/site/baccarat.webp" alt="A baccarat table" loading="lazy" /></div><div class="card-body"><span class="tag">Classics</span><h3>Baccarat &amp; craps</h3><p>Player, banker or tie, then the pass line, odds and hard ways at the dice.</p></div><i class="sheen"></i></article>
+        <article class="card tilt reveal"><div class="card-img"><img src="/site/blackjack.webp" alt="A blackjack table with a dealer and players" loading="lazy" /></div><div class="card-body"><span class="tag">Live tables</span><h3>Blackjack</h3><p>Feel the tension of every card. Split, double down, buy insurance, and battle it out in tournaments.</p></div><i class="sheen"></i></article>
+        <article class="card tilt reveal"><div class="card-img"><img src="/site/holdem.webp" alt="A Texas Hold'em poker table" loading="lazy" /></div><div class="card-body"><span class="tag">With friends</span><h3>Texas Hold'em</h3><p>Read the table, push all-in, and watch your friends sweat. Bluffing has never looked this good.</p></div><i class="sheen"></i></article>
+        <article class="card tilt reveal"><div class="card-img"><img src="/site/roulette.webp" alt="A gold and black roulette wheel" loading="lazy" /></div><div class="card-body"><span class="tag">Gold wheel</span><h3>Roulette</h3><p>A gleaming gold wheel, a ball that races and rattles, and every bet on the layout. Red or black?</p></div><i class="sheen"></i></article>
+        <article class="card tilt reveal"><div class="card-img"><img src="/site/baccarat.webp" alt="A baccarat table" loading="lazy" /></div><div class="card-body"><span class="tag">Classics</span><h3>Baccarat &amp; craps</h3><p>Back the banker, ride the player, then roll the dice and chase the hard ways at craps.</p></div><i class="sheen"></i></article>
+      </div>
+    </section>
+
+    <section class="together" id="together">
+      <h2 class="title reveal"><span class="eyebrow">Better with friends</span>Your table. Your crew.</h2>
+      <div class="together-grid">
+        <article class="feat reveal">
+          <div class="feat-art invite" aria-hidden="true">
+            <div class="invite-card"><small>Private table</small><b>NV-7K2Q</b><span>Tap to join</span></div>
+            <i class="ping"></i><i class="ping two"></i>
+          </div>
+          <h3>Host your own table</h3>
+          <p>Open a private table in a tap, send your friends the code or the link, and they're sitting beside you in seconds.</p>
+        </article>
+        <article class="feat reveal">
+          <div class="feat-art voice" aria-hidden="true">
+            <div class="wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="mic"><svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0M12 17v4m-3 0h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+          </div>
+          <h3>Talk while you play</h3>
+          <p>Voice chat at every table. Hear the groan when the dealer hits 21 and the roar when your friend lands the jackpot.</p>
+        </article>
+        <article class="feat reveal">
+          <div class="feat-art friends" aria-hidden="true">
+            <div class="faces"><span>A</span><span>M</span><span>R</span><span>K</span></div>
+            <div class="msg"><i></i> Maya: <em>save me a seat!</em></div>
+          </div>
+          <h3>Friends &amp; messages</h3>
+          <p>Add friends, see who's online right now, send a message and pull them straight to your table.</p>
+        </article>
       </div>
     </section>
 
@@ -122,6 +187,7 @@
     <section class="final reveal">
       <div class="final-orb" aria-hidden="true"></div>
       <h2>Your seat is waiting.</h2>
+      <p class="final-sub">Bring your friends. The table is open all night.</p>
       <div class="cta">
         <a class="btn-neon" href="https://github.com/Nvgr-Casino/NVGR-Blackjack/releases/download/android/NVGR-Casino.apk">
           <span class="btn-neon-inner">
@@ -137,7 +203,7 @@
 
   <footer>
     <img src="./src/assets/nvgr-mark.png" alt="" />
-    <p>NVGR Casino is a free-to-play social casino. Chips have no cash value and can't be bought, sold or exchanged for anything. For players 18 and over.</p>
+    <p>NVGR Casino is an independent, free-to-play social casino game. Chips have no cash value and can't be bought, sold or exchanged for anything. There is no real-money gambling, and NVGR Casino is not affiliated with any real-money casino or gambling operator. For players 18 and over.</p>
     <p class="copy">© <span id="year">2026</span> NVGR Casino · nvgrcasino.com</p>
   </footer>
   <script type="module" src="/src/landing/landing.js"></script>
