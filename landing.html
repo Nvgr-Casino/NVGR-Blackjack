@@ -42,6 +42,7 @@
       <a href="#story">How it plays</a>
       <a href="#games">Games</a>
       <a href="#together">With friends</a>
+      <a href="#feedback">Feedback</a>
       <a href="#spin">Try a spin</a>
       <a href="#install">Install</a>
     </div>
@@ -173,6 +174,26 @@
       </div>
     </section>
 
+    <section class="pilots" id="pilots">
+      <h2 class="title reveal"><span class="eyebrow">Choose your side</span>Android or iPhone?</h2>
+      <div class="pilots-grid">
+        <article class="pilot reveal">
+          <span class="pilot-badge">Test pilots wanted</span>
+          <div class="pilot-icon" aria-hidden="true">🤖</div>
+          <h3>Android: you're our test pilots.</h3>
+          <p>Grab the app, play hard, break things on purpose, and tell us what happened. Every bug you find makes the casino better before launch. You'll also get to say you were here first.</p>
+          <a class="btn-glass small" href="#install">How to install <span aria-hidden="true">→</span></a>
+        </article>
+        <article class="pilot reveal">
+          <span class="pilot-badge soft">Coming soon</span>
+          <div class="pilot-icon" aria-hidden="true">🍏</div>
+          <h3>iPhone: hold that thought.</h3>
+          <p>The App Store version is on its way, we promise. In the meantime, the whole casino runs right in Safari, no download needed. Tap below and pull up a chair.</p>
+          <a class="btn-glass small" href="./play/">Play in Safari <span aria-hidden="true">→</span></a>
+        </article>
+      </div>
+    </section>
+
     <section class="install" id="install">
       <h2 class="title reveal"><span class="eyebrow">Android</span>Installed in a minute.</h2>
       <ol class="timeline">
@@ -182,6 +203,36 @@
         <i class="timeline-line" aria-hidden="true"><i></i></i>
       </ol>
       <p class="install-note reveal">Android may warn that the app is from an unknown developer. That's normal for an app installed outside Google Play during testing.</p>
+    </section>
+
+    <section class="feedback" id="feedback">
+      <h2 class="title reveal"><span class="eyebrow">The house is listening</span>What should we build next?</h2>
+      <form class="fb reveal" id="fbForm" novalidate>
+        <p class="fb-lead">Pick everything you'd love to see. Go wild; we read every single one.</p>
+        <div class="fb-chips" role="group" aria-label="Ideas">
+          <label><input type="checkbox" name="idea" value="Daily bonus wheel" /><span>🎡 Daily bonus wheel</span></label>
+          <label><input type="checkbox" name="idea" value="Poker tournaments" /><span>🏆 Poker tournaments</span></label>
+          <label><input type="checkbox" name="idea" value="More slot machines" /><span>🎰 More slot machines</span></label>
+          <label><input type="checkbox" name="idea" value="Leaderboards" /><span>📈 Leaderboards</span></label>
+          <label><input type="checkbox" name="idea" value="Avatars and outfits" /><span>🕴 Avatars &amp; outfits</span></label>
+          <label><input type="checkbox" name="idea" value="Emotes and table reactions" /><span>😂 Emotes at the table</span></label>
+          <label><input type="checkbox" name="idea" value="Clubs and crews" /><span>🤝 Clubs &amp; crews</span></label>
+          <label><input type="checkbox" name="idea" value="Achievements and trophies" /><span>🎖 Achievements</span></label>
+          <label><input type="checkbox" name="idea" value="VIP lounge levels" /><span>💎 VIP lounge levels</span></label>
+          <label><input type="checkbox" name="idea" value="Spectate tables" /><span>👀 Watch live tables</span></label>
+          <label><input type="checkbox" name="idea" value="Three Card Poker" /><span>🃏 Three Card Poker</span></label>
+          <label><input type="checkbox" name="idea" value="Sic Bo" /><span>🎲 Sic Bo</span></label>
+        </div>
+        <label class="fb-field"><span>Anything else? Ideas, bugs, wild dreams…</span>
+          <textarea name="note" rows="4" maxlength="2000" placeholder="I'd love a rooftop table where…"></textarea></label>
+        <div class="fb-row">
+          <label class="fb-field"><span>Your name (optional)</span><input name="name" maxlength="60" placeholder="High roller" /></label>
+          <label class="fb-field"><span>Playing on</span>
+            <select name="device"><option>Android app</option><option>iPhone (browser)</option><option>Computer</option><option>Other</option></select></label>
+        </div>
+        <button class="btn-spin fb-send" type="submit">Send to the house</button>
+        <p class="fb-done" id="fbDone" aria-live="polite"></p>
+      </form>
     </section>
 
     <section class="final reveal">

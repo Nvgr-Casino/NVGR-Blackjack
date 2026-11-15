@@ -258,3 +258,45 @@ if (window.matchMedia('(hover: hover)').matches && !STILL) {
     b.addEventListener('pointerleave', () => { b.style.transform = ''; });
   });
 }
+
+// ---------- feedback: composed into an email to the house ----------
+const FEEDBACK_TO = 'feedback@nvgrcasino.com';
+const fb = document.getElementById('fbForm');
+fb.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const data = new FormData(fb);
+  const ideas = data.getAll('idea');
+  const note = String(data.get('note') || '').trim();
+  const done = document.getElementById('fbDone');
+  if (!ideas.length && !note) { done.textContent = 'Pick an idea or write us a line first. We\'re all ears.'; return; }
+  const name = String(data.get('name') || '').trim();
+  const body = [
+    ideas.length ? `I'd love to see:\n- ${ideas.join('\n- ')}` : '',
+    note ? `\nMore:\n${note}` : '',
+    `\nPlaying on: ${data.get('device')}`,
+    name ? `From: ${name}` : '',
+  ].filter(Boolean).join('\n');
+  location.href = `mailto:${FEEDBACK_TO}?subject=${encodeURIComponent('NVGR Casino feedback' + (name ? ' from ' + name : ''))}&body=${encodeURIComponent(body)}`;
+  done.textContent = 'Your email app should open with it all filled in. Hit send, and thank you!';
+  burstFrom(fb.querySelector('.fb-send'));
+});
+// Gold leaf from the button, as at the slot.
+function burstFrom(el) {
+  if (STILL) return;
+  const r = el.getBoundingClientRect();
+  const colors = ['#d9b56a', '#f6e6bd', '#b08a45', '#ffffff'];
+  for (let i = 0; i < 50; i++) {
+    const p = document.createElement('i');
+    p.className = 'confetti';
+    p.style.background = colors[i % colors.length];
+    document.body.appendChild(p);
+    let x = r.left + r.width / 2, y = r.top, vx = (Math.random() - 0.5) * 12, vy = -6 - Math.random() * 9, rot = 0, life = 0;
+    const tick = () => {
+      life++; vy += 0.4; x += vx; y += vy; rot += 14;
+      p.style.transform = `translate(${x}px, ${y}px) rotate(${rot}deg)`;
+      p.style.opacity = String(Math.max(0, 1 - life / 90));
+      if (life < 90) requestAnimationFrame(tick); else p.remove();
+    };
+    requestAnimationFrame(tick);
+  }
+}

@@ -297,3 +297,39 @@ footer p { max-width: 620px; margin: 0 auto 8px; }
   .story-21 { left: 50%; top: 18%; }
   .story-hint { display: none; }
 }
+
+/* ---------- Android or iPhone ---------- */
+.pilots-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.pilot { position: relative; padding: 34px 30px 30px; border-radius: 26px; overflow: hidden; background: linear-gradient(160deg, rgba(36, 32, 26, 0.9), rgba(11, 11, 12, 0.95)); border: 1px solid var(--line); transition: transform 0.4s cubic-bezier(.16,1,.3,1), border-color 0.4s, opacity 0.9s, filter 0.9s; }
+.pilot:hover { transform: translateY(-6px) rotate(-0.4deg); border-color: rgba(217, 181, 106, 0.5); }
+.pilot:nth-child(2):hover { transform: translateY(-6px) rotate(0.4deg); }
+.pilot-badge { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: #140e05; background: var(--gold); padding: 5px 12px; border-radius: 999px; }
+.pilot-badge.soft { color: var(--gold-hi); background: transparent; border: 1px solid rgba(217, 181, 106, 0.5); }
+.pilot-icon { position: absolute; right: 22px; top: 18px; font-size: 64px; filter: grayscale(0.2) drop-shadow(0 10px 20px rgba(0, 0, 0, 0.6)); animation: float 5s ease-in-out infinite; }
+.pilot:nth-child(2) .pilot-icon { animation-delay: -2.5s; }
+.pilot h3 { font: 800 clamp(22px, 2.4vw, 28px)/1.15 var(--display); margin: 22px 0 10px; max-width: 85%; }
+.pilot p { color: var(--muted); margin: 0 0 22px; }
+.btn-glass.small { display: inline-block; padding: 11px 18px; font-size: 14px; border-radius: 12px; }
+
+/* ---------- feedback ---------- */
+.fb { max-width: 860px; margin: 0 auto; padding: 34px clamp(20px, 4vw, 44px); border-radius: 28px; background: rgba(15, 14, 13, 0.85); border: 1px solid var(--line); }
+.fb-lead { margin: 0 0 20px; color: var(--muted); text-align: center; }
+.fb-chips { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 26px; }
+.fb-chips label { cursor: pointer; }
+.fb-chips input { position: absolute; opacity: 0; pointer-events: none; }
+.fb-chips span { display: inline-block; padding: 10px 16px; border-radius: 999px; font-size: 14px; font-weight: 600; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.03); transition: transform 0.2s, background 0.2s, border-color 0.2s, color 0.2s; user-select: none; }
+.fb-chips label:hover span { transform: translateY(-2px); border-color: rgba(217, 181, 106, 0.5); }
+.fb-chips input:checked + span { background: var(--gold); color: #140e05; border-color: var(--gold); transform: scale(1.05); box-shadow: 0 8px 24px rgba(217, 181, 106, 0.3); }
+.fb-chips input:focus-visible + span { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
+.fb-field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; font-size: 14px; color: var(--muted); flex: 1; }
+.fb-field textarea, .fb-field input, .fb-field select { font: inherit; font-size: 16px; color: var(--text); background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 14px; padding: 12px 14px; resize: vertical; transition: border-color 0.2s, background 0.2s; }
+.fb-field select option { background: #141312; }
+.fb-field textarea:focus, .fb-field input:focus, .fb-field select:focus { outline: none; border-color: var(--gold); background: rgba(217, 181, 106, 0.06); }
+.fb-row { display: flex; gap: 14px; }
+.fb-send { display: block; margin: 10px auto 0; letter-spacing: 0.12em; padding: 16px 40px; font-size: 15px; }
+.fb-done { text-align: center; min-height: 1.4em; margin: 16px 0 0; color: var(--gold-hi); font-weight: 600; }
+
+@media (max-width: 760px) {
+  .pilots-grid { grid-template-columns: 1fr; }
+  .fb-row { flex-direction: column; gap: 0; }
+}
