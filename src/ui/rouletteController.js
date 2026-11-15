@@ -7,6 +7,7 @@ import { isTallScreen } from '../scene/seats.js';
 import { m, FLOOR_Y, SEAT_TOP_Y } from '../scene/scale.js';
 import { seatStack, CHIP_R, CHIP_H } from '../scene/seatChips.js';
 import { ROULETTE_SEATS_3D as SEATS, ROULETTE_LOOK, WHEEL_CENTER, WHEEL_RADIUS, spotWorld } from '../scene/rouletteTable.js';
+import { applyViewOffset } from './dockOffset.js';
 
 // The roulette table's 3D driver: who sits where, the chips on the layout
 // and before each seat, the camera, and the wheel. src/app/rouletteBridge.js
@@ -56,13 +57,8 @@ export function createRouletteDriver({ scene, camera, controls, set, table }) {
   // its height, and that is kept under the lift.)
   let lift = 0;
   let liftTarget = 0;
-  function applyOffset() {
-    const w = window.innerWidth, h = window.innerHeight;
-    const y = ((camera.aspect < 1 ? 0.07 : 0) + lift) * h;
-    if (y) camera.setViewOffset(w, h, 0, y, w, h);
-    else camera.clearViewOffset();
-    camera.updateProjectionMatrix();
-  }
+  // Lifted, or on a phone on its side slid left beside the board (dockOffset.js).
+  function applyOffset() { applyViewOffset(camera, lift); }
   function setLift(v) { liftTarget = v; }
   const prior = scene.onBeforeRender;
   scene.onBeforeRender = (...args) => {

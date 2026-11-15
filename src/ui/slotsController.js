@@ -30,8 +30,15 @@ export function createSlotsDriver({ scene, camera, controls, renderer, set, salo
     const wheel = !!salon.userData.machine.userData.game.wheel;
     const y0 = tall ? 0.86 : 0.74, y1 = wheel ? (tall ? 2.48 : 2.5) : (tall ? 1.84 : 1.86);
     const halfW = tall ? 0.39 : 0.6;
-    // How much of the screen's height the dock covers.
-    const dock = tall ? 0.3 : 0.17;
+    // How much of the screen's height the dock covers: measured where it is
+    // on screen (a phone on its side gives it far more of the height than a
+    // monitor does), or a typical share before it has been drawn.
+    let dock = tall ? 0.3 : 0.17;
+    const panel = document.querySelector('.hud-dock .dock-panel');
+    if (panel && innerHeight) {
+      const top = panel.getBoundingClientRect().top;
+      if (top > 0 && top < innerHeight) dock = Math.min(0.5, Math.max(0.1, (innerHeight - top) / innerHeight + 0.02));
+    }
     const vfov = (camera.fov * Math.PI) / 180;
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * aspect);
     const halfH = (y1 - y0) / 2 / (1 - dock);
@@ -82,6 +89,9 @@ export function createSlotsDriver({ scene, camera, controls, renderer, set, salo
     camera.clearViewOffset();
     camera.updateProjectionMatrix();
     fly(false);
+    // Once the dock is on screen, framed again around its real height.
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (seated) fly(false); }));
+    setTimeout(() => { if (seated) fly(false); }, 400);
   }
   function stand() {
     if (!seated) return;

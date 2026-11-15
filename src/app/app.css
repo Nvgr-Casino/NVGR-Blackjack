@@ -1593,6 +1593,23 @@ input:focus { outline: none; border-color: var(--accent); }
   .sl-chip { min-width: 0; padding: 5px 10px; font-size: 11px; }
 }
 
+/* A phone on its side: the panel in one slim row, the side buttons two by
+   two and a smaller Spin, so the reels above it stay in view. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .hud-dock .dock-panel.sl-dock { gap: 12px; padding: 6px 14px; border-radius: 16px; }
+  .sl-meter { min-width: 78px; }
+  .sl-meter b { font-size: 17px; }
+  .sl-bet { gap: 6px; }
+  .sl-bet-val { min-width: 70px; }
+  .sl-bet-val b { font-size: 16px; }
+  .sl-step { width: 30px; height: 30px; font-size: 17px; }
+  .sl-spin { width: 60px; height: 60px; }
+  .sl-spin span { font-size: 14px; }
+  .sl-spin.spinning::after { inset: 15px; border-width: 3px; }
+  .sl-side { display: grid; grid-template-columns: auto auto; gap: 4px; }
+  .sl-chip { min-width: 0; padding: 4px 10px; font-size: 11px; }
+}
+
 /* The big-win celebration across the screen. */
 .sl-banner {
   position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; overflow: hidden;
@@ -1719,3 +1736,39 @@ input:focus { outline: none; border-color: var(--accent); }
 /* The music's credit, under every game's rules. */
 .rg-credit { margin: 0; padding: 10px 22px 0; font-size: 11px; color: rgba(243, 223, 174, 0.5); }
 .rg-credit a { color: inherit; }
+
+/* A phone on its side: roulette, baccarat and craps boards dock to the
+   right edge below the top bar, scrolling if they must, and the 3D view
+   slides left beside them (src/ui/dockOffset.js). */
+@media (orientation: landscape) and (max-height: 520px) {
+  .hud-dock .dock-panel.rl-dock,
+  .hud-dock .dock-panel.bc-dock,
+  .hud-dock .dock-panel.cr-dock {
+    position: fixed; right: max(10px, env(safe-area-inset-right, 0px)); top: calc(50px + env(safe-area-inset-top, 0px)); bottom: auto; max-height: calc(100vh - 54px - env(safe-area-inset-top, 0px));
+    width: min(48vw, 370px); min-width: 0; max-width: none; margin: 0; overflow-y: auto; overscroll-behavior: contain;
+    padding: 6px 10px 8px;
+  }
+  :is(.rl-dock, .bc-dock, .cr-dock) .dock-head { margin-bottom: 2px; font-size: 12px; }
+  :is(.rl-dock, .bc-dock, .cr-dock) .dock-head .dock-balance b { font-size: 16px; }
+  :is(.rl-dock, .bc-dock, .cr-dock) .chip-row { gap: 6px; margin: 4px 0; }
+  :is(.rl-dock, .bc-dock, .cr-dock) .chip-row > * { width: 34px; height: 34px; }
+  :is(.rl-dock, .bc-dock, .cr-dock) .dock-actions .btn { padding-top: 6px; padding-bottom: 6px; font-size: 13px; }
+  /* The table's status, in the free corner of the picture beside the board. */
+  .wrap.on-table:has(.rl-dock, .bc-dock, .cr-dock) .hud-status { top: auto; bottom: 12px; left: 12px; right: auto; transform: none; }
+}
+
+/* Sign-in on a phone on its side: the crest and line on the left, the form
+   on the right, all of it on one screen with nothing to scroll. */
+@media (orientation: landscape) and (max-height: 520px) {
+  main.auth { display: grid; grid-template-columns: 1fr minmax(300px, 380px); grid-template-rows: auto auto auto; column-gap: 28px; align-content: center; align-items: center; min-height: 100vh; min-height: 100svh; padding: 6px max(20px, env(safe-area-inset-right, 0px)) 6px max(20px, env(safe-area-inset-left, 0px)); }
+  main.auth .auth-logo { grid-column: 1; grid-row: 1; width: min(200px, 30vw); justify-self: center; margin: 0; }
+  main.auth .auth-tag { grid-column: 1; grid-row: 2; margin: 6px 0 0; font-size: 13px; }
+  main.auth .fine { grid-column: 1; grid-row: 3; text-align: center; margin: 6px 0 0; }
+  main.auth .auth-panel { grid-column: 2; grid-row: 1 / span 3; padding: 10px 14px; }
+  main.auth .auth-panel .field { margin-bottom: 8px; }
+  main.auth .auth-panel .or { margin: 6px 0; }
+  main.auth .auth-panel .segmented { margin-bottom: 8px; }
+  main.auth .auth-panel .field label { margin-bottom: 3px; font-size: 12px; }
+  main.auth .auth-panel input { padding-top: 8px; padding-bottom: 8px; }
+  main.auth .auth-panel .btn { padding-top: 9px; padding-bottom: 9px; }
+}

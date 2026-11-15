@@ -10,6 +10,7 @@ import { m, FLOOR_Y, SEAT_TOP_Y } from '../scene/scale.js';
 import { seatStack, CHIP_H, CHIP_R } from '../scene/seatChips.js';
 import { BACCARAT_SEATS_3D as SEATS, BACCARAT_LOOK, CARDS_CENTER, CARD_K, betSpot, cardSpot } from '../scene/baccaratTable.js';
 import { revealTimes } from '../baccarat/rules.js';
+import { applyViewOffset } from './dockOffset.js';
 
 // The baccarat table's 3D driver: who sits where, the chips on the boxes
 // and before each seat, the cards, and the camera. src/app/baccaratBridge.js
@@ -127,13 +128,8 @@ export function createBaccaratDriver({ scene, camera, controls, set, table, deal
   // portrait screen's own 7% offset from scene.js is kept under it.)
   let lift = 0;
   let liftTarget = 0;
-  function applyOffset() {
-    const w = window.innerWidth, h = window.innerHeight;
-    const y = ((camera.aspect < 1 ? 0.07 : 0) + lift) * h;
-    if (y) camera.setViewOffset(w, h, 0, y, w, h);
-    else camera.clearViewOffset();
-    camera.updateProjectionMatrix();
-  }
+  // Lifted, or on a phone on its side slid left beside the board (dockOffset.js).
+  function applyOffset() { applyViewOffset(camera, lift); }
   function setLift(v) { liftTarget = v; }
 
   // ---------- frame ----------

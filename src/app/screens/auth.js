@@ -11,7 +11,7 @@ export function renderAuth() {
   return `
     <main class="auth">
       ${brandMark('auth-logo')}
-      <p class="auth-tag">Multiplayer blackjack and Texas Hold'em from NVGR Casino</p>
+      <p class="auth-tag">Blackjack, Hold'em, roulette, baccarat, craps and slots: play with friends, live in 3D</p>
       <section class="panel auth-panel">
         <button class="btn btn-google" id="googleBtn" ${S.authBusy ? 'disabled' : ''}>${GOOGLE_ICON} Continue with Google</button>
         <div class="or">or</div>

@@ -8,6 +8,7 @@ import { m, FLOOR_Y, SEAT_TOP_Y } from '../scene/scale.js';
 import { seatStack, CHIP_R, CHIP_H } from '../scene/seatChips.js';
 import { CRAPS_SEATS_3D as SEATS, CRAPS_LOOK, boardToTable, FELT_D } from '../scene/crapsTable.js';
 import { spotOf } from '../craps/layout.js';
+import { applyViewOffset } from './dockOffset.js';
 
 // The craps table's 3D driver: who sits where, the chips on the layout and
 // in the rail, the dice, the puck, the board, and the camera — which follows
@@ -46,12 +47,8 @@ export function createCrapsDriver({ scene, camera, controls, set, table }) {
   const seg = new THREE.Line3();
   const near = new THREE.Vector3();
   let lift = 0, liftTarget = 0;
-  function applyOffset() {
-    const w = window.innerWidth, h = window.innerHeight;
-    const y = ((camera.aspect < 1 ? 0.07 : 0) + lift) * h;
-    if (y) camera.setViewOffset(w, h, 0, y, w, h); else camera.clearViewOffset();
-    camera.updateProjectionMatrix();
-  }
+  // Lifted, or on a phone on its side slid left beside the board (dockOffset.js).
+  function applyOffset() { applyViewOffset(camera, lift); }
   function setLift(v) { liftTarget = v; }
   const prior = scene.onBeforeRender;
   scene.onBeforeRender = (...args) => {
