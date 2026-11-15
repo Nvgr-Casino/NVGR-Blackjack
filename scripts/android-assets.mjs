@@ -1,11 +1,11 @@
-// The Android app's launcher icons and splash screens. The icons are the
-// Golden Ace art (assets-src/golden-ace-icon.png: an ivory ace of spades
-// with a great gold spade, fanned over a royal-purple card, red, gold and
-// black chips in front, on a ruby sunburst with gold light), as the classic
-// square and round icons and, with the cards drawn smaller so the
-// launcher's mask never clips them, as the adaptive icon's layer. The
-// splash, shown while the game loads, is NVGR Casino's logo on black,
-// before the game's own "NVGR Casino presents" opening.
+// The Android app's launcher icons and splash screens. The icon
+// (assets-src/app-icon.png) is an ivory ace of spades with a great gold
+// spade, fanned over a royal-purple card, red, gold and black chips in
+// front, on a ruby sunburst with gold light: the classic square and round
+// icons from it, and the adaptive icon's layer from a version with the
+// cards drawn smaller (app-icon-adaptive.png) so the launcher's mask never
+// clips them. The splash, shown while the game loads, is NVGR Casino's
+// logo on black, before the game's own "NVGR Casino presents" opening.
 //
 //   node scripts/android-assets.mjs
 import sharp from 'sharp';
@@ -13,8 +13,8 @@ import { readdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 const LOGO = 'src/assets/nvgr-logo.png';
-const ICON = 'assets-src/golden-ace-icon.png';
-const ADAPTIVE = 'assets-src/golden-ace-adaptive.png';
+const ICON = 'assets-src/app-icon.png';
+const ADAPTIVE = 'assets-src/app-icon-adaptive.png';
 const RES = 'android/app/src/main/res';
 const BLACK = { r: 0, g: 0, b: 0, alpha: 1 };
 const DENSITY = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };

@@ -2,14 +2,11 @@
 // nvgr-mark.png is the supplied artwork keyed to real transparency, so it
 // sits cleanly on the dark page.
 import logoUrl from '../assets/nvgr-mark.png';
-import emblemUrl from '../assets/golden-ace-emblem.webp';
 
 export const LOGO_URL = logoUrl;
 
-// The app is Golden Ace Casino, presented by NVGR Casino (platform.js).
+// Running inside the Android app rather than a browser (platform.js).
 export { IN_APP } from '../platform.js';
-export const APP_NAME = 'Golden Ace';
-export const EMBLEM_URL = emblemUrl;
 
 export function brandMark(className = '') {
   return `<img class="brand-mark ${className}" src="${logoUrl}" alt="NVGR Casino">`;

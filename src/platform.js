@@ -1,8 +1,7 @@
 // Where the game is running, decided once for every module.
 //
-// IN_APP: inside the Android app (Capacitor) rather than a browser. The
-// app is Golden Ace Casino, presented by NVGR Casino; the website stays
-// NVGR. (?app=1 shows the app's version in the dev server.)
+// IN_APP: inside the Android app (Capacitor) rather than a browser.
+// (?app=1 shows the app's version in the dev server.)
 //
 // PHONE_LITE: draw the lighter version of the casino (smaller textures, a
 // lower resolution, fewer figures and machines) because the screen is a

@@ -1,6 +1,6 @@
 {
   "appId": "com.nvgr.casino",
-  "appName": "Golden Ace Casino",
+  "appName": "NVGR Casino",
   "webDir": "dist-app",
   "android": {
     "backgroundColor": "#000000"
