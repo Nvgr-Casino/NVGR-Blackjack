@@ -181,11 +181,11 @@ btn.addEventListener('click', () => {
   });
 });
 
-// Confetti in the casino's colours, from the machine.
+// Gold leaf and white, from the machine.
 function burst() {
   if (STILL) return;
   const r = machine.getBoundingClientRect();
-  const colors = ['#ffcf5a', '#ff2e93', '#29e7ff', '#8b5cff', '#fff1c4'];
+  const colors = ['#d9b56a', '#f6e6bd', '#b08a45', '#ffffff', '#8c6c3a'];
   for (let i = 0; i < 90; i++) {
     const p = document.createElement('i');
     p.className = 'confetti';

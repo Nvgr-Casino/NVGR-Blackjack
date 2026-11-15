@@ -1,6 +1,6 @@
 // The front page's hero: casino chips and playing cards drifting in a dark
-// sky over a neon grid that runs to the horizon, lit by gold, magenta and
-// cyan light and softly bloomed. The camera follows the pointer (or the
+// sky over a fine gold grid that runs to the horizon, lit warm and cool
+// white, with motes of gold light. The camera follows the pointer (or the
 // phone's tilt) a little, and the whole scene sinks away as you scroll.
 // It draws only while on screen, and gives up quietly where WebGL can't run.
 import * as THREE from 'three';
@@ -54,10 +54,10 @@ function chipEdge(col, spot) {
 function cardBack() {
   return canvasTex(512, 716, (ctx, w, h) => {
     const g = ctx.createLinearGradient(0, 0, w, h);
-    g.addColorStop(0, '#1a0b3a'); g.addColorStop(0.5, '#3a0d4a'); g.addColorStop(1, '#0a1840');
+    g.addColorStop(0, '#141416'); g.addColorStop(0.5, '#1d1b18'); g.addColorStop(1, '#0b0b0c');
     ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
     ctx.save(); ctx.beginPath(); ctx.roundRect(34, 34, w - 68, h - 68, 22); ctx.clip();
-    ctx.strokeStyle = 'rgba(120,220,255,0.35)'; ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(217,181,106,0.32)'; ctx.lineWidth = 2;
     for (let i = -20; i < 40; i++) {
       ctx.beginPath(); ctx.moveTo(i * 28, 0); ctx.lineTo(i * 28 + h, h); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(i * 28 + h, 0); ctx.lineTo(i * 28, h); ctx.stroke();
@@ -87,19 +87,19 @@ export function startHero(canvas) {
   const camera = new THREE.PerspectiveCamera(SMALL ? 58 : 42, 1, 0.1, 200);
   camera.position.set(0, 1.2, 12);
 
-  // Light: gold from above, magenta and cyan from either side.
-  scene.add(new THREE.AmbientLight(0x6a4cff, 0.25));
-  const key = new THREE.DirectionalLight(0xffe2a8, 1.1); key.position.set(2, 6, 6); scene.add(key);
-  const magenta = new THREE.PointLight(0xff3ea5, 14, 26); magenta.position.set(-7, 1, 3); scene.add(magenta);
-  const cyan = new THREE.PointLight(0x3ef0ff, 14, 26); cyan.position.set(7, -1, 3); scene.add(cyan);
+  // Light: warm gold from above, warm and cool white from either side.
+  scene.add(new THREE.AmbientLight(0x3a3630, 0.35));
+  const key = new THREE.DirectionalLight(0xffe2a8, 0.95); key.position.set(2, 6, 6); scene.add(key);
+  const magenta = new THREE.PointLight(0xffd9a0, 14, 26); magenta.position.set(-7, 1, 3); scene.add(magenta);
+  const cyan = new THREE.PointLight(0xdfe6f2, 12, 26); cyan.position.set(7, -1, 3); scene.add(cyan);
 
-  // The neon grid floor, fading into the fog.
-  const grid = new THREE.GridHelper(160, 80, 0xff3ea5, 0x3a1f7a);
+  // The grid floor, fine gold lines fading into the fog.
+  const grid = new THREE.GridHelper(160, 80, 0x8a6c38, 0x2a2620);
   grid.position.y = -3.2;
   grid.material.transparent = true; grid.material.opacity = 0.8;
   scene.add(grid);
   // A glowing horizon line behind it all.
-  const horizon = new THREE.Mesh(new THREE.PlaneGeometry(200, 0.08), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffb3f0).multiplyScalar(2.5) }));
+  const horizon = new THREE.Mesh(new THREE.PlaneGeometry(200, 0.08), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffe2a8).multiplyScalar(1.6) }));
   horizon.position.set(0, -3.1, -60); scene.add(horizon);
 
   const group = new THREE.Group();
@@ -108,9 +108,10 @@ export function startHero(canvas) {
   const rand = (a, b) => a + Math.random() * (b - a);
 
   // Chips.
+  // Black, ivory, gold and a deep wine: the colours of a high-limit table.
   const CHIPS = [
-    [['#ff4d6d', '#8a0a26'], '#e6dccb'], [['#ffe08a', '#a8761f'], '#7a0a26'],
-    [['#3a3a46', '#08080c'], '#ffd36e'], [['#7a5cff', '#2a1280'], '#ccd8e6'], [['#2ee6ff', '#055a78'], '#d6dde2'],
+    [['#2c2c30', '#070708'], '#d9b56a'], [['#d8ceb6', '#8f846e'], '#1a1a1c'],
+    [['#e8c983', '#8a6a2c'], '#1a1a1c'], [['#6a1626', '#2a0610'], '#c4b89f'], [['#2c2c30', '#070708'], '#c4b89f'],
   ];
   const chipGeo = new THREE.CylinderGeometry(0.62, 0.62, 0.14, 64, 1);
   const chipCount = SMALL ? 9 : 14;
@@ -134,7 +135,7 @@ export function startHero(canvas) {
     faceTex.colorSpace = THREE.SRGBColorSpace; faceTex.anisotropy = 8;
     const edge = new THREE.MeshStandardMaterial({ color: 0xa8996f, roughness: 0.7, envMapIntensity: 0.3 });
     const front = new THREE.MeshStandardMaterial({ map: faceTex, color: 0xd8d2c4, roughness: 0.7, envMapIntensity: 0.25 });
-    const back = new THREE.MeshStandardMaterial({ map: backTex, roughness: 0.6, envMapIntensity: 0.3, emissive: 0x2a0d50, emissiveIntensity: 0.3 });
+    const back = new THREE.MeshStandardMaterial({ map: backTex, roughness: 0.6, envMapIntensity: 0.3, emissive: 0x000000, emissiveIntensity: 0 });
     const card = new THREE.Mesh(cardGeo, [edge, edge, edge, edge, front, back]);
     floaters.push({ obj: card, spin: new THREE.Vector3(rand(-0.4, 0.4), rand(-0.7, 0.7), rand(-0.3, 0.3)) });
   }
@@ -156,7 +157,7 @@ export function startHero(canvas) {
   // Motes of light rising slowly.
   const N = SMALL ? 500 : 1200;
   const pos = new Float32Array(N * 3), col = new Float32Array(N * 3);
-  const palette = [new THREE.Color(0xffd36e), new THREE.Color(0xff3ea5), new THREE.Color(0x3ef0ff), new THREE.Color(0x9a7cff)];
+  const palette = [new THREE.Color(0xffd98a), new THREE.Color(0xfff1d0), new THREE.Color(0xc9a35a), new THREE.Color(0xffffff)];
   for (let i = 0; i < N; i++) {
     pos[i * 3] = rand(-30, 30); pos[i * 3 + 1] = rand(-3, 16); pos[i * 3 + 2] = rand(-40, 8);
     const c = palette[i % palette.length]; col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
@@ -172,7 +173,7 @@ export function startHero(canvas) {
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
   // Only the brightest things glow: the grid, the horizon, the motes.
-  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.45, 0.4, 1.0);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.3, 0.4, 1.0);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
 
@@ -214,8 +215,8 @@ export function startHero(canvas) {
     const p = motesGeo.attributes.position.array;
     for (let i = 1; i < p.length; i += 3) { p[i] += dt * 0.25; if (p[i] > 16) p[i] = -3; }
     motesGeo.attributes.position.needsUpdate = true;
-    magenta.intensity = 14 + Math.sin(t * 1.3) * 5;
-    cyan.intensity = 14 + Math.cos(t * 1.1) * 5;
+    magenta.intensity = 14 + Math.sin(t * 0.8) * 3;
+    cyan.intensity = 12 + Math.cos(t * 0.7) * 3;
     composer.render();
   }
   frame();
