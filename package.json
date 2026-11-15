@@ -17,9 +17,10 @@
     "android": "npm run build:app && npx cap sync android"
   },
   "dependencies": {
+    "@capacitor-firebase/authentication": "^8.6.0",
     "@capacitor/android": "^8.6.2",
     "@capacitor/core": "^8.6.2",
-    "firebase": "^12.1.0",
+    "firebase": "^12.19.0",
     "qrcode-generator": "^2.0.4",
     "three": "^0.169.0"
   },

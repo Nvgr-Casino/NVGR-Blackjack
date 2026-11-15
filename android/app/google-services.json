@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "1025609048299",
+    "firebase_url": "https://table-stakes-blackjack-default-rtdb.firebaseio.com",
+    "project_id": "table-stakes-blackjack",
+    "storage_bucket": "table-stakes-blackjack.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1025609048299:android:7db2b129811fa9e9441eae",
+        "android_client_info": {
+          "package_name": "com.nvgr.casino"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1025609048299-8jt7d1kcsvc7mtka04dv5j25km3d1nih.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.nvgr.casino",
+            "certificate_hash": "d0bc570520aee7975d8252ff7cae51796f3dc1eb"
+          }
+        },
+        {
+          "client_id": "1025609048299-9v6jsk5pjr7r7sk03tmsv365h8a38vmd.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCEu2_KJh4mfa2-Qw4IRx0Gdjvjtfdq65M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1025609048299-9v6jsk5pjr7r7sk03tmsv365h8a38vmd.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

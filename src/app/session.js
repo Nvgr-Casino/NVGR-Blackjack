@@ -5,12 +5,13 @@
 // this module doesn't need to know about the DOM or the 3D scene.
 import { closeRules } from './rulesGuide.js';
 import {
-  GoogleAuthProvider, signInWithPopup,
+  GoogleAuthProvider, signInWithPopup, signInWithCredential,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
   updateProfile, onAuthStateChanged, signOut,
 } from 'firebase/auth';
 import { ref, get, set, update, onValue, runTransaction } from 'firebase/database';
 import { auth, db } from '../firebase/config.js';
+import { IN_APP } from '../platform.js';
 import { FELT_THEME_KEYS } from '../scene/table.js';
 import { DEALER_KEYS } from '../scene/dealer.js';
 import { defaultCharacterFor } from '../scene/character.js';
@@ -221,10 +222,28 @@ export function initAuth() {
   });
 }
 
+// In a browser, Google's sign-in window. In the Android app, where that
+// window can't open, the phone's own Google account picker (the
+// @capacitor-firebase/authentication plugin, Credential Manager), whose
+// token then signs in to Firebase here just as the window would: the same
+// account as on the website.
 export async function signInGoogle() {
   formError = ''; authBusy = true; render();
-  try { await signInWithPopup(auth, new GoogleAuthProvider()); }
-  catch (e) { formError = 'Google sign-in failed. Please try again.'; }
+  try {
+    if (IN_APP) {
+      const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
+      const result = await FirebaseAuthentication.signInWithGoogle({ skipNativeAuth: true });
+      const idToken = result && result.credential && result.credential.idToken;
+      if (!idToken) throw new Error('No Google token');
+      await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
+    } else {
+      await signInWithPopup(auth, new GoogleAuthProvider());
+    }
+  } catch (e) {
+    // Closing the picker isn't a failure worth a message.
+    const msg = String((e && (e.message || e.code)) || '');
+    formError = /cancel|closed|abort/i.test(msg) ? '' : 'Google sign-in failed. Please try again.';
+  }
   authBusy = false; render();
 }
 export async function signUpEmail(email, password, displayName) {
@@ -261,6 +280,9 @@ export async function doSignOut() {
   clearTick();
   await goOffline();
   await signOut(auth);
+  // The app also lets go of the Google account it picked, so the next
+  // sign-in offers the choice again.
+  if (IN_APP) import('@capacitor-firebase/authentication').then(({ FirebaseAuthentication }) => FirebaseAuthentication.signOut()).catch(() => {});
 }
 
 // ---------- Room lifecycle ----------
