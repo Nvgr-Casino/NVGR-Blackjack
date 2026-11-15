@@ -12,13 +12,18 @@
     "cards": "node scripts/build-cards.mjs",
     "rocketbox": "node scripts/import-rocketbox.mjs",
     "polyhaven": "node scripts/import-polyhaven.mjs",
-    "test": "node tests/blackjack-rules.test.mjs && node tests/holdem-rules.test.mjs && node tests/mental-poker.test.mjs && node tests/holdem-bots.test.mjs && node tests/holdem-tournament.test.mjs && node tests/blackjack-tournament.test.mjs && node tests/roulette-rules.test.mjs && node tests/baccarat-rules.test.mjs && node tests/slots-rules.test.mjs && node tests/craps-rules.test.mjs"
+    "test": "node tests/blackjack-rules.test.mjs && node tests/holdem-rules.test.mjs && node tests/mental-poker.test.mjs && node tests/holdem-bots.test.mjs && node tests/holdem-tournament.test.mjs && node tests/blackjack-tournament.test.mjs && node tests/roulette-rules.test.mjs && node tests/baccarat-rules.test.mjs && node tests/slots-rules.test.mjs && node tests/craps-rules.test.mjs",
+    "build:app": "vite build --base ./ --outDir dist-app",
+    "android": "npm run build:app && npx cap sync android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/core": "^8.6.2",
     "firebase": "^12.1.0",
     "three": "^0.169.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.2",
     "@gltf-transform/cli": "^4.5.0",
     "fbx2gltf": "^0.9.7",
     "sharp": "^0.33.5",
