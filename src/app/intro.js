@@ -7,10 +7,12 @@
 // main.js creates it at boot, moves its line on (progress), tells it who
 // is signed in (signedIn) and when the first real screen is ready (done).
 
-import { LOGO_URL } from './uiHelpers.js';
+import { LOGO_URL, IN_APP, APP_NAME, EMBLEM_URL } from './uiHelpers.js';
 import { esc } from './uiHelpers.js';
 
 const CARD_MS = 2100;      // the house card: in, hold, out
+// In the app the house card presents the app's own title card next.
+const TITLE_MS = IN_APP ? 2600 : 0;
 const MIN_LOADING_MS = 1300;
 
 // The art: chips in three stacks, drawn in perspective, and two cards.
@@ -64,12 +66,18 @@ export function createIntro() {
       <span class="intro-house-name">NVGR Casino</span>
       <span class="intro-house-sub">presents</span>
     </div>` : ''}
+    ${showCard && IN_APP ? `
+    <div class="intro-title">
+      <img src="${EMBLEM_URL}" alt="">
+      <span class="intro-title-name">${APP_NAME}</span>
+      <span class="intro-title-sub">Casino</span>
+    </div>` : ''}
     <div class="intro-load">
       <div class="intro-pill" aria-live="polite"></div>
       <div class="intro-centre">
         ${chips()}
         <div class="intro-crest">
-          <img src="${LOGO_URL}" alt="NVGR Casino">
+          ${IN_APP ? `<img class="intro-emblem" src="${EMBLEM_URL}" alt=""><span class="intro-title-name small">${APP_NAME}</span>` : `<img src="${LOGO_URL}" alt="NVGR Casino">`}
           <span class="intro-games">Blackjack · Hold'em · Roulette · Craps · Baccarat · Slots</span>
           <span class="intro-line"><i></i></span>
         </div>
@@ -83,10 +91,14 @@ export function createIntro() {
   const root = document.getElementById('root');
   if (root) root.style.removeProperty('background');
   const started = performance.now();
-  const loadAt = showCard ? CARD_MS : 0;
+  const loadAt = showCard ? CARD_MS + TITLE_MS : 0;
   requestAnimationFrame(() => el.classList.add(showCard ? 'card-on' : 'load-on'));
   if (showCard) {
     setTimeout(() => el.classList.add('card-off'), CARD_MS - 500);
+    if (TITLE_MS) {
+      setTimeout(() => el.classList.add('title-on'), CARD_MS);
+      setTimeout(() => el.classList.add('title-off'), CARD_MS + TITLE_MS - 500);
+    }
     setTimeout(() => el.classList.add('load-on'), loadAt);
   }
   const line = el.querySelector('.intro-line i');
