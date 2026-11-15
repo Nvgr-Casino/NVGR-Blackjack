@@ -1,4 +1,4 @@
-// "How a hand plays", told by scrolling. A green-felt, brass-trimmed blackjack table
+// "How a hand plays", told by scrolling. A black-and-gold blackjack table
 // under a warm light: as the page scrolls, the camera glides down to a
 // player's seat, a stack of chips slides into the betting circle, four
 // cards come off the shoe and across the felt (the player's two turning
@@ -15,12 +15,12 @@ const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 /** How far through [a, b] the story is, 0 to 1, eased. */
 const span = (p, a, b) => ease(clamp01((p - a) / (b - a)));
 
-// The felt: deep casino green, finely grained, with the layout printed in brass.
+// The felt: black, finely grained, with the layout printed in gold.
 function feltTexture() {
   return canvasTex(2048, 1228, (ctx, W, H) => {
-    ctx.fillStyle = '#0d3326'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#0c0c0d'; ctx.fillRect(0, 0, W, H);
     for (let i = 0; i < 26000; i++) {
-      ctx.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.28)';
+      ctx.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.35)';
       ctx.fillRect(Math.random() * W, Math.random() * H, 2, 2);
     }
     const gold = ctx.createLinearGradient(0, 0, W, 0);
@@ -63,10 +63,10 @@ export function startStory(canvas, onProgress) {
   renderer.toneMappingExposure = 0.95;
   renderer.shadowMap.enabled = !SMALL;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.setClearColor(0x0a0b0a, 1);
+  renderer.setClearColor(0x070708, 1);
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0x0a0b0a, 14, 34);
+  scene.fog = new THREE.Fog(0x070708, 14, 34);
   const camera = new THREE.PerspectiveCamera(SMALL ? 52 : 38, 1, 0.1, 60);
 
   // A warm pool of light on the felt, and a little cool fill.
