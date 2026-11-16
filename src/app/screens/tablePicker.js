@@ -95,37 +95,136 @@ function shown() {
 }
 
 // ---------- drawing ----------
-// Seat positions round each shape, as fractions of the table card.
-function seatSpots(shape, n) {
-  const spots = [];
-  if (shape === 'moon') {
-    for (let i = 0; i < n; i++) { const a = Math.PI * (0.12 + 0.76 * (i / (n - 1))); spots.push([0.5 - 0.43 * Math.cos(a), 0.2 + 0.68 * Math.sin(a)]); }
-  } else if (shape === 'wheel' || shape === 'track') {
-    const top = Math.ceil(n / 2), bottom = n - top;
-    for (let i = 0; i < top; i++) spots.push([0.24 + (0.62 * (i + 0.5)) / top, 0.07]);
-    for (let i = 0; i < bottom; i++) spots.push([0.24 + (0.62 * (i + 0.5)) / bottom, 0.93]);
-  } else {
-    for (let i = 0; i < n; i++) { const a = Math.PI / 2 + (2 * Math.PI * i) / n; spots.push([0.5 + 0.46 * Math.cos(a), 0.5 + 0.44 * Math.sin(a)]); }
-  }
-  return spots;
+// Each table drawn as a real one is built, from the outside in: a padded
+// black leather rail with a gold inlay and a soft shadow, a mahogany trim,
+// then navy baize with a fine grain and a pool of light, and the game's
+// layout printed on it in fine gold. 400 by 260 units; seats sit on the
+// rail, as fractions of that.
+const VB_W = 400, VB_H = 260;
+const RED_NUMS = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
+const WHEEL = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
+const f = (n) => +n.toFixed(1);
+
+// The shared paints, once per screen.
+function defsSvg() {
+  return `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <radialGradient id="tpdFelt" cx="50%" cy="46%" r="68%"><stop offset="0" stop-color="#2d5aae"/><stop offset="0.55" stop-color="#1a3d80"/><stop offset="1" stop-color="#0c2252"/></radialGradient>
+    <radialGradient id="tpdLight" cx="50%" cy="42%" r="55%"><stop offset="0" stop-color="#fff" stop-opacity="0.16"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+    <linearGradient id="tpdLeather" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b352f"/><stop offset="0.45" stop-color="#1b1815"/><stop offset="1" stop-color="#0a0908"/></linearGradient>
+    <linearGradient id="tpdWood" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8a4c25"/><stop offset="0.5" stop-color="#5a2c12"/><stop offset="1" stop-color="#3a1b0a"/></linearGradient>
+    <linearGradient id="tpdGold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f7de98"/><stop offset="0.55" stop-color="#d4a94f"/><stop offset="1" stop-color="#9c6f27"/></linearGradient>
+    <filter id="tpdShadow" x="-10%" y="-10%" width="120%" height="135%"><feDropShadow dx="0" dy="10" stdDeviation="9" flood-color="#000" flood-opacity="0.6"/></filter>
+    <filter id="tpdGrain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" stitchTiles="stitch" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.09 0" result="g"/><feComposite in="g" in2="SourceGraphic" operator="in"/></filter>
+    <path id="tpdArcBJ" d="M 96 28 A 104 104 0 0 0 304 28"/>
+    <path id="tpdArcIns" d="M 135 28 A 65 65 0 0 0 265 28"/>
+    <path id="tpdArcP" d="M 70 150 Q 200 236 330 150"/>
+    <path id="tpdArcB" d="M 92 128 Q 200 206 308 128"/>
+    <path id="tpdArcT" d="M 118 106 Q 200 172 282 106"/>
+  </defs></svg>`;
 }
-function feltSvg(shape, name) {
-  const defs = `<defs>
-    <radialGradient id="tpFelt" cx="50%" cy="45%" r="70%"><stop offset="0" stop-color="#2a4f9c"/><stop offset="0.7" stop-color="#173468"/><stop offset="1" stop-color="#0e2248"/></radialGradient>
-    <linearGradient id="tpRail" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2d58c"/><stop offset="0.5" stop-color="#b98a3a"/><stop offset="1" stop-color="#7c5a22"/></linearGradient></defs>`;
-  let body;
-  if (shape === 'moon') body = `<path d="M30 40 H270 A120 120 0 0 1 150 160 A120 120 0 0 1 30 40 Z" transform="translate(0 -4)" fill="url(#tpFelt)" stroke="url(#tpRail)" stroke-width="9"/>
-    <path d="M70 46 A82 82 0 0 0 230 46" fill="none" stroke="rgba(242,213,140,0.45)" stroke-width="1.5"/>`;
-  else if (shape === 'wheel') body = `<rect x="22" y="26" width="256" height="128" rx="24" fill="url(#tpFelt)" stroke="url(#tpRail)" stroke-width="9"/>
-    <circle cx="62" cy="90" r="34" fill="#0b1630" stroke="url(#tpRail)" stroke-width="4"/><circle cx="62" cy="90" r="22" fill="none" stroke="rgba(242,213,140,0.6)" stroke-width="5" stroke-dasharray="3 3"/><circle cx="62" cy="90" r="6" fill="#f2d58c"/>
-    <g stroke="rgba(242,213,140,0.35)" stroke-width="1" fill="none"><rect x="110" y="56" width="148" height="68" rx="4"/><path d="M147 56v68M184 56v68M221 56v68M110 90h148"/></g>`;
-  else if (shape === 'track') body = `<rect x="18" y="30" width="264" height="120" rx="60" fill="url(#tpFelt)" stroke="url(#tpRail)" stroke-width="9"/>
-    <rect x="58" y="62" width="184" height="56" rx="28" fill="none" stroke="rgba(242,213,140,0.4)" stroke-width="1.5"/>`;
-  else body = `<rect x="22" y="28" width="256" height="124" rx="62" fill="url(#tpFelt)" stroke="url(#tpRail)" stroke-width="9"/>
-    <rect x="62" y="60" width="176" height="60" rx="30" fill="none" stroke="rgba(242,213,140,0.4)" stroke-width="1.5"/>`;
-  const ty = shape === 'moon' ? 72 : 96;
-  return `<svg class="tp-felt" viewBox="0 0 300 180" aria-hidden="true">${defs}${body}
-    <text x="${shape === 'wheel' ? 184 : 150}" y="${ty}" text-anchor="middle" class="tp-felt-name">${esc(name.toUpperCase())}</text></svg>`;
+
+// The rail, trim and felt for a shape: three outlines inset in turn.
+function outline(shape, inset) {
+  if (shape === 'moon') { const r = 188 - inset; return `M ${f(200 - r)} 28 A ${r} ${r} 0 0 0 ${f(200 + r)} 28 Z`; }
+  const box = { oval: [8, 14, 384, 232, 116], track: [8, 24, 384, 212, 106], wheel: [8, 34, 384, 192, 40] }[shape];
+  const [x, y, w, h, rx] = box;
+  const X = x + inset, Y = y + inset, Wd = w - 2 * inset, Hd = h - 2 * inset, R = Math.max(4, rx - inset);
+  return `M ${X + R} ${Y} H ${X + Wd - R} A ${R} ${R} 0 0 1 ${X + Wd} ${Y + R} V ${Y + Hd - R} A ${R} ${R} 0 0 1 ${X + Wd - R} ${Y + Hd} H ${X + R} A ${R} ${R} 0 0 1 ${X} ${Y + Hd - R} V ${Y + R} A ${R} ${R} 0 0 1 ${X + R} ${Y} Z`;
+}
+
+const T = (x, y, size, text, extra = '') => `<text x="${x}" y="${y}" text-anchor="middle" class="tp-print" font-size="${size}" ${extra}>${text}</text>`;
+
+// What is printed on each game's felt.
+function layout(game) {
+  const gold = 'stroke="url(#tpdGold)" fill="none"';
+  if (game === 'blackjack') {
+    const spots = [-62, -31, 0, 31, 62].map((d) => {
+      const a = d * Math.PI / 180, x = f(200 + 140 * Math.sin(a)), y = f(28 + 140 * Math.cos(a));
+      return `<circle cx="${x}" cy="${y}" r="11.5" ${gold} stroke-width="1.4"/><circle cx="${x}" cy="${y}" r="8" stroke="rgba(247,222,152,0.35)" fill="none" stroke-width="0.8"/>`;
+    }).join('');
+    const colours = ['#e9e3d6', '#b3122e', '#1f4fa8', '#0f7a3c', '#111', '#e9e3d6', '#b3122e', '#1f4fa8'];
+    const tray = colours.map((c, i) => `<rect x="${f(163 + i * 9.4)}" y="33" width="7.4" height="12" rx="1.5" fill="${c}" opacity="0.92"/>`).join('');
+    return `<rect x="158" y="30" width="84" height="18" rx="3" fill="#060a16" stroke="url(#tpdGold)" stroke-width="1"/>${tray}
+      <text class="tp-print" font-size="13" letter-spacing="2.5"><textPath href="#tpdArcBJ" startOffset="50%" text-anchor="middle">BLACKJACK PAYS 3 TO 2</textPath></text>
+      <path d="M 127 28 A 73 73 0 0 0 273 28" ${gold} stroke-width="0.9" opacity="0.7"/><path d="M 143 28 A 57 57 0 0 0 257 28" ${gold} stroke-width="0.9" opacity="0.7"/>
+      <text class="tp-print dim" font-size="6.6" letter-spacing="1.6"><textPath href="#tpdArcIns" startOffset="50%" text-anchor="middle">INSURANCE PAYS 2 TO 1</textPath></text>
+      ${T(200, 66, 9, 'NVGR', 'letter-spacing="3"')}${spots}`;
+  }
+  if (game === 'holdem') {
+    const cards = Array.from({ length: 5 }, (_, i) => `<rect x="${f(200 - 64 + i * 26)}" y="114" width="22" height="31" rx="3" fill="rgba(255,255,255,0.05)" stroke="rgba(247,222,152,0.55)" stroke-width="0.9"/>`).join('');
+    return `<rect x="66" y="66" width="268" height="128" rx="64" ${gold} stroke-width="1" opacity="0.6"/>${T(200, 102, 9, 'NVGR', 'letter-spacing="3"')}${cards}${T(200, 168, 8, 'TEXAS HOLD&#8217;EM', 'letter-spacing="2.4"')}`;
+  }
+  if (game === 'baccarat') {
+    return `<rect x="150" y="44" width="44" height="30" rx="4" ${gold} stroke-width="0.9" opacity="0.8"/><rect x="206" y="44" width="44" height="30" rx="4" ${gold} stroke-width="0.9" opacity="0.8"/>
+      ${T(172, 63, 7, 'PLAYER')}${T(228, 63, 7, 'BANKER')}
+      <use href="#tpdArcP" ${gold} stroke-width="1"/><use href="#tpdArcB" ${gold} stroke-width="1"/><use href="#tpdArcT" ${gold} stroke-width="1"/>
+      <text class="tp-print" font-size="9" letter-spacing="2" dy="-4"><textPath href="#tpdArcP" startOffset="50%" text-anchor="middle">PLAYER</textPath></text>
+      <text class="tp-print" font-size="9" letter-spacing="2" dy="-4"><textPath href="#tpdArcB" startOffset="50%" text-anchor="middle">BANKER 19 TO 20</textPath></text>
+      <text class="tp-print dim" font-size="7.5" letter-spacing="2" dy="-4"><textPath href="#tpdArcT" startOffset="50%" text-anchor="middle">TIE 8 TO 1</textPath></text>`;
+  }
+  if (game === 'craps') {
+    const nums = ['4', '5', 'SIX', '8', 'NINE', '10'].map((n, i) => `<rect x="${126 + i * 25}" y="74" width="23" height="20" rx="2" ${gold} stroke-width="0.8" opacity="0.75"/>${T(137.5 + i * 25, 87, n.length > 2 ? 5.4 : 8, n)}`).join('');
+    return `<rect x="46" y="62" width="308" height="136" rx="68" ${gold} stroke-width="1.1" opacity="0.75"/><rect x="62" y="78" width="276" height="104" rx="52" ${gold} stroke-width="0.8" opacity="0.5"/>
+      ${nums}<rect x="126" y="102" width="148" height="34" rx="4" ${gold} stroke-width="0.9" opacity="0.8"/>${T(200, 117, 8.5, 'FIELD', 'letter-spacing="2"')}${T(200, 129, 5.6, '2 &#183; 3 &#183; 4 &#183; 9 &#183; 10 &#183; 11 &#183; 12')}
+      ${T(200, 193, 8, 'PASS LINE', 'letter-spacing="3"')}${T(200, 160, 7, 'DON&#8217;T PASS BAR', 'letter-spacing="1.6"')}`;
+  }
+  // Roulette: the wheel beside the number grid.
+  const cx = 92, cy = 130, step = (2 * Math.PI) / 37;
+  const p = (r, a) => `${f(cx + r * Math.cos(a))} ${f(cy + r * Math.sin(a))}`;
+  const pockets = WHEEL.map((n, i) => {
+    const a0 = i * step - Math.PI / 2, a1 = a0 + step, r0 = 33, r1 = 46;
+    const col = n === 0 ? '#0f7a3c' : RED_NUMS.has(n) ? '#b3122e' : '#141418';
+    return `<path d="M ${p(r0, a0)} L ${p(r1, a0)} A ${r1} ${r1} 0 0 1 ${p(r1, a1)} L ${p(r0, a1)} A ${r0} ${r0} 0 0 0 ${p(r0, a0)} Z" fill="${col}"/>`;
+  }).join('');
+  const gx = 172, gy = 82, cw = 16.5, ch = 25;
+  let grid = `<rect x="${gx - 16}" y="${gy}" width="16" height="${ch * 3}" fill="#0f7a3c" opacity="0.85"/>`;
+  for (let c = 0; c < 12; c++) for (let r = 0; r < 3; r++) {
+    const n = c * 3 + (3 - r);
+    grid += `<rect x="${f(gx + c * cw)}" y="${gy + r * ch}" width="${cw}" height="${ch}" fill="${RED_NUMS.has(n) ? '#b3122e' : '#141418'}" opacity="0.85"/>`;
+  }
+  grid += `<rect x="${gx - 16}" y="${gy}" width="${f(16 + cw * 12)}" height="${ch * 3}" ${gold} stroke-width="1"/>`;
+  for (let c = 0; c <= 12; c++) grid += `<path d="M ${f(gx + c * cw)} ${gy} V ${gy + ch * 3}" stroke="rgba(247,222,152,0.55)" stroke-width="0.6"/>`;
+  for (let r = 1; r < 3; r++) grid += `<path d="M ${gx} ${gy + r * ch} H ${f(gx + cw * 12)}" stroke="rgba(247,222,152,0.55)" stroke-width="0.6"/>`;
+  grid += ['1ST 12', '2ND 12', '3RD 12'].map((t, i) => `<rect x="${f(gx + i * cw * 4)}" y="${gy + ch * 3 + 4}" width="${f(cw * 4)}" height="16" ${gold} stroke-width="0.8" opacity="0.8"/>${T(f(gx + i * cw * 4 + cw * 2), gy + ch * 3 + 15, 6.5, t)}`).join('');
+  return `<circle cx="${cx}" cy="${cy}" r="62" fill="url(#tpdWood)" stroke="url(#tpdGold)" stroke-width="1.6"/><circle cx="${cx}" cy="${cy}" r="52" fill="#07090f"/>
+    ${pockets}<circle cx="${cx}" cy="${cy}" r="46" fill="none" stroke="url(#tpdGold)" stroke-width="1"/><circle cx="${cx}" cy="${cy}" r="32" fill="url(#tpdWood)" stroke="url(#tpdGold)" stroke-width="1"/>
+    <circle cx="${cx}" cy="${cy}" r="7" fill="url(#tpdGold)"/><path d="M ${cx - 16} ${cy} H ${cx + 16} M ${cx} ${cy - 16} V ${cy + 16}" stroke="url(#tpdGold)" stroke-width="2.4" stroke-linecap="round"/>
+    <circle cx="${f(cx + 40 * Math.cos(-1))}" cy="${f(cy + 40 * Math.sin(-1))}" r="3" fill="#fbf6ea"/>${grid}`;
+}
+
+function tableSvg(game, shape) {
+  const rail = outline(shape, 0), wood = outline(shape, 13), felt = outline(shape, 19);
+  return `<svg class="tp-felt" viewBox="0 0 ${VB_W} ${VB_H}" aria-hidden="true">
+    <path d="${rail}" fill="url(#tpdLeather)" filter="url(#tpdShadow)"/>
+    <path d="${rail}" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+    <path d="${wood}" fill="url(#tpdWood)" stroke="url(#tpdGold)" stroke-width="1.3"/>
+    <path d="${felt}" fill="url(#tpdFelt)"/>
+    <path d="${felt}" fill="#000" filter="url(#tpdGrain)"/>
+    <path d="${felt}" fill="url(#tpdLight)"/>
+    <path d="${felt}" fill="none" stroke="rgba(0,0,0,0.45)" stroke-width="2"/>
+    ${layout(game)}
+  </svg>`;
+}
+
+// Seats on the rail, as fractions of the picture.
+function seatSpots(shape, n) {
+  const P = (x, y) => [x / VB_W, y / VB_H];
+  if (shape === 'moon') {
+    return Array.from({ length: n }, (_, i) => { const a = (-76 + (152 * i) / (n - 1)) * Math.PI / 180; return P(200 + 181 * Math.sin(a), 28 + 181 * Math.cos(a)); });
+  }
+  if (shape === 'wheel') {
+    const out = Array.from({ length: n - 1 }, (_, i) => P(176 + (190 * i) / (n - 2), 228));
+    out.push(P(390, 130));
+    return out;
+  }
+  if (shape === 'track') {
+    const top = Math.ceil(n / 2), bottom = n - top;
+    return [...Array.from({ length: top }, (_, i) => P(120 + (160 * i) / Math.max(1, top - 1), 26)),
+      ...Array.from({ length: bottom }, (_, i) => P(120 + (160 * i) / Math.max(1, bottom - 1), 234))];
+  }
+  // Oval: round the bottom and the sides, the dealer's place at the top clear.
+  const from = n >= 7 ? 12 : -20, to = n >= 7 ? 168 : 200;
+  return Array.from({ length: n }, (_, i) => { const a = (from + ((to - from) * i) / (n - 1)) * Math.PI / 180; return P(200 + 190 * Math.cos(a), 130 + 114 * Math.sin(a)); });
 }
 
 function tableCard(t, i) {
@@ -142,12 +241,11 @@ function tableCard(t, i) {
   return `
     <article class="tp-table ${t.fresh ? 'fresh' : ''}" style="--i:${i}">
       <div class="tp-board">
-        ${feltSvg(g.shape, g.name)}
+        ${tableSvg(st.game, g.shape)}
         <button class="tp-board-hit" data-tp-join="${i}" aria-label="${free > 0 ? 'Join' : 'Watch'} this table"></button>
-        <span class="tp-stakes">${esc(t.label)}</span>
         ${seats}
       </div>
-      <footer class="tp-meta"><span class="tp-dot ${status === 'Full' ? 'full' : t.seats.length ? 'on' : ''}"></span>${status}<span class="tp-sep">·</span>${t.seats.length} of ${g.seats} seats</footer>
+      <footer class="tp-meta"><span class="tp-meta-stakes">${esc(t.label)}</span><span class="tp-sep">·</span><span class="tp-dot ${status === 'Full' ? 'full' : t.seats.length ? 'on' : ''}"></span>${status}<span class="tp-sep">·</span>${t.seats.length} of ${g.seats} seats</footer>
     </article>`;
 }
 
@@ -168,6 +266,7 @@ function html() {
   st.shownList = list;
   const pill = (on, attr, label) => `<button class="tp-pill ${on ? 'on' : ''}" ${attr}>${label}</button>`;
   return `
+    ${defsSvg()}
     <div class="tp-screen" role="dialog" aria-label="Choose a ${esc(g.name)} table">
       <header class="tp-top">
         <button class="tp-back" data-tp="back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
