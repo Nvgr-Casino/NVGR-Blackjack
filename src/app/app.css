@@ -2435,3 +2435,60 @@ main.auth.sx-min { grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); }
   .sx-drop input { height: 36px; }
   .sx-submit { height: 38px !important; }
 }
+
+/* ---------- sign in: clean and centred ---------- */
+main.auth.sx-reg {
+  position: fixed; inset: 0; z-index: 5; display: grid; grid-template-rows: auto 1fr auto; justify-items: center; align-items: center; margin: 0; max-width: none;
+  padding: max(20px, env(safe-area-inset-top, 0px)) 24px max(22px, env(safe-area-inset-bottom, 0px));
+  background: radial-gradient(90% 80% at 50% 45%, #163063 0%, #0d1f45 55%, #071229 100%);
+}
+.reg-head { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.reg-logo { width: 96px; height: auto; filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45)); }
+.reg-head h1 { margin: 0; font-family: var(--brand); font-size: 26px; font-weight: 700; letter-spacing: 0.06em; color: #f4f1ea; }
+.reg-main { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.reg-provider { position: relative; width: min(440px, 100%); }
+.reg-google { width: 100%; height: 54px; display: flex; align-items: center; justify-content: center; gap: 12px; border: 0; border-radius: 6px; cursor: pointer;
+  font: inherit; font-size: 17px; font-weight: 600; color: #3c4043; background: #fff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); }
+.reg-google:hover { background: #f4f6fa; }
+.reg-google svg { width: 22px; height: 22px; }
+.reg-last { position: absolute; left: calc(100% + 16px); top: 50%; transform: translateY(-50%); padding-left: 14px; border-left: 2px solid rgba(255, 255, 255, 0.35);
+  white-space: nowrap; font-size: 15px; color: rgba(220, 230, 250, 0.7); }
+.reg-fine { margin: 0; font-size: 13px; color: rgba(214, 224, 245, 0.62); }
+.reg-error { margin: 0; max-width: 440px; text-align: center; }
+.reg-row { width: min(1000px, 100%); display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.reg-out { height: 54px; border-radius: 4px; cursor: pointer; font: inherit; font-size: 16px; font-weight: 600; color: #f4f1ea; background: transparent; border: 2px solid rgba(244, 241, 234, 0.9); transition: background 0.15s; }
+.reg-out:hover { background: rgba(255, 255, 255, 0.08); }
+.reg-guest { color: #e3b866; border-color: #d8a648; }
+.reg-guest:hover { background: rgba(216, 166, 72, 0.12); }
+.reg-form { width: min(420px, 100%); display: flex; flex-direction: column; gap: 10px; }
+.reg-form h2 { margin: 0 0 4px; text-align: center; font-size: 15px; font-weight: 600; color: rgba(214, 224, 245, 0.8); }
+.reg-form input { height: 48px; border-radius: 6px; padding: 0 14px; font: inherit; font-size: 15px; color: #1c2230; background: #fff; border: 2px solid transparent; }
+.reg-form input:focus { outline: none; border-color: #d8a648; }
+.reg-submit { height: 50px; border: 0; border-radius: 6px; cursor: pointer; font: inherit; font-size: 16px; font-weight: 700; color: #1a1206; background: #d8a648; }
+.reg-submit:hover { background: #e3b866; }
+.reg-back { align-self: center; background: none; border: 0; padding: 6px 12px; cursor: pointer; font: inherit; font-size: 14px; color: rgba(214, 224, 245, 0.75); text-decoration: underline; text-underline-offset: 4px; }
+@media (orientation: landscape) and (max-height: 520px) {
+  main.auth.sx-reg { padding: max(10px, env(safe-area-inset-top, 0px)) 20px max(12px, env(safe-area-inset-bottom, 0px)); }
+  .reg-logo { width: 58px; }
+  .reg-head h1 { font-size: 19px; }
+  .reg-head { gap: 2px; }
+  .reg-google { height: 46px; font-size: 15px; }
+  .reg-last { font-size: 12.5px; }
+  .reg-fine { font-size: 11.5px; }
+  .reg-main { gap: 8px; }
+  .reg-row { gap: 12px; }
+  .reg-out { height: 44px; font-size: 14px; }
+  .reg-email .reg-head h1 { display: none; }
+  .reg-email .reg-logo { width: 46px; }
+  .reg-form { gap: 6px; }
+  .reg-form h2 { display: none; }
+  .reg-form input { height: 38px; font-size: 14px; }
+  .reg-submit { height: 40px; }
+  .reg-back { padding: 2px 10px; }
+}
+@media (max-width: 720px) and (orientation: portrait) {
+  .reg-row { grid-template-columns: 1fr; gap: 10px; }
+  .reg-last { position: static; display: block; transform: none; border: 0; padding: 8px 0 0; text-align: center; }
+}
+main.auth.sx-reg { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: auto 1fr auto !important; grid-template-areas: none !important; column-gap: 0 !important; }
+main.auth.sx-reg > * { grid-column: 1 !important; grid-row: auto !important; }
