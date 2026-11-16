@@ -1,21 +1,22 @@
 import * as THREE from 'three';
 
-// A hand's running total, beside its cards: a bright round badge in the
-// colour of how the hand stands, read at a glance across the table, as
-// card games show it. Amber while a player's hand is in play, blue for the
-// dealer's, green when it has won, red when it has bust, a blackjack shown
-// as BJ (yellow until it is paid, then green), slate when it has lost
-// and grey for a push. A soft total
-// ("5/15") is too long for a circle and sits in a pill of the same colour.
+// A hand's running total, beside its cards: a round badge in the colour of
+// how the hand stands, read at a glance across the table. Dark with a white
+// number while a player's hand is in play, blue for the dealer's, green
+// when it has won, red when it has bust, slate when it has lost, grey for a
+// push; and only a blackjack is yellow, shown as BJ (yellow until it is
+// paid, then green). A soft total ("5/15") is too long for a circle and
+// sits in a pill of the same colour.
 //
 // And a result tag (WON, LOST, BUST, BLACKJACK, PUSH): a small solid label
-// set just above the badge once the round is settled.
+// set over the hand once the round is settled.
 //
 // Not tone-mapped and drawn over the felt: this is interface, and shows
 // the exact colours it was drawn in.
 
 export const BADGE_TONES = {
-  player: { fill: ['#ffd24a', '#f2a900'], ink: '#1d1405' },
+  player: { fill: ['#22314d', '#121c30'], ink: '#ffffff' },
+  bj: { fill: ['#ffd24a', '#f2a900'], ink: '#1d1405' },
   dealer: { fill: ['#4aa3ff', '#1f6fd6'], ink: '#ffffff' },
   win: { fill: ['#3fd273', '#16a34a'], ink: '#ffffff' },
   blackjack: { fill: ['#ffe28a', '#d9a520'], ink: '#2a1a00' },
@@ -91,7 +92,7 @@ export function createHandBadge(size = 0.3) {
 
 // A blackjack is yellow while it stands, green once it is paid.
 const TAG_TEXT = { win: 'WON', blackjack: 'BLACKJACK', bjwin: 'BLACKJACK', bust: 'BUST', lose: 'LOST', push: 'PUSH' };
-const TAG_TONE = { win: 'win', blackjack: 'player', bjwin: 'win', bust: 'bust', lose: 'lose', push: 'push' };
+const TAG_TONE = { win: 'win', blackjack: 'bj', bjwin: 'win', bust: 'bust', lose: 'lose', push: 'push' };
 const TW = 384;
 const TH = 112;
 

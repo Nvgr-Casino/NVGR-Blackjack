@@ -576,7 +576,7 @@ function handLook(room, hand, down) {
     return busted ? ['bust', 'bust'] : ['lose', 'lose', bj ? 'BJ' : null];
   }
   if (allDown && busted) return ['bust', 'bust'];
-  if (bj) return ['player', 'blackjack', 'BJ'];
+  if (bj) return ['bj', 'blackjack', 'BJ'];
   return ['player', null];
 }
 
@@ -605,7 +605,7 @@ function refreshBadges(room) {
     const allDown = shown.length === dHand.length;
     const bust = handValue(shown) > 21;
     const bj = allDown && isBlackjack(shown);
-    driver.setDealerBadge(bj ? 'BJ' : handValueLabel(shown), bust ? 'bust' : bj ? 'player' : 'dealer', bust ? 'bust' : bj ? 'blackjack' : null);
+    driver.setDealerBadge(bj ? 'BJ' : handValueLabel(shown), bust ? 'bust' : bj ? 'bj' : 'dealer', bust ? 'bust' : bj ? 'blackjack' : null);
   } else driver.hideDealerBadge();
 }
 
