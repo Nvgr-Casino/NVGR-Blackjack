@@ -354,4 +354,102 @@ function gallery(room) {
     vignette(m(6.6), side * 1.05, 'horse');
   });
   centrepiece(room);
+  portraits(room, at);
+}
+
+// On the curved wall, each in the middle of a velvet panel and flanking a
+// bust: four old-master portraits in gilded frames, each lit by a brass
+// picture light. Ingres's pendant portraits of Monsieur and Madame Leblanc
+// (1823) hang nearest the crest; Van Dyck's Lucas van Uffel (c. 1622) and
+// Vigée Le Brun's Madame Grand (1783) beyond. All four are public domain,
+// photographed by the Metropolitan Museum of Art (Open Access, CC0).
+const PORTRAITS = [
+  // (A positive turn is to the left, seen from the tables: Monsieur on
+  // the left and Madame on the right, as the pair hang at the Met.)
+  { file: 'leblanc', t: 0.467, aspect: 0.797 },
+  { file: 'mme_leblanc', t: -0.467, aspect: 0.784 },
+  { file: 'van_uffel', t: 0.7, aspect: 0.829 },
+  { file: 'madame_grand', t: -0.7, aspect: 0.793 },
+];
+const FRAME_GOLD = new THREE.MeshStandardMaterial({ color: 0xd4ab58, roughness: 0.28, metalness: 1, envMapIntensity: 1.8, emissive: 0x2a1c08 });
+const FRAME_DEEP = new THREE.MeshStandardMaterial({ color: 0x8a6526, roughness: 0.45, metalness: 1, envMapIntensity: 1.2 });
+const FRAME_LIP = new THREE.MeshStandardMaterial({ color: 0x1b130b, roughness: 0.7, metalness: 0 });
+// A rectangular band of moulding, `band` wide, standing `depth` off the wall.
+function moulding(w, h, band, depth, bevel, mat) {
+  const s = new THREE.Shape();
+  s.moveTo(-w / 2, -h / 2); s.lineTo(w / 2, -h / 2); s.lineTo(w / 2, h / 2); s.lineTo(-w / 2, h / 2); s.closePath();
+  const iw = w - band * 2, ih = h - band * 2;
+  const hole = new THREE.Path();
+  hole.moveTo(-iw / 2, -ih / 2); hole.lineTo(-iw / 2, ih / 2); hole.lineTo(iw / 2, ih / 2); hole.lineTo(iw / 2, -ih / 2); hole.closePath();
+  s.holes.push(hole);
+  const geo = new THREE.ExtrudeGeometry(s, { depth, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 3, curveSegments: 1 });
+  return new THREE.Mesh(geo, mat);
+}
+// The picture light's warm wash, strongest at the top of the canvas.
+let washTex = null;
+function pictureWash() {
+  if (washTex) return washTex;
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 256;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(64, -40, 10, 64, -40, 300);
+  g.addColorStop(0, 'rgba(255, 214, 150, 0.55)');
+  g.addColorStop(0.55, 'rgba(255, 200, 130, 0.16)');
+  g.addColorStop(1, 'rgba(255, 190, 120, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 256);
+  washTex = new THREE.CanvasTexture(c);
+  washTex.colorSpace = THREE.SRGBColorSpace;
+  return washTex;
+}
+function portraits(room, at) {
+  const loader = new THREE.TextureLoader();
+  const brass = PLINTH_GOLD;
+  PORTRAITS.forEach(({ file, t, aspect }) => {
+    const H = m(2.2), W = H * aspect;
+    // Just off the curved wall: a flat frame on a curve needs the room.
+    const p = at(m(9.5) - m(0.1), t);
+    const g = new THREE.Group();
+    g.position.set(p.x, FLOOR_Y + m(3.55), p.z);
+    // Square to the wall: its face toward the arc's centre.
+    g.rotation.y = t;
+    room.add(g);
+    // The frame: a broad gilded band, a deeper ridge inside it, and a dark
+    // lip round the canvas.
+    g.add(moulding(W + m(0.34), H + m(0.34), m(0.12), m(0.035), m(0.012), FRAME_GOLD));
+    const ridge = moulding(W + m(0.11), H + m(0.11), m(0.045), m(0.06), m(0.008), FRAME_DEEP);
+    g.add(ridge);
+    const lip = moulding(W + m(0.02), H + m(0.02), m(0.012), m(0.045), 0, FRAME_LIP);
+    g.add(lip);
+    // The canvas: lit a little of its own, as the picture light lights it.
+    const mat = new THREE.MeshStandardMaterial({ color: 0x8a8a8a, roughness: 0.62, metalness: 0, emissive: 0xffffff, emissiveIntensity: 0.68 });
+    const canvas = new THREE.Mesh(new THREE.PlaneGeometry(W, H), mat);
+    canvas.position.z = m(0.03);
+    g.add(canvas);
+    loader.load(`${import.meta.env.BASE_URL}textures/portraits/${file}.jpg`, (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      mat.map = tex; mat.emissiveMap = tex; mat.color.set(0xffffff);
+      mat.needsUpdate = true;
+    });
+    const wash = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshBasicMaterial({ map: pictureWash(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    wash.position.z = m(0.034);
+    g.add(wash);
+    // The brass picture light above, on two short arms.
+    const lampW = W * 0.62;
+    const lamp = new THREE.Mesh(new THREE.CylinderGeometry(m(0.028), m(0.028), lampW, 20), brass);
+    lamp.rotation.z = Math.PI / 2;
+    lamp.position.set(0, H / 2 + m(0.26), m(0.24));
+    g.add(lamp);
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(lampW * 0.94, m(0.03)), new THREE.MeshBasicMaterial({ color: 0xffe2a8, toneMapped: false }));
+    glow.rotation.x = Math.PI / 2;
+    glow.position.set(0, H / 2 + m(0.255) - m(0.028), m(0.24));
+    g.add(glow);
+    [-1, 1].forEach((side) => {
+      const arm = new THREE.Mesh(new THREE.CylinderGeometry(m(0.008), m(0.008), m(0.22), 8), brass);
+      arm.rotation.x = Math.PI / 2 - 0.44;
+      arm.position.set(side * lampW * 0.35, H / 2 + m(0.215), m(0.145));
+      g.add(arm);
+    });
+  });
 }

@@ -703,7 +703,7 @@ export function initScene(canvas) {
       // importing them from the console gets a second instance whose
       // animation queue nothing is draining.
       tickAnimations,
-      setBackdrop: (on) => setBackdrop(on),
+      setBackdrop: (on, opts) => setBackdrop(on, opts),
       service,
       shuffle: () => playShoeShuffle({ scene, dealer, shoe, discard, shoeLeft: 60, total: 312, cutAt: 70 }),
     };
