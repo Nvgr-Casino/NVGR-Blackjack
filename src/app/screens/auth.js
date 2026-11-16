@@ -14,6 +14,7 @@ export function renderAuth() {
       <p class="auth-tag">Blackjack, Hold'em, roulette, baccarat, craps and slots: play with friends, live in 3D</p>
       <section class="panel auth-panel">
         <button class="btn btn-google" id="googleBtn" ${S.authBusy ? 'disabled' : ''}>${GOOGLE_ICON} Continue with Google</button>
+        <button class="btn btn-ghost btn-block auth-guest" id="guestBtn" ${S.authBusy ? 'disabled' : ''}>Play as guest</button>
         <div class="or">or</div>
         <div class="segmented" role="tablist">
           <button class="seg ${!isSignup ? 'active' : ''}" id="tabSignin" role="tab" aria-selected="${!isSignup}">Sign in</button>
@@ -35,7 +36,7 @@ export function renderAuth() {
         ${S.formError ? '<p class="error-text">' + esc(S.formError) + '</p>' : ''}
         <button class="btn btn-primary btn-block" id="emailSubmitBtn" ${S.authBusy ? 'disabled' : ''}>${S.authBusy ? 'Please wait…' : (isSignup ? 'Create account' : 'Sign in')}</button>
       </section>
-      <p class="fine">Everyone starts with ${STARTING_CHIPS.toLocaleString()} chips.</p>
+      <p class="fine">Everyone starts with ${STARTING_CHIPS.toLocaleString()} chips. A guest's chips stay on this device; sign in to keep them everywhere.</p>
     </main>
   `;
 }
@@ -43,6 +44,8 @@ export function renderAuth() {
 export function attachAuth() {
   const google = document.getElementById('googleBtn');
   if (google) google.onclick = S.signInGoogle;
+  const guest = document.getElementById('guestBtn');
+  if (guest) guest.onclick = S.signInGuest;
   document.getElementById('tabSignin').onclick = () => S.setAuthMode('signin');
   document.getElementById('tabSignup').onclick = () => S.setAuthMode('signup');
   const submit = () => {

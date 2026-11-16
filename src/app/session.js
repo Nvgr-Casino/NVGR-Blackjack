@@ -7,7 +7,7 @@ import { closeRules } from './rulesGuide.js';
 import {
   GoogleAuthProvider, signInWithPopup, signInWithCredential,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  updateProfile, onAuthStateChanged, signOut,
+  updateProfile, onAuthStateChanged, signOut, signInAnonymously,
 } from 'firebase/auth';
 import { ref, get, set, update, onValue, runTransaction } from 'firebase/database';
 import { auth, db } from '../firebase/config.js';
@@ -188,7 +188,11 @@ export function initAuth() {
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       session.uid = user.uid;
-      session.name = user.displayName || (user.email ? user.email.split('@')[0] : 'Player');
+      // A guest has no name of their own: "Guest" and the end of their
+      // account's id, the same on this device every time.
+      session.name = user.isAnonymous ? guestName(user.uid)
+        : user.displayName || (user.email ? user.email.split('@')[0] : 'Player');
+      session.guest = !!user.isAnonymous;
       session.photo = user.photoURL || null;
       const account = await ensureAccount(user.uid, session.name);
       session.chips = account.chips;
@@ -233,6 +237,23 @@ export function initAuth() {
 // @capacitor-firebase/authentication plugin, Credential Manager), whose
 // token then signs in to Firebase here just as the window would: the same
 // account as on the website.
+const guestName = (uid) => 'Guest ' + uid.replace(/[^a-z0-9]/gi, '').slice(-4).toUpperCase();
+
+// Play as a guest: an anonymous account, no email or password. Its chips
+// and progress stay with this device's sign-in.
+export async function signInGuest() {
+  formError = ''; authBusy = true; render();
+  try {
+    await signInAnonymously(auth);
+  } catch (e) {
+    const code = String((e && e.code) || '');
+    formError = code.includes('operation-not-allowed') || code.includes('admin-restricted')
+      ? 'Guest play is not available yet. Please sign in with Google or email.'
+      : 'Guest play could not start. Please try again.';
+  }
+  authBusy = false; render();
+}
+
 export async function signInGoogle() {
   formError = ''; authBusy = true; render();
   try {
@@ -608,14 +629,15 @@ async function createPublicTable(chips, key) {
 
 // A new public blackjack table at the given stakes (an index into
 // TABLE_STAKES), and a seat at it: the table picker's empty tables.
-export async function newPublicBlackjackTable(tierIndex) {
+export async function newPublicBlackjackTable(tierIndex, seat = null) {
   const stakes = TABLE_STAKES[Math.max(0, Math.min(TABLE_STAKES.length - 1, tierIndex))];
   const room = emptyPublicRoom(stakes, FELT_THEME_KEYS[Math.floor(Math.random() * FELT_THEME_KEYS.length)]);
   await set(ref(db, 'rooms/' + room.code), room);
   await set(ref(db, 'publicIndex/tables/' + room.code), true);
-  await joinSpecificPublicTable(room.code);
+  await joinSpecificPublicTable(room.code, seat);
 }
-export async function joinSpecificPublicTable(code) {
+// `seat`: the chair chosen in the table picker, taken if it is still free.
+export async function joinSpecificPublicTable(code, seat = null) {
   formError = '';
   const chips = (await ensureAccount(session.uid, session.name)).chips;
   const key = safeKey(session.uid);
@@ -624,6 +646,7 @@ export async function joinSpecificPublicTable(code) {
     const count = Object.keys(current.players || {}).length;
     if (!(current.players && current.players[key]) && count >= MAX_PUBLIC_SEATS) return;
     seatPlayerIn(current, chips);
+    if (seat !== null) moveToSeat(current, session.uid, seat);
     return current;
   });
   if (result.committed && result.snapshot.exists()) {
@@ -821,7 +844,7 @@ export async function loadBlackjackTables() {
       const snap = await get(ref(db, 'rooms/' + code));
       const r = snap.val();
       if (!r || !r.isPublic || r.game || r.tournament) continue;
-      const seats = Object.values(r.players || {}).map((p) => ({ name: p.name, chips: p.chips || 0, character: p.character || null }));
+      const seats = Object.values(r.players || {}).map((p) => ({ name: p.name, chips: p.chips || 0, character: p.character || null, seat: p.seat }));
       // Tables opened before stakes existed would all read as the lowest
       // tier, leaving a lobby of identical rooms — give each one a tier the
       // first time it is seen so the spread is real.

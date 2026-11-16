@@ -2106,3 +2106,4 @@ button.stage-me { border: 0; background: none; color: inherit; font: inherit; cu
 .tp-seat.open { border: 1.5px solid rgba(216, 180, 106, 0.75); background: radial-gradient(circle at 35% 30%, #3a342e, #121110 75%); box-shadow: 0 6px 14px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08); }
 .tp-seat.open:hover { background: radial-gradient(circle at 35% 30%, #4a4238, #171512 75%); }
 .tp-seat.taken img { border: 2px solid var(--gold-1); box-shadow: 0 0 0 3px rgba(8, 16, 36, 0.85), 0 8px 16px rgba(0, 0, 0, 0.55); }
+.auth-guest { margin-top: 8px; }

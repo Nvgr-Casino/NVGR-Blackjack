@@ -36,7 +36,7 @@ export async function loadRouletteTables() {
     const players = Object.values(r.players || {});
     tables.push({
       code, tier: stakesTier(r), minBet: r.minBet, maxBet: r.maxBet, phase: r.phase,
-      count: players.length, seats: players.map((p) => ({ name: p.name, character: p.character || null })),
+      count: players.length, seats: players.map((p) => ({ name: p.name, character: p.character || null, seat: p.seat })),
       history: (r.history || []).slice(0, 8),
     });
   }
@@ -52,13 +52,14 @@ export async function loadRouletteTables() {
 }
 
 // ---------- seats ----------
-async function sitAt(code) {
+async function sitAt(code, seat = null) {
   const chips = (await S.ensureAccount(S.session.uid, S.session.name)).chips;
   const key = safeKey(S.session.uid);
   const result = await runTransaction(ref(db, 'rooms/' + code), (current) => {
     if (!current) return current;
     if (!isRoulette(current)) return;
     if (!R.addPlayer(current, key, S.session.name, chips, S.session.character)) return;
+    if (seat !== null) R.moveSeat(current, key, seat);
     return current;
   });
   if (!result.committed || !result.snapshot.exists()) return false;
@@ -67,9 +68,9 @@ async function sitAt(code) {
   return true;
 }
 
-export async function joinRouletteTable(code) {
+export async function joinRouletteTable(code, seat = null) {
   S.setFormError('');
-  if (!(await sitAt(code))) S.setFormError('That table is full — pick another.');
+  if (!(await sitAt(code, seat))) S.setFormError('That table is full — pick another.');
 }
 
 // The table nearest your bankroll with a chair free: the highest stakes
@@ -89,12 +90,12 @@ export async function playRouletteNow() {
 
 // A new public table at the given stakes (an index into TABLE_STAKES),
 // with you in its first seat: the table picker's empty tables.
-export async function newPublicTable(tierIndex) {
+export async function newPublicTable(tierIndex, seat = null) {
   S.setFormError('');
   const room = newTable(Math.max(0, Math.min(TABLE_STAKES.length - 1, tierIndex)));
   await set(ref(db, 'rooms/' + room.code), room);
   await set(ref(db, 'publicIndex/tables/' + room.code), true);
-  if (!(await sitAt(room.code))) S.setFormError('That table could not be opened. Please try again.');
+  if (!(await sitAt(room.code, seat))) S.setFormError('That table could not be opened. Please try again.');
 }
 
 // A private table, for friends with the code.

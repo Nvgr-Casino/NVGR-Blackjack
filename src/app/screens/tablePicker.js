@@ -24,15 +24,15 @@ const PER_LIMIT = 4;   // tables shown at each limit, real ones first
 // Each game: its name, seats, table shape, and how to load and join.
 const GAMES = {
   blackjack: { name: 'Blackjack', seats: MAX_PUBLIC_SEATS, shape: 'moon', hint: 'Beat the dealer to 21. Blackjack pays 3 to 2.',
-    load: () => S.loadBlackjackTables(), join: (t) => S.joinSpecificPublicTable(t.code), fresh: (tier) => S.newPublicBlackjackTable(tier) },
+    load: () => S.loadBlackjackTables(), join: (t, seat) => S.joinSpecificPublicTable(t.code, seat), fresh: (tier, seat) => S.newPublicBlackjackTable(tier, seat) },
   holdem: { name: "Texas Hold'em", seats: POKER_SEATS, shape: 'oval', hint: 'Your best five cards from two in hand and five on the board.',
     load: async () => (await Poker.loadPokerTables()).tables || [], join: (t) => Poker.openPokerTable(t.code), fresh: null },
   roulette: { name: 'Roulette', seats: ROULETTE_SEATS, shape: 'wheel', hint: 'European wheel, one zero. Straight up pays 35 to 1.',
-    load: () => Roulette.loadRouletteTables(), join: (t) => Roulette.joinRouletteTable(t.code), fresh: (tier) => Roulette.newPublicTable(tier) },
+    load: () => Roulette.loadRouletteTables(), join: (t, seat) => Roulette.joinRouletteTable(t.code, seat), fresh: (tier, seat) => Roulette.newPublicTable(tier, seat) },
   baccarat: { name: 'Baccarat', seats: BACCARAT_SEATS, shape: 'oval', hint: 'Banker pays 19 to 20. Tie pays 8 to 1.',
-    load: () => Baccarat.loadBaccaratTables(), join: (t) => Baccarat.joinBaccaratTable(t.code), fresh: (tier) => Baccarat.newPublicTable(tier) },
+    load: () => Baccarat.loadBaccaratTables(), join: (t, seat) => Baccarat.joinBaccaratTable(t.code, seat), fresh: (tier, seat) => Baccarat.newPublicTable(tier, seat) },
   craps: { name: 'Craps', seats: CRAPS_SEATS, shape: 'track', hint: 'Pass Line, odds at true odds, the field and the hard ways.',
-    load: () => Craps.loadCrapsTables(), join: (t) => Craps.joinCrapsTable(t.code), fresh: (tier) => Craps.newPublicTable(tier) },
+    load: () => Craps.loadCrapsTables(), join: (t, seat) => Craps.joinCrapsTable(t.code, seat), fresh: (tier, seat) => Craps.newPublicTable(tier, seat) },
 };
 export const PICKER_GAMES = Object.keys(GAMES);
 
@@ -206,6 +206,10 @@ function tableSvg(game, shape) {
   </svg>`;
 }
 
+// The game's seat number for a chair in the picture. Blackjack's seats are
+// numbered from the dealer's left, which is the right of the picture.
+function chairToSeat(shape, k, n) { return shape === 'moon' ? n - 1 - k : k; }
+
 // Seats on the rail, as fractions of the picture.
 function seatSpots(shape, n) {
   const P = (x, y) => [x / VB_W, y / VB_H];
@@ -230,11 +234,18 @@ function seatSpots(shape, n) {
 function tableCard(t, i) {
   const g = GAMES[st.game];
   const spots = seatSpots(g.shape, g.seats);
+  // Who sits in which chair: by the seat they hold; anyone without one fills
+  // the chairs still free, in turn.
+  const bySeat = new Map();
+  const loose = [];
+  for (const p of t.seats) (Number.isInteger(p.seat) && !bySeat.has(p.seat) ? bySeat.set(p.seat, p) : loose.push(p));
   const seats = spots.map(([x, y], k) => {
-    const p = t.seats[k];
+    const seatNo = chairToSeat(g.shape, k, g.seats);
+    let p = bySeat.get(seatNo);
+    if (!p && loose.length && !bySeat.has(seatNo)) p = loose.shift();
     const pos = `style="left:${(x * 100).toFixed(1)}%;top:${(y * 100).toFixed(1)}%"`;
     if (p) return `<span class="tp-seat taken" ${pos} title="${esc(p.name)}"><img src="${characterPortraitDataURL(p.character || defaultCharacterFor(p.name || ''), 64)}" alt=""><b>${esc((p.name || '').split(' ')[0])}</b></span>`;
-    return `<button class="tp-seat open" ${pos} data-tp-join="${i}" aria-label="Take this seat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg></button>`;
+    return `<button class="tp-seat open" ${pos} data-tp-join="${i}" data-tp-seat="${seatNo}" aria-label="Take seat ${seatNo + 1}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg></button>`;
   }).join('');
   const free = g.seats - t.seats.length;
   const status = t.fresh ? 'New table' : free <= 0 ? 'Full' : t.playing ? 'Playing' : t.seats.length ? 'Open' : 'Empty';
@@ -331,8 +342,9 @@ async function onClick(e) {
     const g = GAMES[st.game];
     st.busy = true; draw();
     try {
-      if (table.fresh) await g.fresh(table.tier);
-      else await g.join(table);
+      const seat = d.tpSeat !== undefined ? Number(d.tpSeat) : null;
+      if (table.fresh) await g.fresh(table.tier, seat);
+      else await g.join(table, seat);
     } catch { /* the session shows its own message */ }
     closeTablePicker();
   }
