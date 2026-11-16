@@ -127,7 +127,10 @@ export function initScene(canvas) {
   // put the camera outside a box whose faces are all pointing inward — you
   // would look straight through the back of a wall into the void. These two
   // limits keep the camera in the room at every distance it can reach.
-  controls.minPolarAngle = Math.PI / 3;
+  // High enough for the seat view's look down across the felt (about 48
+  // degrees from overhead, see seats.js), which is still well under every
+  // room's ceiling at the distances the orbit allows.
+  controls.minPolarAngle = Math.PI / 5;
   // Close enough to read the board card by card.
   controls.minDistance = 1.8;
   controls.maxDistance = ROOM_HALF - 2;

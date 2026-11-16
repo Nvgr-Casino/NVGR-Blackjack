@@ -6,3 +6,4 @@ dist-app
 __charlab.html
 public/models/characters/mh_*
 __pycache__/
+public/__ref*.mp4

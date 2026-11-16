@@ -12,7 +12,7 @@ import { GOLD_INK, GOLD_INK_SOFT, feltWeave, addTableGlow, PEDESTAL_LACQUER, GOL
 // five players sit well apart round a felt with room on it. (At 2.1 m, and
 // then 2.5, it read as cramped once the rooms round it grew.)
 export const TABLE_RADIUS = m(1.2);
-const SIDE_LENGTH = 1.35;
+const SIDE_LENGTH = 0.8;
 export const TABLE_BACK_Z = -SIDE_LENGTH;
 
 // The border, from the felt outward, as a real table is built: a burl-wood

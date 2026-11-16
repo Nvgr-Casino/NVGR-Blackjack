@@ -185,6 +185,12 @@ input:focus { outline: none; border-color: var(--accent); }
     radial-gradient(120% 70% at 50% 18%, rgba(11, 9, 8, 0.18), rgba(11, 9, 8, 0.72) 75%),
     linear-gradient(180deg, rgba(11, 9, 8, 0.1), rgba(11, 9, 8, 0.65));
 }
+/* At a table the felt is the picture: clear, with only a light shade at the
+   top and bottom edges so the controls read against it. The lobby's heavy
+   vignette above made every table look dim and murky. */
+.wrap.over-scene.on-table {
+  background: linear-gradient(180deg, rgba(6, 10, 22, 0.32) 0, rgba(6, 10, 22, 0) 16%, rgba(6, 10, 22, 0) 76%, rgba(6, 10, 22, 0.4) 100%);
+}
 .wrap.over-scene:has(.lobby) {
   background:
     linear-gradient(180deg, rgba(10, 8, 7, 0.28) 0, rgba(10, 8, 7, 0.55) 340px, rgba(10, 8, 7, 0.86) 760px, rgba(10, 8, 7, 0.94) 1200px);

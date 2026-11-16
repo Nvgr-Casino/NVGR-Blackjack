@@ -45,24 +45,23 @@ export const SEATS = SEAT_ANGLES_DEG.map((deg, i) => {
   };
 });
 
-// Where the camera sits when a given seat is yours: a little above a
-// seated eye-line, aimed at the dealer's cards — the view a live-dealer
-// stream uses, because it is the one you can watch for an hour without
-// effort. The dealer's face sits at the top of the frame, your own cards
-// sit just above the action bar, and every other hand is in between. The
-// earlier view was lower and over your shoulder, so the back of your own
-// head filled the middle of the screen and everything had to be read
-// around it.
+// Where the camera sits when a given seat is yours: the view card-table
+// games are played from, high over your own place at the rail and looking
+// down across the felt. The whole table fills the screen and the dealer is
+// seen from the chest down: their hands, the rack, the shoe and every card,
+// which is what the game is about, with your own cards just above the
+// action bar. From lower down the dealer stood head to foot at the top of a
+// long, flat table, and the cards were small in the middle of it.
 //
-// Screen shape decides the exact spot. A wide screen has little height to
-// spare between the dealer's head and the action bar, so the camera sits a
-// short way behind the chair, which shortens that span. A tall phone screen
-// is narrow: from the chair the table ran off both sides of it. So there
-// the camera stands back and above your chair, over your shoulder, far
-// enough to take in the whole width of the table.
+// Screen shape decides the exact spot. On a wide screen the camera is just
+// over the rail in front of your chair. A tall phone screen is narrow, and
+// from there the table ran off both sides of it, so the camera rises higher
+// over your chair and looks more steeply down, to take in its whole width.
+// `toward` moves the aim from the dealer's cards toward the dealer (up to
+// 1) or, below 0, toward you.
 const VIEWS = {
-  wide: { back: m(0.5), height: m(1.85), lookY: 0.5 },
-  tall: { back: m(1.75), height: m(2.75), lookY: 0.9 },
+  wide: { back: m(-0.126), height: m(2.61), lookY: -0.35, toward: -0.26 },
+  tall: { back: m(0.62), height: m(4.19), lookY: -0.8, toward: -0.56 },
 };
 export const isTallScreen = () => window.innerWidth < window.innerHeight;
 const view = () => (isTallScreen() ? VIEWS.tall : VIEWS.wide);
@@ -75,8 +74,9 @@ const OUTER_AIM = 0.55;
 
 export function cameraLookAtForSeat(seat) {
   const out = seat ? Math.abs(Math.atan2(seat.position.x, seat.position.z)) / (Math.PI / 2) : 0;
-  const target = DEALER.handSpot.clone().lerp(DEALER.position, Math.min(1, out) * OUTER_AIM);
-  return target.setY(view().lookY);
+  const v = view();
+  const target = DEALER.handSpot.clone().lerp(DEALER.position, Math.min(1, Math.max(v.toward, Math.min(1, out) * OUTER_AIM)));
+  return target.setY(v.lookY);
 }
 
 // The two end seats sit right out beside the dealer. Viewed from exactly
@@ -92,7 +92,11 @@ function cameraAngle(seat) {
   if (deg === 0) return 0;
   const inward = SEAT_ANGLES_DEG.filter((d) => Math.abs(d) < Math.abs(deg) && Math.sign(d || deg) === Math.sign(deg));
   const next = inward.length ? inward.reduce((a, b) => (Math.abs(b) > Math.abs(a) ? b : a)) : 0;
-  return THREE.MathUtils.degToRad((deg + next) / 2);
+  // Seen from high over the felt, a camera far round the side shows the
+  // table turned on its edge, like a map, not like a seat at it: so the
+  // view swings in further, to half that angle, and every seat sees the
+  // table mostly from the front, its own place still nearest.
+  return THREE.MathUtils.degToRad((deg + next) / 4);
 }
 
 export function cameraPositionForSeat(seat) {
@@ -126,9 +130,8 @@ export const DEALER = {
   // The chip rack; losing bets go in, payouts come out.
   trayPosition: new THREE.Vector3(0, 0.01, TABLE_BACK_Z + 0.4),
   // Pulled just clear of the rail/tray/shoe cluster so the dealer's cards
-  // (and hand-value badge) aren't lost in that clutter — with the back
-  // stretch of felt shrunk down, this now lands right at the start of the
-  // front curve instead of needing a long forward push to close a big gap.
-  handSpot: new THREE.Vector3(0, 0.04, TABLE_BACK_Z + 1.52),
+  // (and hand-value badge) aren't lost in that clutter, and short of the
+  // BLACKJACK lettering printed across the felt in front of them.
+  handSpot: new THREE.Vector3(0, 0.04, TABLE_BACK_Z + 0.97),
   facingAngle: 0,
 };
