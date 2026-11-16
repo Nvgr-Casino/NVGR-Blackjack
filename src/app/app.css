@@ -2408,3 +2408,30 @@ main.auth.sx-auth { position: relative; isolation: isolate; }
 .sx-games { color: #cdb07a; }
 .sx-brand .auth-logo { filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.6)) saturate(0.9); }
 .auth-dust { opacity: 0.55; }
+
+/* Sign in, minimal: the crest, three choices, forms that drop open. */
+main.auth.sx-min { grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); }
+.sx-min .sx-brand .auth-logo { width: min(320px, 34vw); }
+.sx-min .sx-card { display: flex; flex-direction: column; gap: 10px; padding: 26px 24px 18px !important; }
+.sx-choice { position: relative; width: 100%; height: 48px; border-radius: 12px; cursor: pointer; font: inherit; font-size: 15px; font-weight: 600; letter-spacing: 0.02em;
+  color: #efe6d4; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(201, 164, 92, 0.45); transition: background 0.2s, border-color 0.2s; }
+.sx-choice:hover, .sx-choice.on { background: rgba(201, 164, 92, 0.1); border-color: rgba(201, 164, 92, 0.8); }
+.sx-choice i { position: absolute; right: 16px; top: 50%; width: 8px; height: 8px; margin-top: -6px; border-right: 1.5px solid #c9a45c; border-bottom: 1.5px solid #c9a45c; transform: rotate(45deg); transition: transform 0.25s, margin 0.25s; }
+.sx-choice.on i { transform: rotate(-135deg); margin-top: -2px; }
+.sx-drop { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 0.3s cubic-bezier(.2,.7,.2,1), opacity 0.25s ease, margin 0.3s; margin-top: -10px; }
+.sx-drop.open { grid-template-rows: 1fr; opacity: 1; margin-top: 0; }
+.sx-drop-inner { overflow: hidden; display: flex; flex-direction: column; gap: 8px; }
+.sx-drop.open .sx-drop-inner { padding: 2px 0 4px; }
+.sx-drop input { height: 44px; border-radius: 10px; padding: 0 14px; font: inherit; font-size: 14px; color: var(--text); background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.12); }
+.sx-drop input:focus { outline: none; border-color: #c9a45c; box-shadow: 0 0 0 3px rgba(201, 164, 92, 0.16); }
+.sx-submit { height: 44px !important; border-radius: 10px !important; }
+.sx-guestlink { margin-top: 4px; align-self: center; background: none; border: 0; padding: 6px 10px; cursor: pointer; font: inherit; font-size: 13.5px; color: rgba(217, 189, 132, 0.85); text-decoration: underline; text-underline-offset: 4px; text-decoration-color: rgba(201, 164, 92, 0.45); }
+.sx-guestlink:hover { color: #e8cf98; }
+.sx-min .error-text { margin: 0; font-size: 12.5px; }
+@media (orientation: landscape) and (max-height: 520px) {
+  .sx-min .sx-brand .auth-logo { width: min(220px, 30vw); }
+  .sx-min .sx-card { gap: 7px; padding: 16px 16px 10px !important; max-height: calc(100svh - 16px); overflow-y: auto; }
+  .sx-choice, .sx-min .btn-google { height: 40px !important; }
+  .sx-drop input { height: 36px; }
+  .sx-submit { height: 38px !important; }
+}
