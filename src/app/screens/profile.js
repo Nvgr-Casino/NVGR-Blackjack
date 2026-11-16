@@ -9,6 +9,7 @@ import { safeKey } from '../roomLogic.js';
 import * as S from '../session.js';
 import * as Social from '../social.js';
 import * as P from '../progress.js';
+import { goldShower } from '../celebrate.js';
 
 const fmt = (n) => Math.round(n || 0).toLocaleString();
 const short = (n) => n >= 1e6 ? `${+(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M` : n >= 1e4 ? `${Math.round(n / 1e3)}K` : fmt(n);
@@ -205,8 +206,8 @@ async function onClick(e) {
   if (act === 'close') return closeProfile();
   open.busy = true;
   try {
-    if (act === 'bonus') { const n = await P.claimBonus(giveChips); if (n) open.note = `${fmt(n)} chips added to your balance.`; }
-    else if (act === 'gift') { const n = await P.claimGift(giveChips); if (n) open.note = `Level gift opened: ${fmt(n)} chips added.`; }
+    if (act === 'bonus') { const n = await P.claimBonus(giveChips); if (n) { open.note = `${fmt(n)} chips added to your balance.`; goldShower(b); } }
+    else if (act === 'gift') { const n = await P.claimGift(giveChips); if (n) { open.note = `Level gift opened: ${fmt(n)} chips added.`; goldShower(b); } }
     else if (act === 'add') { await Social.sendFriendRequest(open.key, v.name); open.note = 'Friend request sent.'; }
     else if (act === 'accept') { await Social.acceptRequest(open.key, v.name); open.note = `You and ${v.name} are now friends.`; }
     else if (act === 'dm') { const k = open.key; closeProfile(); Social.openDm(k, v.name); return; }
@@ -253,7 +254,8 @@ export function maybeShowBonus() {
     b.disabled = true;
     const n = await P.claimBonus(giveChips).catch(() => 0);
     b.textContent = n ? `${fmt(n)} chips added` : 'Please try again';
-    setTimeout(() => el.remove(), n ? 900 : 1500);
+    if (n) goldShower(b);
+    setTimeout(() => el.remove(), n ? 1600 : 1500);
   });
   document.body.appendChild(el);
 }

@@ -21,7 +21,9 @@ const COUNT = PHONE ? 3 : 5;
 const MINE = Math.floor(COUNT / 2);
 // The arc the bank stands on, concave toward the player.
 const ARC = m(5.2);
-const SPACING = m(CAB_W + 0.03) / ARC;   // radians between machines
+// Each machine stands on its own, with a clear gap either side, rather
+// than the cabinets joined into one bank.
+const SPACING = m(CAB_W + 0.45) / ARC;   // radians between machines
 const BACK = -m(0.15);                   // your machine's back, from the origin
 const GUESTS = PHONE ? [[0, 'rb_bf01']] : [[0, 'rb_bf02'], [3, 'rb_bm02']];
 // Which game stands where, either side of yours.
@@ -137,8 +139,20 @@ export function createSlotSalon() {
 
   // The neighbours play on their own: a spin every so often.
   const nextSpin = machines.map((_, i) => (i === MINE ? Infinity : performance.now() + 2500 + Math.random() * 7000));
+  // Playing, only your machine stands in the light: the neighbours and the
+  // guests at them are put away, so nothing beside it draws the eye (and
+  // a phone is spared animating machines no one is playing). The lobby's
+  // view of the salon shows the whole bank again.
+  let focused = false;
+  function focus(on) {
+    focused = !!on;
+    machines.forEach((mach, i) => { if (i !== MINE) mach.visible = !focused; });
+    chairs.forEach((c, i) => { if (i !== MINE) c.chair.visible = !focused; });
+    guests.forEach((g) => { g.visible = !focused; });
+  }
   function update(now) {
     machines.forEach((mach, i) => {
+      if (focused && i !== MINE) return;
       mach.userData.update(now);
       if (i !== MINE && now >= nextSpin[i] && !mach.userData.spinning) {
         const g = mach.userData.game;
@@ -171,6 +185,7 @@ export function createSlotSalon() {
   const reelWorld = new THREE.Vector3(REEL_CENTER.x, REEL_CENTER.y, REEL_CENTER.z);
   group.userData = {
     update,
+    focus,
     machine: mine,
     machines,
     setGame,

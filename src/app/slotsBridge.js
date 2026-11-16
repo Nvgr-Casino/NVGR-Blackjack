@@ -18,8 +18,10 @@ let scene = null;
 // The salon's room: the grandest of the house's.
 const SALON_TIER = 5;
 
+let salon = null;
 export function mountSlots3D(handles) {
   scene = handles;
+  salon = handles.slotsSalon || null;
   driver = createSlotsDriver({ scene: handles.scene, camera: handles.camera, controls: handles.controls, renderer: handles.renderer, set: handles.slotsSet, salon: handles.slotsSalon });
   driver.setOnButton(onMachineButton);
   return driver;
@@ -208,6 +210,7 @@ export function syncSlotsToScene(room) {
   const before = driver.currentGame && driver.currentGame();
   driver.setGame(room.gameId);
   driver.sit();
+  if (salon && salon.userData.focus) salon.userData.focus(true);
   // A fresh visit, or another machine: the reels where they were left.
   if (!shownFor || before !== room.gameId) {
     shownFor = room;
@@ -221,6 +224,7 @@ export function syncSlotsToScene(room) {
 }
 
 export function leaveSlotsView() {
+  if (salon && salon.userData.focus) salon.userData.focus(false);
   clearTimeout(autoTimer);
   clearInterval(countTimer);
   countTimer = null;
