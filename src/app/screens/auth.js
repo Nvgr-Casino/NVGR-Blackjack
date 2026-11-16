@@ -20,6 +20,7 @@ export function renderAuth() {
   const isSignup = S.authMode === 'signup';
   return `
     <main class="auth sx-auth">
+      <div class="il-beams sx-beams" aria-hidden="true"><i></i><i></i></div>
       <section class="sx-brand">
         ${brandMark('auth-logo')}
         <span class="sx-rule" aria-hidden="true"></span>
@@ -55,6 +56,7 @@ export function renderAuth() {
         <button class="btn btn-primary btn-block" id="emailSubmitBtn" ${S.authBusy ? 'disabled' : ''}>${S.authBusy ? 'Please wait…' : (isSignup ? 'Create account' : 'Sign in')}</button>
         <p class="sx-fine">A guest's chips stay on this device. Sign in to keep them on every device.</p>
       </section>
+      <footer class="sx-powered"><span></span>Powered by NVGR Casino<span></span></footer>
     </main>
   `;
 }

@@ -2321,3 +2321,43 @@ main.auth.sx-auth { position: relative; isolation: isolate; }
   .st-version { margin-top: 6px; }
 }
 @media (max-width: 720px) and (orientation: portrait) { .st-grid { grid-template-columns: 1fr; } }
+
+/* Sign in, in black and gold: the live lobby behind a soft black
+   vignette (no tint), a black glass card with Art Deco gold corners, warm
+   light beams, and the house's mark at the foot. */
+.over-scene main.auth.sx-auth::before {
+  background: radial-gradient(120% 100% at 50% 50%, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.78) 75%),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.62), rgba(0, 0, 0, 0.12) 48%, rgba(0, 0, 0, 0.5)) !important;
+}
+.sx-beams { position: fixed; z-index: -1; opacity: 0.85; }
+.over-scene .sx-card, .sx-card {
+  position: relative; background: linear-gradient(180deg, rgba(18, 16, 14, 0.84), rgba(6, 6, 6, 0.9)) !important;
+  border: 1px solid rgba(216, 180, 106, 0.5) !important; border-radius: 6px !important;
+  box-shadow: 0 50px 100px -30px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(0, 0, 0, 0.7), inset 0 0 0 4px rgba(0, 0, 0, 0.6), inset 0 0 0 5px rgba(216, 180, 106, 0.18) !important;
+}
+.sx-card::before, .sx-card::after { content: ''; position: absolute; width: 34px; height: 34px; pointer-events: none; border: 2px solid var(--gold-2); }
+.sx-card::before { top: 9px; left: 9px; border-right: 0; border-bottom: 0; }
+.sx-card::after { bottom: 9px; right: 9px; border-left: 0; border-top: 0; }
+.sx-title { background: linear-gradient(180deg, #fff1c8, #e2bf72 55%, #b08440); -webkit-background-clip: text; background-clip: text; color: transparent !important; letter-spacing: 0.06em; }
+.sx-card .segmented { background: rgba(0, 0, 0, 0.5) !important; border-color: rgba(255, 255, 255, 0.08) !important; }
+.sx-card input { background: rgba(0, 0, 0, 0.45) !important; border-color: rgba(255, 255, 255, 0.12) !important; }
+.sx-guest { background: rgba(216, 180, 106, 0.05) !important; }
+.sx-card .or { color: rgba(226, 214, 190, 0.45); }
+.sx-card .or::before, .sx-card .or::after { background: linear-gradient(90deg, transparent, rgba(216, 180, 106, 0.4), transparent); }
+.sx-ficon { background: rgba(0, 0, 0, 0.45) !important; }
+.sx-brand .auth-tag, .sx-features small { color: rgba(236, 228, 212, 0.72); }
+.sx-features b { color: #f4ead6; }
+.sx-powered { position: fixed; left: 50%; bottom: max(10px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; align-items: center; gap: 12px;
+  font-family: var(--brand); font-size: 10.5px; font-weight: 700; letter-spacing: 0.32em; text-transform: uppercase; color: rgba(232, 204, 140, 0.8); white-space: nowrap; pointer-events: none; }
+.sx-powered span { width: 46px; height: 1px; background: linear-gradient(90deg, transparent, rgba(216, 180, 106, 0.75)); }
+.sx-powered span:last-child { transform: scaleX(-1); }
+@media (orientation: landscape) and (max-height: 520px) {
+  .sx-card::before, .sx-card::after { width: 22px; height: 22px; }
+  .sx-card::before { top: 6px; left: 6px; } .sx-card::after { bottom: 6px; right: 6px; }
+  .sx-powered { font-size: 8.5px; bottom: 4px; left: 25%; }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .sx-features small { display: none; }
+  .sx-features { gap: 8px 18px; }
+  .sx-brand { padding-bottom: 18px; }
+}
