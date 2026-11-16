@@ -24,6 +24,7 @@ import { brandMark } from './app/uiHelpers.js';
 import { createIntro } from './app/intro.js';
 import * as Curtain from './app/curtain.js';
 import { checkForAppUpdate } from './app/updateCheck.js';
+import { mountChairInvites } from './app/chairInvites.js';
 
 const canvas = document.getElementById('scene');
 const root = document.getElementById('root');
@@ -267,6 +268,7 @@ async function boot() {
   mountCraps3D(sceneHandles);
   setLobbyScene(sceneHandles);
   mountService(sceneHandles);
+  mountChairInvites(sceneHandles);
   setOnChange(render);
   initAuth();
   checkInviteParam();
