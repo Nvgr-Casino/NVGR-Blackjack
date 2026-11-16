@@ -483,14 +483,49 @@ export function initScene(canvas) {
     backdrop = on;
     // A dimmed backdrop is drawn at a lower resolution; the carousel is the
     // page itself, so it gets the tables' full sharpness.
-    const sharp = !on || show === 'carousel';
-    if (sharp !== backdropSharp) {
-      backdropSharp = sharp;
-      if (sharp) applyPixelRatio();
+    // The lobby's carousel has a ceiling of its own, below the tables': it is
+    // the whole room with five tables and their guests, drawn behind the
+    // page's own sharp lettering, and at a retina screen's full 2x it ran
+    // at about 11 frames a second on an ordinary laptop.
+    const mode = !on ? 'table' : show === 'carousel' ? 'lobby' : 'dim';
+    if (mode !== backdropMode) {
+      backdropMode = mode;
+      if (mode === 'table') applyPixelRatio();
+      else if (mode === 'lobby') renderer.setPixelRatio(Math.min(window.devicePixelRatio, LOBBY_DPR[lobbyStep]));
       else renderer.setPixelRatio(Math.min(window.devicePixelRatio, phoneWork ? 1 : 1.25));
     }
+    // No shadows behind the lobby and the menus. Measured on a laptop, the
+    // lobby took 67 ms a frame with the lamp's shadow and 9 ms without: every
+    // surface in the room looks the shadow up for every pixel, and the lobby
+    // is the whole room at once. At a table they come back, drawn every
+    // frame on a computer.
+    key.castShadow = !on;
+    renderer.shadowMap.autoUpdate = !on && !phoneWork;
+    renderer.shadowMap.needsUpdate = true;
   }
-  let backdropSharp = true;
+  const LOBBY_DPR = phoneWork ? [1.25, 1.1, 1] : [1.5, 1.25, 1];
+  let lobbyStep = 0;
+  let backdropMode = 'table';
+  // The lobby steps its resolution down too, judged on the gaps between
+  // the frames it chose to draw: over 50 ms on average (under 20 a second)
+  // for thirty frames, a step down.
+  let lobbyGaps = [];
+  let lobbyLast = 0;
+  function adaptLobby(now) {
+    const gap = now - lobbyLast;
+    lobbyLast = now;
+    if (backdropMode !== 'lobby' || document.hidden || gap > 1000 || now < settleUntil) return;
+    lobbyGaps.push(gap);
+    if (lobbyGaps.length < 30) return;
+    const mean = lobbyGaps.reduce((a, b) => a + b, 0) / lobbyGaps.length;
+    lobbyGaps = [];
+    if (mean > 50 && lobbyStep < LOBBY_DPR.length - 1) {
+      lobbyStep++;
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, LOBBY_DPR[lobbyStep]));
+    }
+  }
+  const viewFrustum = new THREE.Frustum();
+  const viewMatrix = new THREE.Matrix4();
   function placeBackdropCamera(delta) {
     if (!stillMotion.matches) backdropT += delta;
     const half = room ? room.userData.dims.half : ROOM_HALF;
@@ -619,9 +654,14 @@ export function initScene(canvas) {
       updateDealerAnimations(d);
       service.update(d);
       if (room && room.userData.update) room.userData.update(d, now);
-      if (carousel.on) { stepCarousel(d); placeCarouselCamera(d); updateSeatedCharacters(d); }
-      else placeBackdropCamera(d);
-      if (phoneWork && ++shadowFrame % 4 === 0) renderer.shadowMap.needsUpdate = true;
+      if (carousel.on) {
+        stepCarousel(d); placeCarouselCamera(d);
+        camera.updateMatrixWorld();
+        viewFrustum.setFromProjectionMatrix(viewMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+        updateSeatedCharacters(d, viewFrustum);
+      } else placeBackdropCamera(d);
+      if (++shadowFrame % 8 === 0) renderer.shadowMap.needsUpdate = true;
+      adaptLobby(now);
       renderer.render(scene, camera);
       return;
     }

@@ -67,8 +67,15 @@ const loadModel = (file) => loadGltf(modelUrl(file));
 // Every seated figure, stepped from the render loop: its seated clip, and
 // over that whatever its hand is doing (see reach.js).
 const seated = new Set();
-export function updateSeatedCharacters(deltaSeconds) {
-  seated.forEach(({ mixer, reach }) => {
+// `frustum`, when given, is the camera's view: figures outside it are left
+// still that frame (the lobby has five tables of them, most out of shot).
+const _seatSphere = new THREE.Sphere(new THREE.Vector3(), 1.2);
+export function updateSeatedCharacters(deltaSeconds, frustum = null) {
+  seated.forEach(({ mixer, reach, group }) => {
+    if (frustum && group) {
+      group.getWorldPosition(_seatSphere.center);
+      if (!frustum.intersectsSphere(_seatSphere)) return;
+    }
     if (reach) reach.before();
     mixer.update(deltaSeconds);
     if (reach) reach.after();
@@ -140,7 +147,7 @@ export function createCharacter(id) {
       // Each figure is offset so a row of them doesn't breathe in unison.
       mixer.setTime(Math.random() * clip.duration);
       const reach = createReach(model, bones);
-      const record = { mixer, reach };
+      const record = { mixer, reach, group };
       seated.add(record);
       group.userData.mixer = mixer;
       group.userData.reach = reach;

@@ -58,7 +58,9 @@ export function createLobbyCrowd(sets) {
       g.visible = false;
       sets[game].add(g);
       groups[game] = g;
-      (PHONE ? cast.slice(0, 2) : cast).forEach(([seatIndex, castId], k) => {
+      // Three guests a table on a computer: each figure is a dozen draw calls
+      // and a skeleton to animate, and the lobby shows five tables.
+      (PHONE ? cast.slice(0, 2) : cast.slice(0, 3)).forEach(([seatIndex, castId], k) => {
         const id = PHONE ? (PHONE_FIGURES[castId] || castId) : castId;
         const seat = game === 'blackjack' ? SEATS[seatIndex] : game === 'holdem' ? POKER_SEATS_3D[seatIndex]
           : game === 'roulette' ? ROULETTE_SEATS_3D[seatIndex] : game === 'craps' ? CRAPS_SEATS_3D[seatIndex] : BACCARAT_SEATS_3D[seatIndex];
