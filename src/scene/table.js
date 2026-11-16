@@ -99,15 +99,12 @@ function normalizeShapeUVs(geometry) {
 // never a bright one — the old reds and blues were closer to a poster than
 // a fabric, and under the light pool they glowed. These sit lower and
 // greyer, and the one cream ink used for the markings reads on all of them.
-// Bright enough to read as cloth under a table light, as the felt does in
-// a card room: the cards and their totals stand out on it. (They were near
-// black at the rail, and the table looked dim and murky.)
 export const FELT_THEMES = {
-  red: { hi: '#9a3242', lo: '#561a25' },
-  green: { hi: '#2f8462', lo: '#164a35' },
-  blue: { hi: '#2f78b4', lo: '#174575' },
-  purple: { hi: '#634c88', lo: '#33264c' },
-  black: { hi: '#403f43', lo: '#1c1c1f' },
+  red: { hi: '#7c2633', lo: '#3d1219' },
+  green: { hi: '#24624a', lo: '#0f3022' },
+  blue: { hi: '#24496e', lo: '#10233a' },
+  purple: { hi: '#4d3a66', lo: '#231a33' },
+  black: { hi: '#2e2d2f', lo: '#131314' },
 };
 export const FELT_THEME_KEYS = Object.keys(FELT_THEMES);
 export function feltTheme(key) { return FELT_THEMES[key] || FELT_THEMES.red; }
