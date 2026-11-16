@@ -5,6 +5,7 @@
 
 import { esc, HUD_ICONS } from './uiHelpers.js';
 import * as S from './session.js';
+import { openInvite } from './invite.js';
 
 let open = false;
 let justOpened = false;
@@ -27,7 +28,9 @@ export function seatPickerHtml(r, myKey, count, canMove, why = '') {
     const taken = k && !mine;
     const blocked = mine || taken || !canMove;
     const title = mine ? 'Your seat' : taken ? `${esc(r.players[k].name)} is in seat ${i + 1}` : !canMove ? why : `Move to seat ${i + 1}`;
-    return `<button class="seat-dot${mine ? ' current' : ''}${taken ? ' taken' : ''}" data-move-seat="${i}" ${blocked ? 'disabled' : ''} title="${title}" aria-label="${title}">${i + 1}</button>`;
+    const dot = `<button class="seat-dot${mine ? ' current' : ''}${taken ? ' taken' : ''}" data-move-seat="${i}" ${blocked ? 'disabled' : ''} title="${title}" aria-label="${title}">${i + 1}</button>`;
+    // A free seat: a + to invite a friend to it.
+    return mine || taken ? dot : `<span class="seat-slot">${dot}<button class="seat-invite" data-invite-seat="${i}" title="Invite a friend to seat ${i + 1}" aria-label="Invite a friend to seat ${i + 1}">+</button></span>`;
   }).join('');
   const html = `
     <div class="seat-dots open ${justOpened ? 'opening' : ''}" role="group" aria-label="Seat">
@@ -43,6 +46,9 @@ export function attachSeatPicker(move) {
   if (toggle) toggle.onclick = () => { open = !open; justOpened = open; S.refresh(); };
   document.querySelectorAll('[data-move-seat]').forEach((b) => {
     b.onclick = () => { open = false; move(Number(b.dataset.moveSeat)); S.refresh(); };
+  });
+  document.querySelectorAll('[data-invite-seat]').forEach((b) => {
+    b.onclick = () => { open = false; S.refresh(); openInvite(Number(b.dataset.inviteSeat)); };
   });
 }
 

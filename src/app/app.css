@@ -2373,3 +2373,26 @@ main.auth.sx-auth { position: relative; isolation: isolate; }
 .intro.card-on .intro-house-sub { animation-delay: 0.45s; }
 .intro.card-on .intro-house-name { animation-delay: 0.6s; }
 @keyframes house-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* ---------- inviting a friend ---------- */
+.seat-slot { position: relative; display: inline-flex; }
+.seat-invite { position: absolute; top: -7px; right: -7px; width: 18px; height: 18px; border-radius: 50%; padding: 0; border: 1px solid #0c1834; cursor: pointer;
+  font: 700 13px/1 var(--font); color: #1a1206; background: linear-gradient(180deg, var(--gold-1), var(--gold-2)); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); }
+.inv-card { width: min(520px, 100%); }
+.inv-sub { margin: 0 0 10px; text-align: center; font-size: 13px; color: var(--muted); }
+.inv-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 52vh; overflow-y: auto; }
+.inv-row { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); }
+.inv-face { width: 36px; height: 36px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #fff; border: 1.5px solid var(--gold-2); }
+.inv-who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.inv-who b { font-size: 14px; }
+.inv-who small { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.inv-who small i { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+.inv-who small.on { color: var(--good); } .inv-who small.on i { background: var(--good); }
+.inv-sent { font-size: 12.5px; font-weight: 700; color: var(--good); }
+.inv-empty { padding: 16px; text-align: center; color: var(--muted); font-size: 13px; }
+.inv-toast { position: fixed; z-index: 9600; left: 50%; top: calc(12px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); width: min(560px, calc(100vw - 24px));
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 16px; background: linear-gradient(180deg, #13244c, #0b1630); border: 1px solid var(--gold-2);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.6); animation: update-in 0.35s ease-out; }
+.inv-toast-text { flex: 1; min-width: 0; font-size: 13.5px; }
+.inv-toast-text small { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold-2); }
+.inv-toast-actions { display: flex; gap: 8px; }

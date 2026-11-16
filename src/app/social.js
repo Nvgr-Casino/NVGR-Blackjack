@@ -27,6 +27,9 @@ let dmUnsub = null;
 const watchedUsers = new Set();
 
 export function setSocialNotice(text) { socialNotice = text; refresh(); }
+// invite.js listens to the inbox for invitations to a table.
+let inboxListener = null;
+export function setInboxListener(fn) { inboxListener = fn; }
 
 // Both halves of a conversation share one thread, so the id has to be the
 // same whichever side builds it.
@@ -66,6 +69,7 @@ export function initSocial() {
   unsubs.push(onValue(ref(db, 'dmInbox/' + me), (snap) => {
     inbox = snap.val() || {};
     refresh();
+    if (inboxListener) inboxListener(inbox);
   }));
 }
 

@@ -3,6 +3,7 @@
 // screen's HTML chrome too (header/log/controls/admin/chat) — ported from
 // index4.html's renderTable()/attachTable(), minus the felt-oval/seats-row
 // markup the 3D scene now draws instead.
+import { openInvite } from './invite.js';
 import { createTableDriver } from '../ui/gameController.js';
 import {
   MAX_PUBLIC_SEATS, MAX_TIMEOUTS, rankOf, suitOf, handValueLabel,
@@ -730,7 +731,9 @@ export function renderTableScreen() {
           : taken ? esc(r.players[owner].name) + ' is in seat ' + (i + 1)
           : holdingCards ? 'Finish the hand before moving'
           : 'Move to seat ' + (i + 1);
-        return `<button class="seat-dot${mine ? ' current' : ''}${taken ? ' taken' : ''}" data-take-seat="${i}" ${blocked ? 'disabled' : ''} title="${title}" aria-label="${title}">${i + 1}</button>`;
+        const dot = `<button class="seat-dot${mine ? ' current' : ''}${taken ? ' taken' : ''}" data-take-seat="${i}" ${blocked ? 'disabled' : ''} title="${title}" aria-label="${title}">${i + 1}</button>`;
+        // A free seat: a + to invite a friend to it.
+        return mine || taken || tour ? dot : `<span class="seat-slot">${dot}<button class="seat-invite" data-invite-seat="${i}" title="Invite a friend to seat ${i + 1}" aria-label="Invite a friend to seat ${i + 1}">+</button></span>`;
       }).join('')}
     </div>`;
 
@@ -1036,6 +1039,9 @@ export function attachTableScreen() {
   seatsJustOpened = false;
   const seatToggle = document.getElementById('seatToggleBtn');
   if (seatToggle) seatToggle.onclick = () => { seatsOpen = !seatsOpen; seatsJustOpened = seatsOpen; S.refresh(); };
+  document.querySelectorAll('[data-invite-seat]').forEach((b) => {
+    b.onclick = () => { seatsOpen = false; S.refresh(); openInvite(Number(b.dataset.inviteSeat)); };
+  });
 }
 
 /** Clears the blackjack table of everything a room put on it — for a poker table to take over the scene. */
