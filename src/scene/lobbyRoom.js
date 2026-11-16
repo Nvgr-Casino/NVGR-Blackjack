@@ -229,7 +229,8 @@ function decoWall(room) {
     new THREE.PlaneGeometry(crestSize, crestSize),
     new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, toneMapped: false, fog: false }),
   );
-  crest.position.set(0, FLOOR_Y + m(3.0), -ARC_R - R + m(0.25));
+  // High on the wall, above the centrepiece in the middle of the room.
+  crest.position.set(0, FLOOR_Y + m(5.0), -ARC_R - R + m(0.25));
   // Drawn after the wall: both are see-through, and the wall's centre (the
   // arc's) is nearer the camera, so by distance alone it would paint over.
   crest.renderOrder = 2;
@@ -302,6 +303,32 @@ function plinth(group, height, radius) {
   });
   return height;
 }
+// In the middle of the circle the tables stand round, the room's centre:
+// a crowned queen in bronze (Poly Haven's gothic_statue, CC0) on a grand
+// round plinth of black lacquer and gold, its base ringed in light.
+function centrepiece(room) {
+  const g = new THREE.Group();
+  g.position.set(0, FLOOR_Y, -ARC_R);
+  room.add(g);
+  // The steps: a wide low drum, then the plinth itself.
+  const step = new THREE.Mesh(new THREE.CylinderGeometry(m(1.35), m(1.42), m(0.22), 64), PLINTH);
+  step.position.y = m(0.11);
+  g.add(step);
+  const stepRim = new THREE.Mesh(new THREE.TorusGeometry(m(1.36), m(0.025), 10, 96), PLINTH_GOLD);
+  stepRim.rotation.x = Math.PI / 2;
+  stepRim.position.y = m(0.22);
+  g.add(stepRim);
+  const glow = new THREE.Mesh(new THREE.RingGeometry(m(1.44), m(1.6), 96), new THREE.MeshBasicMaterial({ color: 0xffd58a, transparent: true, opacity: 0.22, toneMapped: false, depthWrite: false }));
+  glow.rotation.x = -Math.PI / 2;
+  glow.position.y = 0.012;
+  g.add(glow);
+  const body = new THREE.Group();
+  body.position.y = m(0.22);
+  g.add(body);
+  const top = plinth(body, m(0.62), m(0.62));
+  place(body, 'gothic_statue', { y: top, yaw: 0, size: 1.05 });
+}
+
 function gallery(room) {
   // A point on the circle round the arc's centre: radius r, turned t from
   // straight behind it.
@@ -321,10 +348,10 @@ function gallery(room) {
       const top = plinth(g, m(1.3), m(0.5));
       place(g, 'horse_statue_01', { y: top, yaw: Math.PI / 2, size: 7.5 });
     }
-    [-1, 1].forEach((side) => place(g, 'potted_plant_02', { x: side * m(kind === 'bust' ? 1.15 : 1.1), z: m(-0.1), size: 2.6 }));
   };
   [-1, 1].forEach((side) => {
     vignette(m(7.4), side * 0.6, 'bust');
     vignette(m(6.6), side * 1.05, 'horse');
   });
+  centrepiece(room);
 }
