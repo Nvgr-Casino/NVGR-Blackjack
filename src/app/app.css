@@ -2741,3 +2741,30 @@ main.auth.si > * { grid-row: 1 !important; }
   .lb-spot b { flex: 1; text-align: left; }
   .lb-list { overflow-y: auto; }
 }
+
+/* Table picker: a private table first, and joining with a code. */
+.tp-private-card { width: 100%; aspect-ratio: 300 / 180; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 14px; cursor: pointer; text-align: center;
+  font: inherit; color: #fff; border-radius: 26px; border: 2px dashed rgba(230, 181, 82, 0.7); background: radial-gradient(70% 70% at 50% 45%, rgba(230, 181, 82, 0.14), rgba(12, 32, 72, 0.55)); transition: background 0.15s, transform 0.15s; }
+.tp-private-card:hover { background: radial-gradient(70% 70% at 50% 45%, rgba(230, 181, 82, 0.22), rgba(12, 32, 72, 0.6)); transform: translateY(-2px); }
+.tp-private-lock svg { width: 34px; height: 34px; fill: none; stroke: var(--gold-1); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.tp-private-card b { font-size: 17px; }
+.tp-private-card small { max-width: 240px; font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+.tp-private-go { margin-top: 4px; padding: 6px 16px; border-radius: 999px; font-size: 13px; font-weight: 700; color: #1b2a4a; background: var(--gold-2); }
+.tp-row-private .tp-row-name { color: var(--gold-1); }
+.tp-join { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.tp-join-btn { height: 34px; padding: 0 14px; border-radius: 10px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 700; color: #1b2a4a; background: var(--gold-2); border: 0; white-space: nowrap; }
+.tp-join input { width: 120px; height: 34px; border-radius: 10px; padding: 0 12px; font: inherit; font-size: 14px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #fff; background: rgba(4, 12, 32, 0.45); border: 1px solid rgba(230, 181, 82, 0.6); }
+.tp-join input:focus { outline: none; border-color: var(--gold-1); }
+.tp-join-go { height: 34px; padding: 0 14px; border-radius: 10px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 700; color: #1b2a4a; background: var(--gold-2); border: 0; }
+.tp-join-x { width: 30px; height: 30px; border-radius: 8px; cursor: pointer; font-size: 18px; line-height: 1; color: #fff; background: rgba(255, 255, 255, 0.08); border: 0; }
+.tp-join + .tp-filters { margin-left: 0; }
+@media (orientation: landscape) and (max-height: 520px) {
+  .tp-private-card { border-radius: 20px; gap: 3px; padding: 8px; }
+  .tp-private-lock svg { width: 24px; height: 24px; }
+  .tp-private-card b { font-size: 14px; }
+  .tp-private-card small { font-size: 10.5px; }
+  .tp-private-go { padding: 4px 12px; font-size: 11.5px; }
+  .tp-join-btn, .tp-join-go, .tp-join input { height: 28px; font-size: 12px; }
+  .tp-join input { width: 96px; }
+  .tp-filter > span { display: none; }
+}

@@ -24,15 +24,15 @@ const PER_LIMIT = 4;   // tables shown at each limit, real ones first
 // Each game: its name, seats, table shape, and how to load and join.
 const GAMES = {
   blackjack: { name: 'Blackjack', seats: MAX_PUBLIC_SEATS, shape: 'moon', hint: 'Beat the dealer to 21. Blackjack pays 3 to 2.',
-    load: () => S.loadBlackjackTables(), join: (t, seat) => S.joinSpecificPublicTable(t.code, seat), fresh: (tier, seat) => S.newPublicBlackjackTable(tier, seat) },
+    load: () => S.loadBlackjackTables(), join: (t, seat) => S.joinSpecificPublicTable(t.code, seat), fresh: (tier, seat) => S.newPublicBlackjackTable(tier, seat), host: () => S.createRoom() },
   holdem: { name: "Texas Hold'em", seats: POKER_SEATS, shape: 'oval', hint: 'Your best five cards from two in hand and five on the board.',
-    load: async () => (await Poker.loadPokerTables()).tables || [], join: (t) => Poker.openPokerTable(t.code), fresh: null },
+    load: async () => (await Poker.loadPokerTables()).tables || [], join: (t) => Poker.openPokerTable(t.code), fresh: null, host: (tier) => Poker.createPokerTable(tier || 0) },
   roulette: { name: 'Roulette', seats: ROULETTE_SEATS, shape: 'wheel', hint: 'European wheel, one zero. Straight up pays 35 to 1.',
-    load: () => Roulette.loadRouletteTables(), join: (t, seat) => Roulette.joinRouletteTable(t.code, seat), fresh: (tier, seat) => Roulette.newPublicTable(tier, seat) },
+    load: () => Roulette.loadRouletteTables(), join: (t, seat) => Roulette.joinRouletteTable(t.code, seat), fresh: (tier, seat) => Roulette.newPublicTable(tier, seat), host: (tier) => Roulette.hostRouletteTable(tier) },
   baccarat: { name: 'Baccarat', seats: BACCARAT_SEATS, shape: 'oval', hint: 'Banker pays 19 to 20. Tie pays 8 to 1.',
-    load: () => Baccarat.loadBaccaratTables(), join: (t, seat) => Baccarat.joinBaccaratTable(t.code, seat), fresh: (tier, seat) => Baccarat.newPublicTable(tier, seat) },
+    load: () => Baccarat.loadBaccaratTables(), join: (t, seat) => Baccarat.joinBaccaratTable(t.code, seat), fresh: (tier, seat) => Baccarat.newPublicTable(tier, seat), host: (tier) => Baccarat.hostBaccaratTable(tier) },
   craps: { name: 'Craps', seats: CRAPS_SEATS, shape: 'track', hint: 'Pass Line, odds at true odds, the field and the hard ways.',
-    load: () => Craps.loadCrapsTables(), join: (t, seat) => Craps.joinCrapsTable(t.code, seat), fresh: (tier, seat) => Craps.newPublicTable(tier, seat) },
+    load: () => Craps.loadCrapsTables(), join: (t, seat) => Craps.joinCrapsTable(t.code, seat), fresh: (tier, seat) => Craps.newPublicTable(tier, seat), host: (tier) => Craps.hostCrapsTable(tier) },
 };
 export const PICKER_GAMES = Object.keys(GAMES);
 
@@ -91,6 +91,8 @@ function shown() {
   if (g.fresh) {
     for (let i = list.length; i < PER_LIMIT; i++) list.push({ fresh: true, code: 'new-' + i, tier: limit.tier, min: limit.min, max: limit.max, label: limit.label, seats: [] });
   }
+  // First, on the left: a private table of your own, for friends.
+  if (g.host) list.unshift({ privateTable: true, code: 'private', tier: limit.tier ?? Number(String(limit.key).replace(/\D/g, '')) ?? 0, label: limit.label, seats: [] });
   return list;
 }
 
@@ -231,7 +233,22 @@ function seatSpots(shape, n) {
   return Array.from({ length: n }, (_, i) => { const a = (from + ((to - from) * i) / (n - 1)) * Math.PI / 180; return P(200 + 190 * Math.cos(a), 130 + 114 * Math.sin(a)); });
 }
 
+const LOCK = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>';
+function privateCard(t, i) {
+  return `
+    <article class="tp-table tp-private" style="--i:${i}">
+      <button class="tp-private-card" data-tp-host="${i}">
+        <span class="tp-private-lock">${LOCK}</span>
+        <b>Create a private table</b>
+        <small>Your own table at ${esc(t.label)}. Share its code to invite friends.</small>
+        <span class="tp-private-go">Create table</span>
+      </button>
+      <footer class="tp-meta"><span class="tp-meta-stakes">Private</span><span class="tp-sep">·</span>Friends by invitation</footer>
+    </article>`;
+}
+
 function tableCard(t, i) {
+  if (t.privateTable) return privateCard(t, i);
   const g = GAMES[st.game];
   const spots = seatSpots(g.shape, g.seats);
   // Who sits in which chair: by the seat they hold; anyone without one fills
@@ -261,6 +278,7 @@ function tableCard(t, i) {
 }
 
 function listRow(t, i) {
+  if (t.privateTable) return `<button class="tp-row tp-row-private" data-tp-host="${i}"><span class="tp-row-name">Create a private table</span><span class="tp-row-faces"></span><span class="tp-row-seats">${esc(t.label)}</span><span class="tp-row-go">Create</span></button>`;
   const g = GAMES[st.game], free = g.seats - t.seats.length;
   return `<button class="tp-row" data-tp-join="${i}">
     <span class="tp-row-name">${t.fresh ? 'New table' : esc(g.name)}</span>
@@ -283,6 +301,9 @@ function html() {
         <button class="tp-back" data-tp="back" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
         <div class="tp-title"><span class="tp-kicker">Choose a table</span><h2>${esc(g.name)}</h2></div>
         <p class="tp-hint">${esc(g.hint)}</p>
+        <div class="tp-join ${st.joinOpen ? 'open' : ''}">
+          ${st.joinOpen ? `<input id="tpCode" type="text" maxlength="8" placeholder="Table code" autocomplete="off" autocapitalize="characters"><button class="tp-join-go" data-tp="joincode">Join</button><button class="tp-join-x" data-tp="joinclose" aria-label="Close">&times;</button>` : '<button class="tp-join-btn" data-tp="joinopen">Join with code</button>'}
+        </div>
         <div class="tp-filters">
           <div class="tp-filter"><span>Full tables</span>${pill(!st.hideFull, 'data-tp-full="0"', 'Show')}${pill(st.hideFull, 'data-tp-full="1"', 'Hide')}</div>
           <div class="tp-filter"><span>Free seats</span>${pill(st.minFree === 0, 'data-tp-free="0"', 'Any')}${pill(st.minFree === 2, 'data-tp-free="2"', '2+')}</div>
@@ -327,11 +348,27 @@ function draw() {
 
 async function onClick(e) {
   if (!st || st.busy) return;
-  const t = e.target.closest('[data-tp],[data-tp-join],[data-tp-limit],[data-tp-step],[data-tp-full],[data-tp-free]');
+  const t = e.target.closest('[data-tp],[data-tp-join],[data-tp-host],[data-tp-limit],[data-tp-step],[data-tp-full],[data-tp-free]');
   if (!t) return;
   const d = t.dataset;
   if (d.tp === 'back') return closeTablePicker();
   if (d.tp === 'view') { st.list = !st.list; return draw(); }
+  if (d.tp === 'joinopen') { st.joinOpen = true; draw(); const c = document.getElementById('tpCode'); if (c) c.focus(); return; }
+  if (d.tp === 'joinclose') { st.joinOpen = false; return draw(); }
+  if (d.tp === 'joincode') {
+    const code = (document.getElementById('tpCode') || {}).value || '';
+    if (!code.trim()) return;
+    st.busy = true; draw();
+    try { await S.joinRoom(code); } catch { /* the session says why */ }
+    return closeTablePicker();
+  }
+  if (d.tpHost !== undefined) {
+    const t = st.shownList && st.shownList[Number(d.tpHost)];
+    if (!t) return;
+    st.busy = true; draw();
+    try { await GAMES[st.game].host(t.tier || 0); } catch { /* the session says why */ }
+    return closeTablePicker();
+  }
   if (d.tpLimit !== undefined) { st.limit = Number(d.tpLimit); return draw(); }
   if (d.tpStep !== undefined) { st.limit = Math.max(0, Math.min(st.limits.length - 1, st.limit + Number(d.tpStep))); return draw(); }
   if (d.tpFull !== undefined) { st.hideFull = d.tpFull === '1'; return draw(); }
