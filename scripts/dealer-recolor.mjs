@@ -38,6 +38,7 @@ export const RECIPES = {
   // 0.27-0.38, trousers 0.12.
   'black-vest': { split: 0.215, dark: [26, 25, 28], light: [238, 238, 236] },
   'burgundy-vest': { split: 0.215, dark: [96, 18, 32], light: [238, 236, 232] },
+  'grey-vest': { split: 0.215, dark: [78, 78, 84], light: [238, 238, 236] },
   // Everything that isn't skin goes to the one colour.
   'black-all': { split: 1.01, dark: [24, 23, 27] },
   'black-dress': { split: 1.01, dark: [22, 20, 26] },

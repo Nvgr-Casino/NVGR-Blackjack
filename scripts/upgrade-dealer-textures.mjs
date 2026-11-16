@@ -15,7 +15,7 @@
 //   node scripts/upgrade-dealer-textures.mjs [file …]   (default: every rb_dealer_*.glb)
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, readFileSync, readdirSync, rmSync, statSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import sharp from 'sharp';
 import { NodeIO } from '@gltf-transform/core';
@@ -118,6 +118,47 @@ async function despeckle(img, plain, recipe) {
   }
 }
 
+// A clean dye, after the first: the shirt and the waistcoat decided by
+// area rather than pixel by pixel (from the sheet's brightness softened
+// over a few millimetres of cloth), so a striped or creased shirt is never
+// half-dyed the waistcoat's colour, and each repainted in its own colour,
+// shaded by the cloth's light softened too: folds stay, grime and weave
+// noise go, and the uniform looks pressed.
+const FORCE = { 'rb_dealer_m3.glb': 'grey-vest' };
+
+// The trousers and shoes on a body sheet: black whatever the waistcoat.
+const TROUSERS = { m015_body: [[0.0, 0.0, 0.29, 0.42], [0.71, 0.0, 1.0, 0.42], [0.22, 0.84, 0.44, 1.0], [0.56, 0.84, 0.78, 1.0]] };
+async function cleanDye(img, plain, recipe, keepBlack = []) {
+  const { width, height, channels } = img;
+  const n = width * height;
+  const light = Buffer.alloc(n), skin = new Uint8Array(n);
+  for (let i = 0, j = 0; j < n; i += channels, j++) {
+    const r = plain[i], g = plain[i + 1], b = plain[i + 2];
+    light[j] = Math.round((Math.max(r, g, b) + Math.min(r, g, b)) / 2);
+    skin[j] = (r > g + 18 && r > b + 30 && r > 90) || (Math.max(r, g, b) + Math.min(r, g, b)) / 510 < 0.02 ? 1 : 0;
+  }
+  const soft = await sharp(light, { raw: { width, height, channels: 1 } }).blur(Math.max(2, width / 200)).extractChannel(0).raw().toBuffer();
+  const shade = await sharp(light, { raw: { width, height, channels: 1 } }).blur(Math.max(1, width / 900)).extractChannel(0).raw().toBuffer();
+  const split = (recipe.split + 0.012) * 255, band = 0.02 * 255;
+  for (let i = 0, j = 0; j < n; i += channels, j++) {
+    if (skin[j]) continue;
+    const l = Math.max(0.03, (light[j] * 0.35 + shade[j] * 0.65) / 255);
+    if (keepBlack.length) {
+      const x = (j % width) / width, y = Math.floor(j / width) / height;
+      if (keepBlack.some(([a, b, c, d]) => x >= a && x < c && y >= b && y < d)) {
+        const k = Math.pow(l / 0.18, 0.5);
+        img.px[i] = Math.min(255, 22 * k); img.px[i + 1] = Math.min(255, 22 * k); img.px[i + 2] = Math.min(255, 26 * k);
+        continue;
+      }
+    }
+    const dark = recipe.dark.map((c) => c * Math.pow(l / (recipe.split * 0.82), 0.42));
+    let t = 0;
+    if (recipe.light) { const x = Math.max(0, Math.min(1, (soft[j] - (split - band)) / (2 * band))); t = x * x * (3 - 2 * x); }
+    const lite = recipe.light ? recipe.light.map((c) => c * Math.min(1.06, Math.pow(l / (recipe.split + 0.1), 0.22))) : dark;
+    for (let c = 0; c < 3; c++) img.px[i + c] = Math.max(0, Math.min(255, Math.round(dark[c] + (lite[c] - dark[c]) * t)));
+  }
+}
+
 // The parts of a body sheet that are only ever shirt, as [x0, y0, x1, y1]
 // fractions of the sheet from its top left: Business_Male_04's sleeves.
 const SHIRT = { m015_body: [[0.0, 0.42, 0.3, 0.83], [0.7, 0.42, 1.0, 0.83]] };
@@ -161,10 +202,14 @@ for (const file of files) {
         const d = dist(await meanOf(trial, true), now);
         if (d < bestD) { best = name; bestD = d; }
       }
+      // A dealer whose recipe is chosen outright, not guessed from the sheet.
+      const forced = FORCE[basename(file)];
+      if (forced) best = forced;
       if (best) {
         const plain = Buffer.from(color.px);
         recolor(color.px, color.channels, best);
         if (RECIPES[best].light) await despeckle(color, plain, RECIPES[best]);
+        await cleanDye(color, plain, RECIPES[best], TROUSERS[key] || []);
         // Where the sheet is all shirt (the sleeves), shirt it stays: dyed
         // by brightness alone, its folds and shadows took the waistcoat's
         // colour as streaks. White there, with the cloth's own shading.

@@ -27,7 +27,7 @@ export const DEALER_MODELS = {
   f1: { file: 'rb_dealer_f.glb', clip: IDLE_F },   // blue blouse
   m2: { file: 'rb_dealer_m2.glb', clip: IDLE_M },  // pale blue shirt
   f2: { file: 'rb_dealer_f2.glb', clip: IDLE_F },  // white blouse
-  m3: { file: 'rb_dealer_m3.glb', clip: IDLE_M },  // grey waistcoat
+  m3: { file: 'rb_dealer_m3.glb', clip: IDLE_M, bowTie: 0x111114 },  // grey waistcoat, bow tie
   f3: { file: 'rb_dealer_f3.glb', clip: IDLE_F },  // grey waistcoat
   m4: { file: 'rb_dealer_m4.glb', clip: IDLE_M, bowTie: 0x111114 },  // black waistcoat
   f4: { file: 'rb_dealer_f4.glb', clip: IDLE_F },  // black waistcoat
@@ -160,9 +160,10 @@ function addBowTie(model, bones, color) {
   const neck = bones.neck;
   const head = bones.head;
   if (!neck || !head) return;
-  const silk = new THREE.MeshStandardMaterial({ color, roughness: 0.38, metalness: 0 });
+  // Satin: a sheen that catches the light, so it reads against a dark coat.
+  const silk = new THREE.MeshPhysicalMaterial({ color, roughness: 0.32, metalness: 0, sheen: 1, sheenRoughness: 0.35, sheenColor: new THREE.Color(0x6a6a78) });
   const tie = new THREE.Group();
-  const W = m(0.045), H = m(0.03), D = m(0.012);
+  const W = m(0.052), H = m(0.034), D = m(0.014);
   [-1, 1].forEach((side) => {
     // A wing: wide at its outer end, pinched at the knot.
     const shape = new THREE.Shape();
@@ -193,7 +194,7 @@ function addBowTie(model, bones, color) {
   const s = neck.getWorldScale(new THREE.Vector3());
   tie.scale.set(1 / s.x, 1 / s.y, 1 / s.z);
 }
-const BOW_FORWARD = m(0.092);
+const BOW_FORWARD = m(0.088);
 const BOW_DROP = m(0.026);
 
 // Every dealer wears the house badge: a small brass plate engraved NVGR,
