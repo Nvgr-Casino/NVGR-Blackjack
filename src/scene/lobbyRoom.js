@@ -287,6 +287,7 @@ export function createLobbyRoom() {
 
   decoWall(room);
   gallery(room);
+  ceiling(room);
 
   return room;
 }
@@ -458,5 +459,171 @@ function portraits(room, at) {
       arm.position.set(side * lampW * 0.35, H / 2 + m(0.215), m(0.145));
       g.add(arm);
     });
+  });
+}
+
+// Overhead: a coffered ceiling in dark lacquer, gold beams between
+// the coffers and a gilded rosette in each; over the centre a shallow dome,
+// ribbed in gold round a glowing oculus, with the grand chandelier hanging
+// from it above the statue, and two more over the busts either side
+// (Poly Haven's models, CC0). Lit by its own glow, as a painted ceiling
+// under concealed lights is: the room's lamps do not reach so high.
+const CEIL_Y = FLOOR_Y + m(7.6);
+function cofferTexture() {
+  const S = 512;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const ctx = c.getContext('2d');
+  // Dark lacquer and gold, as the great casinos' ceilings are: it recedes
+  // above the room, so the walls and tables keep the eye, and only the
+  // gilding catches the light.
+  ctx.fillStyle = '#0b0e18';
+  ctx.fillRect(0, 0, S, S);
+  const beam = S * 0.1, inner = S - beam * 2;
+  // The coffer: stepped in, deepest at its sides, faintly lit at its centre.
+  const steps = [[0, '#07090f'], [0.08, '#0d1120'], [0.16, '#121830']];
+  steps.forEach(([k, col]) => {
+    const o = beam + (inner * k) / 2;
+    ctx.fillStyle = col;
+    ctx.fillRect(o, o, S - o * 2, S - o * 2);
+  });
+  const glow = ctx.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, inner * 0.46);
+  glow.addColorStop(0, 'rgba(255, 210, 150, 0.12)'); glow.addColorStop(1, 'rgba(255, 210, 150, 0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(beam, beam, inner, inner);
+  // Gold fillets round each step.
+  ctx.strokeStyle = 'rgba(220, 182, 104, 0.9)';
+  steps.forEach(([k], i) => {
+    const o = beam + (inner * k) / 2;
+    ctx.lineWidth = i ? 2 : 4;
+    ctx.strokeRect(o, o, S - o * 2, S - o * 2);
+  });
+  // The beams: gilded, rounded by their shading.
+  const g = ctx.createLinearGradient(0, 0, 0, beam);
+  g.addColorStop(0, '#8a6526'); g.addColorStop(0.5, '#d9b45f'); g.addColorStop(1, '#8a6526');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, S, beam * 0.5); ctx.fillRect(0, S - beam * 0.5, S, beam * 0.5);
+  const gv = ctx.createLinearGradient(0, 0, beam, 0);
+  gv.addColorStop(0, '#8a6526'); gv.addColorStop(0.5, '#d9b45f'); gv.addColorStop(1, '#8a6526');
+  ctx.fillStyle = gv;
+  ctx.fillRect(0, 0, beam * 0.5, S); ctx.fillRect(S - beam * 0.5, 0, beam * 0.5, S);
+  // The rosette at the coffer's heart.
+  ctx.save();
+  ctx.translate(S / 2, S / 2);
+  ctx.fillStyle = 'rgba(222, 186, 112, 0.92)';
+  for (let k = 0; k < 12; k++) {
+    ctx.rotate(Math.PI / 6);
+    ctx.beginPath(); ctx.ellipse(0, -S * 0.06, S * 0.014, S * 0.05, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.beginPath(); ctx.arc(0, 0, S * 0.025, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = 8;
+  return t;
+}
+function domeTexture() {
+  const W = 1024, H = 512;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  // The picture's top is the dome's crown, its foot the rim.
+  const sky = ctx.createLinearGradient(0, H, 0, 0);
+  sky.addColorStop(0, '#07090f'); sky.addColorStop(0.7, '#111727'); sky.addColorStop(1, '#2a2418');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, H);
+  // Gold ribs rising to the crown, sixteen of them.
+  for (let k = 0; k < 16; k++) {
+    const x = (k / 16) * W;
+    const rib = ctx.createLinearGradient(x - 7, 0, x + 7, 0);
+    rib.addColorStop(0, 'rgba(138, 101, 38, 0)'); rib.addColorStop(0.5, 'rgba(222, 186, 112, 0.95)'); rib.addColorStop(1, 'rgba(138, 101, 38, 0)');
+    ctx.fillStyle = rib;
+    ctx.fillRect(x - 7, 0, 14, H);
+  }
+  // Rings of gold: at the rim, part way up, and round the oculus.
+  [[H - 10, 10], [H * 0.55, 4], [H * 0.16, 6]].forEach(([y, w]) => {
+    ctx.fillStyle = 'rgba(222, 186, 112, 0.95)';
+    ctx.fillRect(0, y - w / 2, W, w);
+  });
+  // A gold star between each pair of ribs.
+  ctx.fillStyle = 'rgba(232, 200, 128, 0.85)';
+  for (let k = 0; k < 16; k++) {
+    const x = ((k + 0.5) / 16) * W, y = H * 0.36;
+    ctx.beginPath();
+    for (let j = 0; j < 8; j++) { const r = j % 2 ? 4 : 11, a = (j / 8) * Math.PI * 2; ctx.lineTo(x + Math.sin(a) * r, y - Math.cos(a) * r); }
+    ctx.closePath(); ctx.fill();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+function haloTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  g.addColorStop(0, 'rgba(255, 220, 160, 0.6)'); g.addColorStop(0.35, 'rgba(255, 205, 140, 0.18)'); g.addColorStop(1, 'rgba(255, 200, 130, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 256, 256);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+function ceiling(room) {
+  const DOME_R = m(4.4);
+  const cx = 0, cz = -ARC_R;
+  // The coffered field, each coffer 2.4 m across, the dome's opening cut
+  // from it. (Drawn in the plane, then laid flat: its y becomes -z.)
+  const tex = cofferTexture();
+  const shape = new THREE.Shape();
+  shape.absarc(0, 0, HALF * 0.92, 0, Math.PI * 2, false);
+  const hole = new THREE.Path();
+  hole.absarc(cx, -cz, DOME_R, 0, Math.PI * 2, true);
+  shape.holes.push(hole);
+  const geo = new THREE.ShapeGeometry(shape, 96);
+  // World-sized UVs, so the coffers keep their size wherever they are.
+  const pos = geo.attributes.position, uv = geo.attributes.uv;
+  for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) / m(2.4), pos.getY(i) / m(2.4));
+  const field = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.55, roughness: 0.6, metalness: 0.15, side: THREE.DoubleSide }));
+  field.rotation.x = -Math.PI / 2;
+  field.position.y = CEIL_Y;
+  room.add(field);
+  // The dome: shallow, painted inside, its rim a gilded ring.
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(DOME_R, 64, 20, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.MeshBasicMaterial({ map: domeTexture(), side: THREE.BackSide, toneMapped: false }),
+  );
+  dome.scale.y = 0.42;
+  dome.position.set(cx, CEIL_Y, cz);
+  room.add(dome);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(DOME_R, m(0.09), 12, 128), PLINTH_GOLD);
+  rim.rotation.x = Math.PI / 2;
+  rim.position.set(cx, CEIL_Y - m(0.04), cz);
+  room.add(rim);
+  // The oculus at its crown, glowing.
+  const crownY = CEIL_Y + DOME_R * 0.42;
+  const oculus = new THREE.Mesh(new THREE.CircleGeometry(m(0.75), 48), new THREE.MeshBasicMaterial({ color: 0xffe3b0, toneMapped: false, side: THREE.DoubleSide }));
+  oculus.rotation.x = Math.PI / 2;
+  oculus.position.set(cx, crownY - m(0.02), cz);
+  room.add(oculus);
+  const halo = haloTexture();
+  const glowAt = (x, y, z, size) => {
+    const h = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ map: halo, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }));
+    h.rotation.x = Math.PI / 2;
+    h.position.set(x, y, z);
+    room.add(h);
+  };
+  // The grand chandelier hung high in the dome, over the statue, so seen
+  // from the tables it is above the crest, never in front of it; two more
+  // hung from the coffers over the busts.
+  place(room, 'Chandelier_03', { x: cx, y: crownY - m(0.15), z: cz, size: 2.9 });
+  glowAt(cx, CEIL_Y - m(0.05), cz, DOME_R * 1.5);
+  [-1, 1].forEach((side) => {
+    const t = side * 0.6, r = m(5.6);
+    const x = Math.sin(Math.PI + t) * r, z = -ARC_R + Math.cos(Math.PI + t) * r;
+    place(room, 'Chandelier_03', { x, y: CEIL_Y, z, size: 2.3 });
+    glowAt(x, CEIL_Y - m(0.02), z, m(5));
   });
 }
