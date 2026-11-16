@@ -1344,7 +1344,7 @@ input:focus { outline: none; border-color: var(--accent); }
 }
 
 /* ----- the opening (intro.js) ----- */
-.intro { position: fixed; inset: 0; z-index: 2000; background: #000; color: #f3e6c8; overflow: hidden; transition: opacity 0.75s ease; }
+.intro { position: fixed; inset: 0; z-index: 2000; background: #030714; color: #f3e6c8; overflow: hidden; transition: opacity 0.75s ease; }
 .intro.leaving { opacity: 0; pointer-events: none; }
 /* The house card: the crest and the name on black, in and out. */
 .intro-house {
@@ -1361,8 +1361,8 @@ input:focus { outline: none; border-color: var(--accent); }
 .intro-load {
   position: absolute; inset: 0; opacity: 0; transition: opacity 0.8s ease;
   background:
-    radial-gradient(60% 55% at 50% 46%, rgba(120, 84, 34, 0.32), transparent 70%),
-    radial-gradient(120% 90% at 50% 40%, #1a1410 0%, #0b0907 55%, #040303 100%);
+    radial-gradient(55% 50% at 50% 46%, rgba(216, 180, 106, 0.14), transparent 70%),
+    radial-gradient(120% 95% at 50% 38%, #13285a 0%, #0a1634 50%, #030714 100%);
 }
 .intro.load-on .intro-load { opacity: 1; }
 .intro-load::before {
@@ -1384,7 +1384,7 @@ input:focus { outline: none; border-color: var(--accent); }
 .intro-status { position: absolute; right: 22px; bottom: 18px; font-size: 12px; color: rgba(243, 230, 200, 0.7); letter-spacing: 0.04em; }
 .intro-pill {
   position: absolute; top: 18px; left: 50%; display: flex; align-items: center; gap: 10px; padding: 7px 16px 7px 7px; border-radius: 26px;
-  background: rgba(20, 16, 12, 0.85); border: 1px solid rgba(200, 164, 106, 0.45); box-shadow: 0 12px 30px -10px rgba(0,0,0,0.8);
+  background: rgba(10, 22, 50, 0.9); border: 1px solid rgba(216, 180, 106, 0.45); box-shadow: 0 12px 30px -10px rgba(0,0,0,0.8);
   font-size: 14px; font-weight: 600; line-height: 1.15; transform: translate(-50%, -90px); opacity: 0;
   transition: transform 0.6s cubic-bezier(.2,.9,.25,1.15), opacity 0.4s ease;
 }
@@ -1403,7 +1403,7 @@ input:focus { outline: none; border-color: var(--accent); }
 /* ----- the curtain between the lobby and a table (curtain.js) ----- */
 .curtain {
   position: fixed; inset: 0; z-index: 1500; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
-  background: radial-gradient(70% 60% at 50% 45%, #15100c 0%, #050404 70%, #000 100%);
+  background: radial-gradient(55% 50% at 50% 45%, rgba(216, 180, 106, 0.1), transparent 70%), radial-gradient(110% 90% at 50% 40%, #12265a 0%, #091530 55%, #030714 100%);
   opacity: 0; pointer-events: none; transition: opacity 0.32s ease;
 }
 .curtain.on { opacity: 1; pointer-events: auto; }
@@ -2176,3 +2176,15 @@ main.auth.sx-auth {
   .sx-sub, .sx-fine { display: none; }
   .sx-title { margin-bottom: 8px; }
 }
+
+/* A slow sweep of light across the crest while the house opens. */
+.intro-crest { position: relative; }
+.intro-crest::after {
+  content: ''; position: absolute; inset: -6% -10% 30%; pointer-events: none; mix-blend-mode: screen;
+  background: linear-gradient(105deg, transparent 38%, rgba(255, 238, 190, 0.32) 50%, transparent 62%);
+  background-size: 260% 100%; background-position: 130% 0; opacity: 0;
+  -webkit-mask-image: radial-gradient(60% 70% at 50% 45%, #000 55%, transparent 80%); mask-image: radial-gradient(60% 70% at 50% 45%, #000 55%, transparent 80%);
+}
+.intro.load-on .intro-crest::after { opacity: 1; animation: crest-sheen 3.6s ease-in-out 0.6s infinite; }
+@keyframes crest-sheen { 0% { background-position: 130% 0; } 55%, 100% { background-position: -30% 0; } }
+@media (prefers-reduced-motion: reduce) { .intro.load-on .intro-crest::after { animation: none; opacity: 0; } }
