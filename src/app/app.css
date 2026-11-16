@@ -2228,3 +2228,39 @@ main.auth.sx-auth {
   .stage-tables { min-width: 100px; height: 40px; }
   .stage-dots { bottom: 64px; }
 }
+
+/* ---------- the loading picture, redesigned ---------- */
+.gold-dust { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+.il-beams { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.il-beams i { position: absolute; top: -20%; width: 34%; height: 140%; left: 33%; transform-origin: 50% 0;
+  background: linear-gradient(180deg, rgba(255, 232, 176, 0.13), rgba(255, 232, 176, 0.03) 55%, transparent 80%);
+  filter: blur(18px); animation: il-beam 9s ease-in-out infinite alternate; }
+.il-beams i:nth-child(2) { animation-duration: 11s; animation-delay: -4s; opacity: 0.8; }
+@keyframes il-beam { from { transform: rotate(-24deg); } to { transform: rotate(24deg); } }
+.il-stage { position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding-bottom: 28px; }
+.il-medallion { position: relative; width: clamp(200px, 30vmin, 290px); aspect-ratio: 1; transform: scale(0.94); opacity: 0; transition: transform 1.2s cubic-bezier(.2,.7,.2,1), opacity 1s ease; }
+.intro.load-on .il-medallion { transform: none; opacity: 1; }
+.il-wheel, .il-progress { position: absolute; inset: 0; width: 100%; height: 100%; }
+.il-wheel { animation: il-turn 40s linear infinite; filter: drop-shadow(0 0 8px rgba(216, 180, 106, 0.25)); }
+@keyframes il-turn { to { transform: rotate(360deg); } }
+.il-track { fill: none; stroke: rgba(216, 180, 106, 0.12); stroke-width: 2.4; }
+.il-arc { fill: none; stroke: url(#ilGold); stroke-width: 2.6; stroke-linecap: round; transition: stroke-dashoffset 0.9s cubic-bezier(.2,.7,.2,1); filter: drop-shadow(0 0 6px rgba(246, 220, 148, 0.7)); }
+.il-disc { position: absolute; inset: 21%; border-radius: 50%; display: flex; align-items: center; justify-content: center; overflow: hidden;
+  background: radial-gradient(circle at 50% 40%, #1b3570, #0b1836 70%); box-shadow: inset 0 0 0 1px rgba(216, 180, 106, 0.55), inset 0 0 30px rgba(0, 0, 0, 0.6), 0 20px 50px rgba(0, 0, 0, 0.5); }
+.il-crest { width: 86%; height: auto; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.6)); }
+.il-disc::after { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 35%, rgba(255, 240, 200, 0.35) 50%, transparent 65%);
+  background-size: 260% 100%; background-position: 130% 0; animation: crest-sheen 3.8s ease-in-out 0.8s infinite; mix-blend-mode: screen; }
+.il-pct { font-family: var(--brand); font-size: 15px; font-weight: 700; letter-spacing: 0.2em; color: var(--gold-1); font-variant-numeric: tabular-nums; }
+.il-games { font-size: clamp(9px, 1.1vw, 11.5px); font-weight: 600; letter-spacing: 0.32em; text-transform: uppercase; color: rgba(243, 223, 174, 0.62); text-align: center; padding: 0 16px; }
+.il-tip { position: absolute; z-index: 1; left: 50%; bottom: 44px; transform: translateX(-50%); width: min(560px, 86vw); margin: 0; text-align: center; font-size: 13px; color: rgba(226, 232, 246, 0.72); }
+.il-tip span { display: inline-block; transition: opacity 0.38s ease, transform 0.38s ease; }
+.il-tip span.out { opacity: 0; transform: translateY(6px); }
+.intro-credit, .intro-status { z-index: 1; }
+.intro-load > .intro-pill { z-index: 2; }
+@media (orientation: landscape) and (max-height: 520px) {
+  .il-medallion { width: min(52vh, 210px); }
+  .il-stage { gap: 6px; padding-bottom: 34px; }
+  .il-tip { bottom: 30px; font-size: 11.5px; }
+  .il-games { font-size: 9px; }
+}
+@media (prefers-reduced-motion: reduce) { .il-wheel, .il-beams i, .il-disc::after { animation: none; } }
