@@ -14,7 +14,7 @@ import { LOGO_URL } from './uiHelpers.js';
 import { esc } from './uiHelpers.js';
 import { goldDust } from './goldDust.js';
 
-const CARD_MS = 2100;      // the house card: in, hold, out
+const CARD_MS = 2600;      // the opening page, Powered by NVGR Casino: in, hold, out
 const MIN_LOADING_MS = 1300;
 const RING_R = 92;
 const RING_C = 2 * Math.PI * RING_R;
@@ -59,8 +59,9 @@ export function createIntro() {
     ${showCard ? `
     <div class="intro-house">
       <img src="${LOGO_URL}" alt="">
+      <span class="intro-house-rule"></span>
+      <span class="intro-house-sub">Powered by</span>
       <span class="intro-house-name">NVGR Casino</span>
-      <span class="intro-house-sub">presents</span>
     </div>` : ''}
     <div class="intro-load">
       <div class="il-beams" aria-hidden="true"><i></i><i></i></div>

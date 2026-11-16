@@ -56,7 +56,6 @@ export function renderAuth() {
         <button class="btn btn-primary btn-block" id="emailSubmitBtn" ${S.authBusy ? 'disabled' : ''}>${S.authBusy ? 'Please wait…' : (isSignup ? 'Create account' : 'Sign in')}</button>
         <p class="sx-fine">A guest's chips stay on this device. Sign in to keep them on every device.</p>
       </section>
-      <footer class="sx-powered"><span></span>Powered by NVGR Casino<span></span></footer>
     </main>
   `;
 }
