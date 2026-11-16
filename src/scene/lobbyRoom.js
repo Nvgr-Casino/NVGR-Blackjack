@@ -30,39 +30,66 @@ export const LOBBY_THEME = {
   },
 };
 
-function floorTexture() {
-  const S = 2048;
+// The floor: a casino carpet, as the grand rooms have under their tables.
+// Deep burgundy, a fine gold lattice, a gold rosette where its lines cross
+// and a small navy medallion in each diamond; woven fibre in it. One tile,
+// repeated across the floor.
+function carpetTexture() {
+  const S = 512;
   const c = document.createElement('canvas');
   c.width = c.height = S;
   const ctx = c.getContext('2d');
-  // World x, z (the floor spans ±HALF) to canvas pixels.
-  const px = S / (HALF * 2);
-  const at = (x, z) => [(x + HALF) * px, (z + HALF) * px];
-  // Dark stone, a little lighter where the tables stand.
-  const [gx, gy] = at(0, -ARC_R * 0.25);
-  const g = ctx.createRadialGradient(gx, gy, 0, gx, gy, S * 0.42);
-  g.addColorStop(0, '#22356a');
-  g.addColorStop(0.5, '#111e40');
-  g.addColorStop(1, '#040917');
-  ctx.fillStyle = g;
+  const base = ctx.createLinearGradient(0, 0, S, S);
+  base.addColorStop(0, '#4a0f1d'); base.addColorStop(0.5, '#3a0b17'); base.addColorStop(1, '#4a0f1d');
+  ctx.fillStyle = base;
   ctx.fillRect(0, 0, S, S);
-  // The gold rings, round the arc's own centre.
-  const [cx, cy] = at(0, -ARC_R);
-  const ring = (r, w, a) => {
-    ctx.strokeStyle = `rgba(214, 178, 108, ${a})`;
-    ctx.lineWidth = w;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * px, 0, Math.PI * 2);
-    ctx.stroke();
+  const h = S / 2;
+  // The lattice: diamonds, a double gold line.
+  ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(176, 132, 58, 0.55)';
+  const lattice = () => { ctx.beginPath(); ctx.moveTo(0, h); ctx.lineTo(h, 0); ctx.lineTo(S, h); ctx.lineTo(h, S); ctx.closePath(); ctx.stroke(); };
+  lattice();
+  ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(214, 176, 98, 0.5)';
+  ctx.save(); ctx.translate(h, h); ctx.scale(0.88, 0.88); ctx.translate(-h, -h); lattice(); ctx.restore();
+  // Rosettes where the lattice meets the tile's edges (they join up as tiles repeat).
+  const rosette = (x, y, r) => {
+    ctx.save(); ctx.translate(x, y);
+    ctx.fillStyle = 'rgba(200, 156, 72, 0.85)';
+    for (let k = 0; k < 8; k++) { ctx.rotate(Math.PI / 4); ctx.beginPath(); ctx.ellipse(0, -r * 0.55, r * 0.18, r * 0.5, 0, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = '#5a1222'; ctx.beginPath(); ctx.arc(0, 0, r * 0.26, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(232, 196, 118, 0.95)'; ctx.beginPath(); ctx.arc(0, 0, r * 0.12, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
   };
-  ring(ARC_R + m(2.7), 9, 0.95);
-  ring(ARC_R + m(3.0), 4, 0.6);
-  ring(ARC_R - m(2.7), 9, 0.95);
-  ring(ARC_R - m(3.0), 4, 0.6);
+  [[0, h], [S, h], [h, 0], [h, S]].forEach(([x, y]) => rosette(x, y, 30));
+  // A navy medallion in the diamond, ringed in gold, and in the corners.
+  const medallion = (x, y, r) => {
+    ctx.fillStyle = '#16244a'; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(200, 156, 72, 0.8)'; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = 'rgba(214, 176, 98, 0.85)';
+    ctx.beginPath(); ctx.moveTo(x, y - r * 0.55); ctx.lineTo(x + r * 0.35, y); ctx.lineTo(x, y + r * 0.55); ctx.lineTo(x - r * 0.35, y); ctx.closePath(); ctx.fill();
+  };
+  medallion(h, h, 38);
+  [[0, 0], [S, 0], [0, S], [S, S]].forEach(([x, y]) => medallion(x, y, 26));
+  // Fibre: fine light and dark flecks, so it reads as woven, not printed.
+  const img = ctx.getImageData(0, 0, S, S), d = img.data;
+  for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - 0.5) * 22; d[i] += n; d[i + 1] += n * 0.7; d[i + 2] += n * 0.7; }
+  ctx.putImageData(img, 0, 0);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.anisotropy = 8;
   return t;
+}
+
+// The gold rings round the arc the tables stand on: brass inlaid in the
+// carpet, either side of the tables.
+function floorRings(room) {
+  const brass = new THREE.MeshStandardMaterial({ color: 0xd2a85a, roughness: 0.28, metalness: 1, envMapIntensity: 1.3 });
+  [[ARC_R + m(2.7), m(0.09)], [ARC_R + m(3.0), m(0.04)], [ARC_R - m(2.7), m(0.09)], [ARC_R - m(3.0), m(0.04)]].forEach(([r, w]) => {
+    const ring = new THREE.Mesh(new THREE.RingGeometry(r - w / 2, r + w / 2, 256), brass);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(0, FLOOR_Y + 0.01, -ARC_R);
+    room.add(ring);
+  });
 }
 
 function backdropTexture() {
@@ -218,15 +245,18 @@ export function createLobbyRoom() {
   room.userData.theme = LOBBY_THEME;
   room.userData.dims = { half: HALF, size: HALF * 2, wallH: CEILING - FLOOR_Y, ceiling: CEILING };
 
-  // The floor: polished, so the tables' glow lies on it.
+  // The floor: the casino carpet, its pattern about 1.6 m across.
+  const carpet = carpetTexture();
+  carpet.repeat.set((HALF * 2) / m(1.6), (HALF * 2) / m(1.6));
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(HALF * 2, HALF * 2),
-    new THREE.MeshStandardMaterial({ map: floorTexture(), roughness: 0.32, metalness: 0.1 }),
+    new THREE.MeshStandardMaterial({ map: carpet, roughness: 0.92, metalness: 0 }),
   );
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = FLOOR_Y;
   floor.receiveShadow = true;
   room.add(floor);
+  floorRings(room);
 
   // The backdrop: a great curtain of warm dark round the floor, open above.
   const wall = new THREE.Mesh(
