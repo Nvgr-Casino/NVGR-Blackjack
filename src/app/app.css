@@ -2396,3 +2396,15 @@ main.auth.sx-auth { position: relative; isolation: isolate; }
 .inv-toast-text { flex: 1; min-width: 0; font-size: 13.5px; }
 .inv-toast-text small { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold-2); }
 .inv-toast-actions { display: flex; gap: 8px; }
+
+/* Sign in, matte: ivory title, satin gold without gloss, quieter dust. */
+.sx-title { background: none !important; -webkit-background-clip: border-box !important; background-clip: border-box !important; color: #efe6d4 !important; letter-spacing: 0.08em; }
+.sx-card .btn-primary { background: #c9a45c !important; box-shadow: none !important; color: #15110a; }
+.sx-card .btn-primary:hover { background: #d4b06a !important; }
+.sx-card .seg.active { background: #c9a45c !important; color: #15110a; }
+.sx-guest { color: #d9bd84 !important; border-color: rgba(201, 164, 92, 0.6) !important; background: transparent !important; }
+.sx-card { box-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.9), inset 0 0 0 4px rgba(0, 0, 0, 0.55), inset 0 0 0 5px rgba(201, 164, 92, 0.12) !important; }
+.sx-card::before, .sx-card::after { border-width: 1px; border-color: rgba(201, 164, 92, 0.85); }
+.sx-games { color: #cdb07a; }
+.sx-brand .auth-logo { filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.6)) saturate(0.9); }
+.auth-dust { opacity: 0.55; }

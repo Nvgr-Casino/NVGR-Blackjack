@@ -503,7 +503,10 @@ export function initScene(canvas) {
     renderer.shadowMap.autoUpdate = !on && !phoneWork;
     renderer.shadowMap.needsUpdate = true;
   }
-  const LOBBY_DPR = phoneWork ? [1.25, 1.1, 1] : [1.5, 1.25, 1];
+  // Without the lamp's shadow the lobby is cheap to draw, so it starts sharp
+  // (a phone's screen softened visibly at 1.25x) and steps down only if its
+  // frames come slowly.
+  const LOBBY_DPR = phoneWork ? [2, 1.75, 1.5, 1.25] : [1.75, 1.5, 1.25];
   let lobbyStep = 0;
   let backdropMode = 'table';
   // The lobby steps its resolution down too, judged on the gaps between

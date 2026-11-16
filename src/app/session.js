@@ -470,6 +470,12 @@ function persistMyChips(room) {
   saveAccountChips(session.uid, me.name || session.name, me.chips, { game: room.game || 'blackjack', round: room.round ?? null }).catch(() => {});
 }
 
+function dropUndefined(o) {
+  if (!o || typeof o !== 'object') return;
+  if (Array.isArray(o)) { for (let i = 0; i < o.length; i++) { if (o[i] === undefined) o[i] = null; else dropUndefined(o[i]); } return; }
+  for (const k of Object.keys(o)) { if (o[k] === undefined) delete o[k]; else dropUndefined(o[k]); }
+}
+
 export async function mutateRoom(code, fn) {
   // A blackjack table against bots lives in this browser.
   if (OfflineBJ.isOfflineBlackjack(session.room) && OfflineBJ.active()) { OfflineBJ.mutate(fn); return; }
@@ -487,6 +493,10 @@ export async function mutateRoom(code, fn) {
       fn(current);
       // Nobody left at the table: its chat goes with them.
       forgetChatIfEmpty(current);
+      // The database refuses a write with an undefined anywhere in it (it
+      // stores null by dropping it, so a missing field read back and copied
+      // somewhere comes out undefined); such fields are simply left out.
+      dropUndefined(current);
       return current;
     });
     if (result.committed && result.snapshot.exists()) {

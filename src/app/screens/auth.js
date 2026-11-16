@@ -20,7 +20,6 @@ export function renderAuth() {
   const isSignup = S.authMode === 'signup';
   return `
     <main class="auth sx-auth">
-      <div class="il-beams sx-beams" aria-hidden="true"><i></i><i></i></div>
       <section class="sx-brand">
         ${brandMark('auth-logo')}
         <span class="sx-rule" aria-hidden="true"></span>
@@ -63,7 +62,7 @@ export function renderAuth() {
 export function attachAuth() {
   // The gold dust, started afresh with each drawing of the page.
   stopDust();
-  stopDust = goldDust(document.querySelector('main.sx-auth'), { count: 46, className: 'gold-dust auth-dust' });
+  stopDust = goldDust(document.querySelector('main.sx-auth'), { count: 22, className: 'gold-dust auth-dust' });
   const google = document.getElementById('googleBtn');
   if (google) google.onclick = S.signInGoogle;
   const guest = document.getElementById('guestBtn');

@@ -221,7 +221,11 @@ export function repeatBets(r, key, now) {
 export function roll(r, now, d1, d2) {
   if (r.phase !== 'betting' || !anyBets(r)) return false;
   r.phase = 'rolling';
-  r.roll = { d1, d2, total: d1 + d2, hard: d1 === d2, point: r.point, shooter: r.shooter };
+  // No point yet (the come-out) is null, never undefined: the database
+  // drops a stored null, so r.point comes back missing, and a write with an
+  // undefined in it is refused outright — which left every online table
+  // stuck on its first come-out roll.
+  r.roll = { d1, d2, total: d1 + d2, hard: d1 === d2, point: r.point || null, shooter: r.shooter || null };
   r.rollAt = now;
   r.bettingDeadline = null;
   note(r, 'Dice are out.');
