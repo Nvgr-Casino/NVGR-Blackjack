@@ -27,6 +27,7 @@ import { GAME_LIST } from '../../slots/games.js';
 import { prog as P, levelFor, giftsWaiting, bonusState } from '../progress.js';
 import { openProfile, maybeShowBonus } from './profile.js';
 import { openTablePicker, PICKER_GAMES } from './tablePicker.js';
+import { openSettings } from './settings.js';
 import * as Craps from '../crapsSession.js';
 import { CRAPS_SEATS } from '../../craps/rules.js';
 import * as Offline from '../offlinePoker.js';
@@ -204,6 +205,7 @@ function homePage() {
         </div>
         <div class="stage-corner">
           ${fullscreenButton('stage-chip')}
+          <button class="stage-chip" id="settingsBtn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
           <button class="stage-chip" id="signOutBtn" title="Sign out" aria-label="Sign out">${ICON.exit}</button>
         </div>
       </header>
@@ -1055,6 +1057,7 @@ export function attachHome() {
   });
   on('signOutBtn', S.doSignOut);
   on('myProfileBtn', () => openProfile());
+  on('settingsBtn', openSettings);
   if (S.lobbyGame === 'home') maybeShowBonus();
   on('friendsBtn', () => S.goToScreen('friends'));
   on('characterBtn', () => S.goToScreen('character'));

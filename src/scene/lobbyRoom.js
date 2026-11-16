@@ -31,8 +31,9 @@ export const LOBBY_THEME = {
 };
 
 // The floor: a casino carpet, as the grand rooms have under their tables.
-// Deep burgundy, a fine gold lattice, a gold rosette where its lines cross
-// and a small navy medallion in each diamond; woven fibre in it. One tile,
+// Deep charcoal, a fine gold lattice, a gold rosette where its lines cross
+// and a small navy medallion in each diamond; woven fibre in it. Charcoal
+// and gold sit with the room's navy where a red fought it. One tile,
 // repeated across the floor.
 function carpetTexture() {
   const S = 512;
@@ -40,7 +41,7 @@ function carpetTexture() {
   c.width = c.height = S;
   const ctx = c.getContext('2d');
   const base = ctx.createLinearGradient(0, 0, S, S);
-  base.addColorStop(0, '#4a0f1d'); base.addColorStop(0.5, '#3a0b17'); base.addColorStop(1, '#4a0f1d');
+  base.addColorStop(0, '#1c1d23'); base.addColorStop(0.5, '#141519'); base.addColorStop(1, '#1c1d23');
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, S, S);
   const h = S / 2;
@@ -55,7 +56,7 @@ function carpetTexture() {
     ctx.save(); ctx.translate(x, y);
     ctx.fillStyle = 'rgba(200, 156, 72, 0.85)';
     for (let k = 0; k < 8; k++) { ctx.rotate(Math.PI / 4); ctx.beginPath(); ctx.ellipse(0, -r * 0.55, r * 0.18, r * 0.5, 0, 0, Math.PI * 2); ctx.fill(); }
-    ctx.fillStyle = '#5a1222'; ctx.beginPath(); ctx.arc(0, 0, r * 0.26, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#16171c'; ctx.beginPath(); ctx.arc(0, 0, r * 0.26, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = 'rgba(232, 196, 118, 0.95)'; ctx.beginPath(); ctx.arc(0, 0, r * 0.12, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   };
@@ -71,7 +72,7 @@ function carpetTexture() {
   [[0, 0], [S, 0], [0, S], [S, S]].forEach(([x, y]) => medallion(x, y, 26));
   // Fibre: fine light and dark flecks, so it reads as woven, not printed.
   const img = ctx.getImageData(0, 0, S, S), d = img.data;
-  for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - 0.5) * 22; d[i] += n; d[i + 1] += n * 0.7; d[i + 2] += n * 0.7; }
+  for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - 0.5) * 16; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
   ctx.putImageData(img, 0, 0);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;

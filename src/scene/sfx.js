@@ -17,6 +17,10 @@ let effects = null;    // the table's own sounds, under master
 let noise = null;
 let reverbIn = null;   // the room: a little of every sound sent here comes back as its space
 let soundOn = (() => { try { return localStorage.getItem('nvgr-sound') !== 'off'; } catch { return true; } })();
+// The Settings sliders: how loud the sounds and the music are, 0 to 1.
+const readVol = (k, d) => { try { const v = parseFloat(localStorage.getItem(k)); return Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : d; } catch { return d; } };
+let soundVol = readVol('nvgr-sound-vol', 1);
+let musicVol = readVol('nvgr-music-vol', 1);
 const listeners = new Set();
 
 const EFFECTS_LEVEL = 0.9;
@@ -28,7 +32,7 @@ export function audio() {
     if (!Ctx) return null;
     context = new Ctx();
     master = context.createGain();
-    master.gain.value = soundOn ? 1 : 0;
+    master.gain.value = soundOn ? soundVol : 0;
     master.connect(context.destination);
     effects = context.createGain();
     effects.gain.value = EFFECTS_LEVEL;
@@ -71,8 +75,14 @@ export const isSoundOn = () => soundOn;
 export function setSoundOn(on) {
   soundOn = on;
   try { localStorage.setItem('nvgr-sound', on ? 'on' : 'off'); } catch { /* private mode */ }
-  if (master) master.gain.setTargetAtTime(on ? 1 : 0, context.currentTime, 0.05);
+  if (master) master.gain.setTargetAtTime(on ? soundVol : 0, context.currentTime, 0.05);
   listeners.forEach((fn) => fn(on));
+}
+export const soundVolume = () => soundVol;
+export function setSoundVolume(v) {
+  soundVol = Math.max(0, Math.min(1, v));
+  try { localStorage.setItem('nvgr-sound-vol', String(soundVol)); } catch { /* private mode */ }
+  if (master && soundOn) master.gain.setTargetAtTime(soundVol, context.currentTime, 0.05);
 }
 export function onSoundChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 
@@ -375,7 +385,7 @@ function startMusic() {
   }
   musicBus.gain.cancelScheduledValues(c.currentTime);
   musicBus.gain.setValueAtTime(musicBus.gain.value, c.currentTime);
-  musicBus.gain.linearRampToValueAtTime(MUSIC_LEVEL, c.currentTime + 3);
+  musicBus.gain.linearRampToValueAtTime(MUSIC_LEVEL * musicVol, c.currentTime + 3);
   musicSource = musicEl;
   const playing = musicEl.play();
   if (playing) playing.catch(() => { if (musicSource === musicEl) musicSource = null; });
@@ -389,6 +399,12 @@ function stopMusic() {
   setTimeout(() => { if (!musicSource) el.pause(); }, 1200);
 }
 export const isMusicOn = () => musicOn;
+export const musicVolume = () => musicVol;
+export function setMusicVolume(v) {
+  musicVol = Math.max(0, Math.min(1, v));
+  try { localStorage.setItem('nvgr-music-vol', String(musicVol)); } catch { /* private mode */ }
+  if (musicBus && musicSource && context) musicBus.gain.setTargetAtTime(MUSIC_LEVEL * musicVol, context.currentTime, 0.1);
+}
 export function setMusicOn(on) {
   musicOn = on;
   try { localStorage.setItem('nvgr-music', on ? 'on' : 'off'); } catch { /* private mode */ }
