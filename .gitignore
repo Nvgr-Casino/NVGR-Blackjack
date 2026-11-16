@@ -5,3 +5,4 @@ dist
 dist-app
 __charlab.html
 public/models/characters/mh_*
+__pycache__/
