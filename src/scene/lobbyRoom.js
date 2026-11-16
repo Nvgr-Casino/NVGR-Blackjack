@@ -93,77 +93,86 @@ function floorRings(room) {
   });
 }
 
-function backdropTexture() {
-  const W = 1024, H = 512;
-  const c = document.createElement('canvas');
-  c.width = W; c.height = H;
-  const ctx = c.getContext('2d');
-  // Deep navy, lightest just above the floor behind the tables.
+// The walls: deep navy velvet, buttoned in a diamond, in walnut frames
+// with a thin brass inlay, a brass cornice above, and warm light washing up
+// from the floor, as a grand hotel's private salon is dressed. Painted
+// across `W` by `H` in panels of `panelW`.
+function paintPanels(ctx, W, H, panelW, { top = 0.1 } = {}) {
   const v = ctx.createLinearGradient(0, 0, 0, H);
-  v.addColorStop(0, '#02050d');
-  v.addColorStop(0.5, '#0a1530');
-  v.addColorStop(0.8, '#1a2e60');
-  v.addColorStop(1, '#0a1431');
+  v.addColorStop(0, '#05070d'); v.addColorStop(0.5, '#0d1530'); v.addColorStop(1, '#101a3a');
   ctx.fillStyle = v;
   ctx.fillRect(0, 0, W, H);
-  // Gold pillars round the room: each shaded as a rounded column — dark at
-  // its edges, bright down its middle — with a capital and a base.
-  const COLS = 16;
-  for (let k = 0; k < COLS; k++) {
-    const x = (k + 0.5) * (W / COLS);
-    const w = 11;
-    const g = ctx.createLinearGradient(x - w / 2, 0, x + w / 2, 0);
-    g.addColorStop(0, '#3a2508');
-    g.addColorStop(0.32, '#b8841f');
-    g.addColorStop(0.5, '#f2cf72');
-    g.addColorStop(0.68, '#a87418');
-    g.addColorStop(1, '#2e1d06');
-    ctx.fillStyle = g;
-    ctx.fillRect(x - w / 2, H * 0.16, w, H * 0.84);
-    ctx.fillStyle = '#c8952e';
-    ctx.fillRect(x - w * 1.1, H * 0.15, w * 2.2, 8);
-    ctx.fillRect(x - w * 0.9, H * 0.135, w * 1.8, 5);
-    ctx.fillRect(x - w * 1.1, H - 10, w * 2.2, 10);
+  const y0 = H * top, y1 = H * 0.94;
+  const stile = Math.max(6, panelW * 0.07);
+  for (let x = 0; x < W; x += panelW) {
+    // The walnut frame round each panel.
+    const wood = ctx.createLinearGradient(x, 0, x + stile, 0);
+    wood.addColorStop(0, '#1a0f08'); wood.addColorStop(0.5, '#3b2414'); wood.addColorStop(1, '#1a0f08');
+    ctx.fillStyle = wood;
+    ctx.fillRect(x, y0, stile, y1 - y0);
+    // The velvet: a soft sheen down its middle.
+    const vx = x + stile, vw = panelW - stile;
+    const vel = ctx.createLinearGradient(vx, 0, vx + vw, 0);
+    vel.addColorStop(0, '#0b1430'); vel.addColorStop(0.5, '#1a2c5e'); vel.addColorStop(1, '#0b1430');
+    ctx.fillStyle = vel;
+    ctx.fillRect(vx, y0 + stile, vw, y1 - y0 - stile * 2);
+    // Buttoned in a diamond: fine creases between the buttons.
+    const step = vw / 3;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)'; ctx.lineWidth = 1.2;
+    ctx.save(); ctx.beginPath(); ctx.rect(vx, y0 + stile, vw, y1 - y0 - stile * 2); ctx.clip();
+    for (let k = -12; k < 40; k++) {
+      ctx.beginPath(); ctx.moveTo(vx + k * step, y0); ctx.lineTo(vx + k * step + (y1 - y0), y1); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(vx + k * step, y0); ctx.lineTo(vx + k * step - (y1 - y0), y1); ctx.stroke();
+    }
+    for (let yy = y0 + stile + step / 2; yy < y1; yy += step / 2) {
+      const row = Math.round((yy - y0) / (step / 2));
+      for (let xx = vx + (row % 2 ? step / 2 : 0); xx < vx + vw; xx += step) {
+        ctx.fillStyle = 'rgba(214, 178, 108, 0.55)';
+        ctx.beginPath(); ctx.arc(xx, yy, Math.max(1.2, step * 0.045), 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.restore();
+    // The brass inlay just inside the frame.
+    ctx.strokeStyle = 'rgba(214, 176, 98, 0.75)'; ctx.lineWidth = 1.5;
+    ctx.strokeRect(vx + 3, y0 + stile + 3, vw - 6, y1 - y0 - stile * 2 - 6);
   }
+  // Walnut rails top and bottom, the brass cornice and skirting line.
+  const rail = (y, h) => { const g = ctx.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, '#3b2414'); g.addColorStop(1, '#170d06'); ctx.fillStyle = g; ctx.fillRect(0, y, W, h); };
+  rail(y0 - stile, stile * 1.4); rail(y1 - stile * 0.4, H - y1 + stile * 0.4);
+  const brass = ctx.createLinearGradient(0, 0, 0, 6);
+  brass.addColorStop(0, '#f2d58c'); brass.addColorStop(1, '#9c6f27');
+  ctx.fillStyle = 'rgba(214, 176, 98, 0.95)';
+  ctx.fillRect(0, y0 - stile - 4, W, 4); ctx.fillRect(0, y1 - 2, W, 3);
+  // Warm light washing up from the floor.
+  const wash = ctx.createLinearGradient(0, H, 0, H * 0.45);
+  wash.addColorStop(0, 'rgba(255, 196, 120, 0.22)'); wash.addColorStop(1, 'rgba(255, 196, 120, 0)');
+  ctx.fillStyle = wash;
+  ctx.fillRect(0, H * 0.45, W, H * 0.55);
+}
+
+function backdropTexture() {
+  const W = 2048, H = 512;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  paintPanels(c.getContext('2d'), W, H, W / 14, { top: 0.16 });
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.wrapS = THREE.RepeatWrapping;
   t.repeat.set(2, 1);
+  t.anisotropy = 8;
   return t;
 }
 
 // Behind the tables, the room's own architecture: a great curved wall
-// following their arc — a dark panel framed by fluted gold pilasters, the
-// NVGR crest grand at its centre in a soft gold halo.
-// It fills the space behind the dealer as part of the room rather than as
-// a thing stood in it.
+// following their arc, in the same velvet and walnut panels as the room,
+// the NVGR crest grand at its centre in a soft gold halo.
 const WALL_W = 2048, WALL_H = 960;
 function paintDecoWall(ctx, crest) {
   const W = WALL_W, H = WALL_H;
   ctx.clearRect(0, 0, W, H);
-  const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, '#03060e');
-  bg.addColorStop(0.6, '#0b1632');
-  bg.addColorStop(1, '#14254e');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
-  const gold = (a) => `rgba(222, 186, 112, ${a})`;
-  const cx = W / 2, cy = H * 1.02;
-  // Fluted pilasters, in pairs, out toward the ends.
-  [0.06, 0.16, 0.84, 0.94].forEach((u) => {
-    const x = W * u;
-    const g = ctx.createLinearGradient(x - 26, 0, x + 26, 0);
-    g.addColorStop(0, '#2e1d06'); g.addColorStop(0.32, '#b8841f'); g.addColorStop(0.5, '#f2cf72');
-    g.addColorStop(0.68, '#a87418'); g.addColorStop(1, '#2e1d06');
-    ctx.fillStyle = g;
-    ctx.fillRect(x - 26, H * 0.08, 52, H * 0.92);
-    ctx.fillStyle = '#c8952e';
-    ctx.fillRect(x - 36, H * 0.06, 72, 12);
-  });
-  // A gold cornice along the top and a base line.
-  ctx.fillStyle = gold(0.85);
-  ctx.fillRect(0, H * 0.035, W, 8);
-  ctx.fillRect(0, H - 10, W, 10);
+  paintPanels(ctx, W, H, W / 9, { top: 0.07 });
+  const gold = (al) => `rgba(222, 186, 112, ${al})`;
+  const cx = W / 2;
   // The sides and the top fade into the room's own darkness, so the wall
   // has no edge to read — it seems to rise out of the backdrop.
   ctx.save();
