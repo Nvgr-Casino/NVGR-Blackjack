@@ -49,8 +49,25 @@ function showNotice(latest) {
   document.body.appendChild(el);
 }
 
+// Android keeps the app alive in the background, so reopening it usually
+// resumes it rather than starting it again: the check also runs each time
+// the app comes back into view (at most every ten minutes) and every half
+// hour while it is open, not only when it starts.
+let lastCheck = 0;
+let watching = false;
+function watch() {
+  if (watching) return;
+  watching = true;
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && Date.now() - lastCheck > 10 * 60 * 1000) checkForAppUpdate();
+  });
+  setInterval(() => { if (!document.hidden) checkForAppUpdate(); }, 30 * 60 * 1000);
+}
+
 export async function checkForAppUpdate() {
   if (!IN_APP || !THIS_BUILD) return;
+  watch();
+  lastCheck = Date.now();
   try {
     const res = await fetch(RELEASE_API, { cache: 'no-store', headers: { Accept: 'application/vnd.github+json' } });
     if (!res.ok) return;
