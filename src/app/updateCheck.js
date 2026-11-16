@@ -5,6 +5,9 @@
 // installs it over this one and the player keeps their account.
 
 import { IN_APP } from '../platform.js';
+import { Capacitor, registerPlugin } from '@capacitor/core';
+
+const ApkUpdater = registerPlugin('ApkUpdater');
 
 const APK_URL = 'https://github.com/Nvgr-Casino/NVGR-Blackjack/releases/download/android/NVGR-Casino.apk';
 const RELEASE_API = 'https://api.github.com/repos/Nvgr-Casino/NVGR-Blackjack/releases/tags/android';
@@ -38,8 +41,8 @@ function showNotice(latest, url = APK_URL) {
     const act = e.target.closest('[data-un]');
     if (!act) return;
     if (act.dataset.un === 'update') {
-      // An address outside the app opens in the phone's browser, which
-      // downloads the APK; opening it installs the update.
+      if (Capacitor.isPluginAvailable('ApkUpdater')) { updateInApp(el, latest, url); return; }
+      // An app from before in-app updates: the phone's browser downloads it.
       window.location.href = url;
     } else {
       snooze(latest);
@@ -47,6 +50,46 @@ function showNotice(latest, url = APK_URL) {
     el.remove();
   });
   document.body.appendChild(el);
+}
+
+// Downloading inside the app, with a progress bar, then Android's installer.
+async function updateInApp(el, latest, url) {
+  el.innerHTML = `
+    <div class="un-text">
+      <strong>Downloading version 1.0.${latest}</strong>
+      <span class="un-bar"><i style="width:0%"></i></span>
+      <span class="un-pct">0%</span>
+    </div>`;
+  const bar = el.querySelector('.un-bar i'), pct = el.querySelector('.un-pct');
+  const listener = await ApkUpdater.addListener('progress', ({ percent }) => {
+    bar.style.width = `${percent}%`;
+    pct.textContent = `${percent}%`;
+  });
+  try {
+    await ApkUpdater.download({ url });
+    listener.remove();
+    const install = async () => {
+      const r = await ApkUpdater.install();
+      if (r && r.needsPermission) {
+        el.innerHTML = `
+          <div class="un-text"><strong>Allow updates for NVGR Casino</strong><span>Turn on "Allow from this source", come back, then tap Install.</span></div>
+          <div class="un-actions"><button class="btn btn-primary btn-sm" data-un-install>Install</button></div>`;
+        el.querySelector('[data-un-install]').onclick = install;
+      } else {
+        el.innerHTML = `
+          <div class="un-text"><strong>Ready to install version 1.0.${latest}</strong><span>Confirm on Android's screen. The app restarts on the new version.</span></div>
+          <div class="un-actions"><button class="btn btn-primary btn-sm" data-un-install>Install</button></div>`;
+        el.querySelector('[data-un-install]').onclick = install;
+      }
+    };
+    await install();
+  } catch {
+    listener.remove();
+    el.innerHTML = `
+      <div class="un-text"><strong>The update did not download</strong><span>Check your connection and try again.</span></div>
+      <div class="un-actions"><button class="btn btn-primary btn-sm" data-un-retry>Try again</button></div>`;
+    el.querySelector('[data-un-retry]').onclick = () => updateInApp(el, latest, url);
+  }
 }
 
 // Android keeps the app alive in the background, so reopening it usually

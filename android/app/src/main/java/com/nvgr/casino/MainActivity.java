@@ -12,6 +12,8 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Updates downloaded and installed from inside the app.
+        registerPlugin(ApkUpdaterPlugin.class);
         super.onCreate(savedInstanceState);
         immersive();
     }

@@ -2685,3 +2685,6 @@ main.auth.si > * { grid-row: 1 !important; }
   .si-logo { width: min(220px, 56vw); }
 }
 .st-link { padding: 0; background: none; border: 0; cursor: pointer; font: inherit; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+.un-bar { display: block; width: 100%; height: 6px; margin: 6px 0 2px; border-radius: 3px; overflow: hidden; background: rgba(255, 255, 255, 0.12); }
+.un-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #d8a648, #f2c86a); transition: width 0.2s; }
+.un-pct { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
