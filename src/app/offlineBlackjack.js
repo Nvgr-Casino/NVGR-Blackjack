@@ -50,7 +50,7 @@ export function startBjTournament(defId) {
   S.saveAccountChips(S.session.uid, S.session.name, S.session.chips, { game: 'blackjack' }).catch(() => {});
   room = {
     code: 'PRACTICE', offline: true,
-    felt: FELT_THEME_KEYS[def.tier % FELT_THEME_KEYS.length],
+    felt: FELT_THEME_KEYS[Math.floor(Math.random() * FELT_THEME_KEYS.length)],
     dealerType: DEALER_KEYS[Math.floor(Math.random() * DEALER_KEYS.length)],
     players: {}, playerOrder: [], dealer: { hand: [], hiddenRevealed: false }, deck: [],
     turnOrder: [], currentTurnIndex: 0, dealtIn: [], chat: [], log: [],

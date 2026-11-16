@@ -532,6 +532,7 @@ export async function createRoom() {
   const room = {
     code, adminId: safeKey(session.uid), isPublic: false,
     minBet: TABLE_STAKES[1].min, maxBet: TABLE_STAKES[1].max,
+    felt: randomFelt(),
     dealerType: DEALER_KEYS[Math.floor(Math.random() * DEALER_KEYS.length)],
     players: {}, playerOrder: [],
     dealer: { hand: [], hiddenRevealed: false },
@@ -641,7 +642,7 @@ async function createPublicTable(chips, key) {
 // TABLE_STAKES), and a seat at it: the table picker's empty tables.
 export async function newPublicBlackjackTable(tierIndex, seat = null) {
   const stakes = TABLE_STAKES[Math.max(0, Math.min(TABLE_STAKES.length - 1, tierIndex))];
-  const room = emptyPublicRoom(stakes, FELT_THEME_KEYS[Math.floor(Math.random() * FELT_THEME_KEYS.length)]);
+  const room = emptyPublicRoom(stakes, randomFelt());
   await set(ref(db, 'rooms/' + room.code), room);
   await set(ref(db, 'publicIndex/tables/' + room.code), true);
   await joinSpecificPublicTable(room.code, seat);
@@ -758,12 +759,15 @@ export async function giveChips(pidKey, amount) {
 // An empty table waiting for its first player: dealt from its own shoe,
 // open at the betting phase, with no betting clock running until someone
 // actually sits down (see seatPlayerIn).
+// Every table's felt is a random pick of the five.
+export const randomFelt = () => FELT_THEME_KEYS[Math.floor(Math.random() * FELT_THEME_KEYS.length)];
+
 function emptyPublicRoom(stakes, felt) {
   const tier = stakes || TABLE_STAKES[Math.floor(Math.random() * TABLE_STAKES.length)];
   const room = {
     code: genCode(), isPublic: true,
     minBet: tier.min, maxBet: tier.max,
-    felt: felt || FELT_THEME_KEYS[Math.floor(Math.random() * FELT_THEME_KEYS.length)],
+    felt: felt || randomFelt(),
     dealerType: DEALER_KEYS[Math.floor(Math.random() * DEALER_KEYS.length)],
     players: {}, playerOrder: [],
     dealer: { hand: [], hiddenRevealed: false }, deck: [],
@@ -790,7 +794,7 @@ async function ensureOpenTables(tables) {
   for (let i = 0; i < missing; i++) {
     const room = emptyPublicRoom(
       spread[i % spread.length] || TABLE_STAKES[i % TABLE_STAKES.length],
-      FELT_THEME_KEYS[(tables.length + i) % FELT_THEME_KEYS.length]
+      randomFelt()
     );
     await set(ref(db, 'rooms/' + room.code), room);
     await set(ref(db, 'publicIndex/tables/' + room.code), true);
@@ -865,7 +869,7 @@ export async function loadBlackjackTables() {
         r.minBet = tier.min; r.maxBet = tier.max;
       }
       if (!r.felt) {
-        r.felt = FELT_THEME_KEYS[tables.length % FELT_THEME_KEYS.length];
+        r.felt = randomFelt();
         await set(ref(db, 'rooms/' + code + '/felt'), r.felt);
       }
       if (!r.dealerType) {

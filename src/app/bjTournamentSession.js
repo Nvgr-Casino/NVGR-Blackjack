@@ -25,7 +25,7 @@ const me = () => L.safeKey(S.session.uid);
 function newTournamentRoom(def) {
   const room = {
     code: L.genCode(),
-    felt: FELT_THEME_KEYS[def.tier % FELT_THEME_KEYS.length],
+    felt: FELT_THEME_KEYS[Math.floor(Math.random() * FELT_THEME_KEYS.length)],
     dealerType: DEALER_KEYS[Math.floor(Math.random() * DEALER_KEYS.length)],
     players: {}, playerOrder: [], dealer: { hand: [], hiddenRevealed: false }, deck: [],
     turnOrder: [], currentTurnIndex: 0, dealtIn: [], bettingDeadline: null, turnDeadline: null,
