@@ -75,12 +75,14 @@ export function initScene(canvas) {
   // On a phone's 3x screen, though, even 1x is a third of its resolution
   // and everything — the scoreboards' lettering most of all — went soft;
   // a high-density screen never steps below 1.5x.
-  const MIN_DPR = phoneWork && !lowPower ? 1.1 : window.devicePixelRatio >= 2 ? 1.5 : 1;
+  const MIN_DPR = phoneWork && !lowPower ? 1.25 : window.devicePixelRatio >= 2 ? 1.5 : 1;
   // A phone starts a step lower: its framebuffers count against the same
   // tight memory as everything else (see the texture cap below).
   // The app on a phone starts at 1.5x and may step down to 1.1x: its HUD is
   // drawn by the page at full sharpness, so only the 3D scene softens.
-  const DPR_STEPS = (lowPower ? [1.75, 1.5, 1.25, 1] : phoneWork ? [1.5, 1.3, 1.1] : [2, 1.75, 1.5, 1.25, 1]).filter((d) => d >= MIN_DPR);
+  // The app starts sharp (2x) and steps down only if the phone cannot hold
+  // it: starting at 1.5x on a phone's 3x screen read as low quality.
+  const DPR_STEPS = (lowPower ? [1.75, 1.5, 1.25, 1] : phoneWork ? [2, 1.75, 1.5, 1.25] : [2, 1.75, 1.5, 1.25, 1]).filter((d) => d >= MIN_DPR);
   let dprStep = 0;
   const applyPixelRatio = () => renderer.setPixelRatio(Math.min(window.devicePixelRatio, DPR_STEPS[dprStep]));
 

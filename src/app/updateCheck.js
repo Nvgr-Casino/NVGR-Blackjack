@@ -19,7 +19,7 @@ function snooze(build) {
   try { localStorage.setItem(SNOOZE_KEY, String(build)); } catch { /* private storage */ }
 }
 
-function showNotice(latest) {
+function showNotice(latest, url = APK_URL) {
   if (document.getElementById('updateNotice')) return;
   const el = document.createElement('div');
   el.id = 'updateNotice';
@@ -40,7 +40,7 @@ function showNotice(latest) {
     if (act.dataset.un === 'update') {
       // An address outside the app opens in the phone's browser, which
       // downloads the APK; opening it installs the update.
-      window.location.href = APK_URL;
+      window.location.href = url;
     } else {
       snooze(latest);
     }
@@ -74,6 +74,12 @@ export async function checkForAppUpdate() {
     const release = await res.json();
     const m = /version 1\.0\.(\d+)/.exec(release.body || '');
     const latest = m ? Number(m[1]) : 0;
-    if (latest > THIS_BUILD && !snoozed(latest)) showNotice(latest);
+    // The file itself, from this release, with the version on the link: the
+    // fixed download address could be answered from a cache with the
+    // previous version for a while after a new one is published, so the
+    // update installed the old app and the notice came straight back.
+    const asset = (release.assets || []).find((a) => /\.apk$/i.test(a.name));
+    const url = `${(asset && asset.browser_download_url) || APK_URL}?v=${latest}`;
+    if (latest > THIS_BUILD && !snoozed(latest)) showNotice(latest, url);
   } catch { /* offline: try again next launch */ }
 }

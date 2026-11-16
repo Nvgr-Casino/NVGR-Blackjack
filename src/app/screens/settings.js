@@ -10,6 +10,7 @@ import { safeKey } from '../roomLogic.js';
 import { IN_APP } from '../../platform.js';
 import * as S from '../session.js';
 import * as Sfx from '../../scene/sfx.js';
+import { openLegal } from '../legal.js';
 
 const FEEDBACK_EMAIL = 'feedback@nvgrcasino.com';
 const BUILD = Number(import.meta.env.VITE_APP_BUILD) || 0;
@@ -59,7 +60,7 @@ function html() {
           ${st.note ? `<p class="pf-note">${esc(st.note)}</p>` : ''}
         </section>
       </div>
-      <p class="st-version">NVGR Casino${BUILD ? ` · version 1.0.${BUILD}` : ''}</p>
+      <p class="st-version">NVGR Casino${BUILD ? ` · version 1.0.${BUILD}` : ''} · <button class="st-link" data-st-legal="terms">Terms of Service</button> · <button class="st-link" data-st-legal="privacy">Privacy Policy</button></p>
     </div>`;
 }
 
@@ -91,6 +92,8 @@ function onInput(e) {
 async function onClick(e) {
   if (e.target === e.currentTarget) return closeSettings();
   if (!st) return;
+  const lg = e.target.closest('[data-st-legal]');
+  if (lg) return openLegal(lg.dataset.stLegal);
   const t = e.target.closest('[data-st],[data-st-toggle],[data-st-kind]');
   if (!t) return;
   const d = t.dataset;

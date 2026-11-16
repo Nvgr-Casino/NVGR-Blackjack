@@ -2601,3 +2601,87 @@ main.fh { position: fixed; inset: 0; z-index: 5; display: grid; grid-template-ro
 }
 .fh-list { overflow-x: hidden; } .fh-row.on::after { right: 0; }
 .fh-chat.fh-chat-empty { margin: 0; align-items: center; justify-content: center; text-align: center; }
+
+/* ---------- sign in: royal blue, clean, branded ---------- */
+main.auth.si {
+  position: fixed; inset: 0; z-index: 5; margin: 0; max-width: none;
+  display: grid !important; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; grid-template-rows: 1fr !important; align-items: center; justify-items: center;
+  padding: max(18px, env(safe-area-inset-top, 0px)) max(28px, env(safe-area-inset-right, 0px)) max(18px, env(safe-area-inset-bottom, 0px)) max(28px, env(safe-area-inset-left, 0px));
+  background:
+    radial-gradient(70% 90% at 26% 50%, rgba(255, 255, 255, 0.07), transparent 60%),
+    linear-gradient(160deg, #2458a6 0%, #1a4589 45%, #133673 100%);
+}
+main.auth.si > * { grid-row: 1 !important; }
+.si-brand { grid-column: 1 !important; display: flex; align-items: center; justify-content: center; }
+.si-logo { width: min(340px, 34vw); height: auto; filter: drop-shadow(0 18px 34px rgba(6, 18, 44, 0.55)); }
+.si-panel { grid-column: 2 !important; width: min(420px, 100%); display: flex; flex-direction: column; gap: 12px; }
+.si-title { margin: 0; font-family: var(--brand); font-size: 30px; font-weight: 700; letter-spacing: 0.04em; color: #fff; }
+.si-sub { margin: -6px 0 6px; font-size: 15px; color: rgba(230, 238, 252, 0.78); }
+.si-ways { display: flex; flex-direction: column; gap: 12px; }
+.si-way { position: relative; display: flex; align-items: center; gap: 14px; width: 100%; height: 56px; padding: 0 18px; border-radius: 14px; cursor: pointer; text-align: left;
+  font: inherit; font-size: 16px; font-weight: 600; color: #fff; background: rgba(8, 24, 60, 0.32); border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 6px 18px -8px rgba(4, 12, 32, 0.6); transition: background 0.15s, border-color 0.15s, transform 0.15s; }
+.si-way:hover { background: rgba(8, 24, 60, 0.46); border-color: rgba(255, 255, 255, 0.3); }
+.si-way:active { transform: scale(0.99); }
+.si-ic { width: 34px; height: 34px; flex: none; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.95); }
+.si-ic svg { width: 20px; height: 20px; }
+#emailWayBtn .si-ic, #guestBtn .si-ic { background: rgba(255, 255, 255, 0.12); color: #fff; }
+#emailWayBtn .si-ic svg, #guestBtn .si-ic svg { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.si-label { flex: 1; }
+.si-last { padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; color: #1b2f57; background: #f2c86a; }
+.si-error { margin: 0; font-size: 13.5px; color: #ffd2c9; }
+.si-legal { margin: 6px 0 0; font-size: 12.5px; line-height: 1.5; color: rgba(230, 238, 252, 0.72); }
+.si-legal button { padding: 0; background: none; border: 0; cursor: pointer; font: inherit; color: #fff; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(255, 255, 255, 0.45); }
+.si-emailhead { display: flex; align-items: center; gap: 12px; }
+.si-back { width: 40px; height: 40px; flex: none; border-radius: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #fff; background: rgba(8, 24, 60, 0.32); border: 1px solid rgba(255, 255, 255, 0.16); }
+.si-back svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.si-tabs { flex: 1; display: flex; padding: 4px; border-radius: 12px; background: rgba(8, 24, 60, 0.32); border: 1px solid rgba(255, 255, 255, 0.12); }
+.si-tabs button { flex: 1; height: 34px; border-radius: 9px; cursor: pointer; font: inherit; font-size: 14px; font-weight: 600; color: rgba(230, 238, 252, 0.75); background: none; border: 0; }
+.si-tabs button.on { color: #fff; background: rgba(255, 255, 255, 0.14); }
+.si-fields { display: flex; flex-direction: column; gap: 10px; }
+.si-fields input { height: 50px; border-radius: 12px; padding: 0 16px; font: inherit; font-size: 15px; color: #fff; background: rgba(8, 24, 60, 0.38); border: 1px solid rgba(255, 255, 255, 0.16); }
+.si-fields input::placeholder { color: rgba(230, 238, 252, 0.55); }
+.si-fields input:focus { outline: none; border-color: #f2c86a; background: rgba(8, 24, 60, 0.5); }
+.si-go { height: 52px; border-radius: 14px; cursor: pointer; font: inherit; font-size: 16px; font-weight: 700; color: #1b2f57; background: #f2c86a; border: 0; box-shadow: 0 8px 20px -10px rgba(4, 12, 32, 0.7); }
+.si-go:hover { background: #f6d384; }
+.si-go:disabled, .si-way:disabled { opacity: 0.6; cursor: default; }
+
+/* The terms and the privacy policy. */
+.legal-overlay { position: fixed; inset: 0; z-index: 9700; display: flex; align-items: center; justify-content: center; padding: 14px; background: rgba(6, 14, 34, 0.6); backdrop-filter: blur(4px); }
+.legal-card { width: min(760px, 100%); height: min(88vh, 900px); display: flex; flex-direction: column; border-radius: 16px; overflow: hidden; background: #fbfaf7; color: #1d2433; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5); }
+.legal-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #1a4589; }
+.legal-tabs { flex: 1; display: flex; gap: 6px; }
+.legal-tabs button { height: 34px; padding: 0 14px; border-radius: 9px; cursor: pointer; font: inherit; font-size: 14px; font-weight: 600; color: rgba(230, 238, 252, 0.8); background: none; border: 0; }
+.legal-tabs button.on { color: #1b2f57; background: #fff; }
+.legal-close { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #fff; background: rgba(255, 255, 255, 0.12); border: 0; }
+.legal-close svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.legal-body { flex: 1; overflow-y: auto; padding: 18px 24px 28px; font-size: 14.5px; line-height: 1.6; }
+.legal-body h2 { margin: 0; font-size: 22px; color: #13284f; }
+.legal-body h3 { margin: 20px 0 6px; font-size: 16px; color: #13284f; }
+.legal-body p, .legal-body li { margin: 0 0 8px; color: #333b4d; }
+.legal-body ul { padding-left: 20px; margin: 0 0 8px; }
+.legal-body a { color: #1a4fa8; }
+.legal-date { color: #6a7387 !important; font-size: 13px; }
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .si-logo { width: min(250px, 30vw); }
+  .si-panel { gap: 8px; }
+  .si-title { font-size: 21px; }
+  .si-sub { font-size: 12.5px; margin: -4px 0 2px; }
+  .si-ways { gap: 8px; }
+  .si-way { height: 46px; font-size: 14.5px; border-radius: 12px; }
+  .si-ic { width: 28px; height: 28px; border-radius: 8px; }
+  .si-ic svg { width: 17px; height: 17px; }
+  .si-legal { font-size: 11px; margin-top: 2px; }
+  .si-fields { gap: 7px; }
+  .si-fields input { height: 40px; }
+  .si-go { height: 42px; }
+  .si-back { width: 36px; height: 36px; }
+  .si-tabs button { height: 30px; }
+}
+@media (max-width: 760px) and (orientation: portrait) {
+  main.auth.si { grid-template-columns: 1fr !important; grid-template-rows: auto auto !important; align-content: center; row-gap: 26px; }
+  main.auth.si > * { grid-column: 1 !important; grid-row: auto !important; }
+  .si-logo { width: min(220px, 56vw); }
+}
+.st-link { padding: 0; background: none; border: 0; cursor: pointer; font: inherit; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
