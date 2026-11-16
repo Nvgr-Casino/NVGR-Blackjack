@@ -26,7 +26,7 @@ export const LOBBY_THEME = {
     sky: 0xd8e0f8, ground: 0x182848, fill: 1.0,
     key: 0xffe4c0, keyPower: 120,
     wash: 0xffcf9a, washPower: 18,
-    fog: 0x040917, fogNear: 30, fogFar: 85,
+    fog: 0x0a1a48, fogNear: 30, fogFar: 85,
   },
 };
 
@@ -63,7 +63,7 @@ function carpetTexture() {
   [[0, h], [S, h], [h, 0], [h, S]].forEach(([x, y]) => rosette(x, y, 30));
   // A navy medallion in the diamond, ringed in gold, and in the corners.
   const medallion = (x, y, r) => {
-    ctx.fillStyle = '#16244a'; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#1d3f98'; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
     ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(200, 156, 72, 0.8)'; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
     ctx.fillStyle = 'rgba(214, 176, 98, 0.85)';
     ctx.beginPath(); ctx.moveTo(x, y - r * 0.55); ctx.lineTo(x + r * 0.35, y); ctx.lineTo(x, y + r * 0.55); ctx.lineTo(x - r * 0.35, y); ctx.closePath(); ctx.fill();
@@ -99,7 +99,7 @@ function floorRings(room) {
 // across `W` by `H` in panels of `panelW`.
 function paintPanels(ctx, W, H, panelW, { top = 0.1 } = {}) {
   const v = ctx.createLinearGradient(0, 0, 0, H);
-  v.addColorStop(0, '#05070d'); v.addColorStop(0.5, '#0d1530'); v.addColorStop(1, '#101a3a');
+  v.addColorStop(0, '#060b1c'); v.addColorStop(0.5, '#0f2152'); v.addColorStop(1, '#13296a');
   ctx.fillStyle = v;
   ctx.fillRect(0, 0, W, H);
   const y0 = H * top, y1 = H * 0.94;
@@ -113,8 +113,15 @@ function paintPanels(ctx, W, H, panelW, { top = 0.1 } = {}) {
     // The velvet: a soft sheen down its middle.
     const vx = x + stile, vw = panelW - stile;
     const vel = ctx.createLinearGradient(vx, 0, vx + vw, 0);
-    vel.addColorStop(0, '#0b1430'); vel.addColorStop(0.5, '#1a2c5e'); vel.addColorStop(1, '#0b1430');
+    // Royal blue velvet, the app's own: deep at the frame, rich and bright
+    // where the light catches the pile down the middle.
+    vel.addColorStop(0, '#0f2462'); vel.addColorStop(0.5, '#2650b4'); vel.addColorStop(1, '#0f2462');
     ctx.fillStyle = vel;
+    ctx.fillRect(vx, y0 + stile, vw, y1 - y0 - stile * 2);
+    // And brighter toward the top, under the cornice lights.
+    const lift = ctx.createLinearGradient(0, y0, 0, y1);
+    lift.addColorStop(0, 'rgba(90, 140, 255, 0.16)'); lift.addColorStop(0.5, 'rgba(90, 140, 255, 0.05)'); lift.addColorStop(1, 'rgba(90, 140, 255, 0)');
+    ctx.fillStyle = lift;
     ctx.fillRect(vx, y0 + stile, vw, y1 - y0 - stile * 2);
     // Buttoned in a diamond: fine creases between the buttons.
     const step = vw / 3;
