@@ -131,11 +131,43 @@ export function createSlotSalon() {
   GUESTS.forEach(([i, id]) => {
     if (i === MINE || i >= COUNT) return;
     const fig = createCharacter(id);
-    fig.position.copy(chairs[i].at);
+    // A figure is placed at the tables' own height (y = 0) and seats itself
+    // in the chair from there; at the floor's height it sank through it.
+    fig.position.set(chairs[i].at.x, 0, chairs[i].at.z);
     fig.rotation.y = chairs[i].yaw;
     group.add(fig);
     guests.push(fig);
   });
+
+  // Across the salon, further back either side, a few more machines with
+  // guests at them: seen past your own while you play, so the room reads
+  // as a salon and not as a stage for one machine. Shown only then; the
+  // lobby's view has the whole bank instead.
+  const far = new THREE.Group();
+  far.visible = false;
+  group.add(far);
+  const FAR = PHONE
+    ? [[-3.6, -4.8, 1.25, 'jadepanda', 'rb_bf01'], [3.6, -4.8, -1.25, 'imperialsevens', 'rb_bm01']]
+    : [[-3.4, -4.4, 1.2, 'jadepanda', 'rb_bf02'], [-4.8, -5.6, 1.3, 'highroller', null], [3.4, -4.4, -1.2, 'imperialsevens', 'rb_bm02'], [4.8, -5.6, -1.3, 'crownjewels', 'rb_bf01']];
+  const farMachines = [];
+  FAR.forEach(([x, z, yaw, game, guest]) => {
+    const mach = createSlotMachine({ full: false, game });
+    mach.position.set(m(x), FLOOR_Y, m(z));
+    mach.rotation.y = yaw;
+    far.add(mach);
+    farMachines.push(mach);
+    // A machine with rotation y faces along (sin y, 0, cos y); its chair
+    // stands before it, turned to face it.
+    const at = mach.position.clone().addScaledVector(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)), m(SEAT_Z));
+    place(far, 'dining_chair_02', { x: at.x, z: at.z, yaw: yaw + Math.PI, shadows: false });
+    if (guest) {
+      const fig = createCharacter(guest);
+      fig.position.set(at.x, 0, at.z);
+      fig.rotation.y = yaw + Math.PI;
+      far.add(fig);
+    }
+  });
+  const farSpin = farMachines.map(() => performance.now() + 2000 + Math.random() * 6000);
 
   // The neighbours play on their own: a spin every so often.
   const nextSpin = machines.map((_, i) => (i === MINE ? Infinity : performance.now() + 2500 + Math.random() * 7000));
@@ -149,8 +181,19 @@ export function createSlotSalon() {
     machines.forEach((mach, i) => { if (i !== MINE) mach.visible = !focused; });
     chairs.forEach((c, i) => { if (i !== MINE) c.chair.visible = !focused; });
     guests.forEach((g) => { g.visible = !focused; });
+    far.visible = focused;
   }
   function update(now) {
+    if (focused) {
+      farMachines.forEach((mach, i) => {
+        mach.userData.update(now);
+        if (now >= farSpin[i] && !mach.userData.spinning) {
+          const g = mach.userData.game;
+          mach.userData.spinTo(g.drawStops((n) => Math.floor(Math.random() * n)));
+          farSpin[i] = now + 7000 + Math.random() * 9000;
+        }
+      });
+    }
     machines.forEach((mach, i) => {
       if (focused && i !== MINE) return;
       mach.userData.update(now);
