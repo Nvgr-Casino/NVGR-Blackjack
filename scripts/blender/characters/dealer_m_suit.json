@@ -1,0 +1,25 @@
+{
+  "name": "dealer_m_suit",
+  "phenotype": { "gender": 1.0, "age": 0.62, "muscle": 0.6, "weight": 0.52, "height": 0.55, "proportions": 1.0 },
+  "skin": "middleage_caucasian_male/middleage_caucasian_male.mhmat",
+  "eyes_material_type": "MAKESKIN",
+  "hair": "short02/short02.mhclo",
+  "eyebrows": "eyebrow003/eyebrow003.mhclo",
+  "clothes": ["male_elegantsuit01/male_elegantsuit01.mhclo", "shoes06/shoes06.mhclo"],
+  "targets": [
+    { "target": "head-square", "value": 0.35 },
+    { "target": "chin-prominent-incr", "value": 0.3 },
+    { "target": "chin-width-incr", "value": 0.25 },
+    { "target": "l-cheek-bones-incr", "value": 0.35 },
+    { "target": "r-cheek-bones-incr", "value": 0.35 },
+    { "target": "l-cheek-volume-decr", "value": 0.3 },
+    { "target": "r-cheek-volume-decr", "value": 0.3 },
+    { "target": "nose-hump-incr", "value": 0.15 },
+    { "target": "nose-scale-vert-incr", "value": 0.12 },
+    { "target": "eyebrows-trans-down", "value": 0.25 },
+    { "target": "forehead-temple-decr", "value": 0.2 },
+    { "target": "mouth-lowerlip-volume-incr", "value": 0.15 },
+    { "target": "neck-scale-horiz-incr", "value": 0.25 }
+  ],
+  "framing": "bust"
+}

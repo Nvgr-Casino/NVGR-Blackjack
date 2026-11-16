@@ -3,3 +3,5 @@ dist
 .DS_Store
 .claude
 dist-app
+__charlab.html
+public/models/characters/mh_*

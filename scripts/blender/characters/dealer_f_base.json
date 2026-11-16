@@ -1,0 +1,18 @@
+{
+  "name": "dealer_f_base",
+  "phenotype": { "gender": 0.0, "age": 0.55, "muscle": 0.5, "weight": 0.45, "height": 0.5, "proportions": 1.0, "cupsize": 0.5, "firmness": 0.5 },
+  "skin": "toigo_light_skin_female_bronze/toigo_light_skin_female_bronze.mhmat",
+  "hair": "ponytail01/ponytail01.mhclo",
+  "eyebrows": "eyebrow010/eyebrow010.mhclo",
+  "eyelashes": "eyelashes02/eyelashes02.mhclo",
+  "clothes": ["female_elegantsuit01/female_elegantsuit01.mhclo", "shoes02/shoes02.mhclo"],
+  "targets": [
+    { "target": "l-cheek-bones-incr", "value": 0.3 },
+    { "target": "r-cheek-bones-incr", "value": 0.3 },
+    { "target": "chin-prominent-incr", "value": 0.1 },
+    { "target": "nose-scale-horiz-decr", "value": 0.15 },
+    { "target": "mouth-upperlip-volume-incr", "value": 0.2 },
+    { "target": "mouth-lowerlip-volume-incr", "value": 0.2 }
+  ],
+  "framing": "bust"
+}
