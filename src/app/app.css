@@ -1784,3 +1784,17 @@ input:focus { outline: none; border-color: var(--accent); }
   .dock-bet .dock-actions .grow { min-width: 0; }
   .dock-bet .dock-actions .btn { padding-left: 12px; padding-right: 12px; white-space: nowrap; }
 }
+
+/* ---------- a newer Android app is available ---------- */
+.update-notice {
+  position: fixed; z-index: 10000; left: 50%; transform: translateX(-50%);
+  top: calc(12px + env(safe-area-inset-top, 0px)); width: min(560px, calc(100vw - 24px));
+  display: flex; align-items: center; gap: 14px; padding: 12px 12px 12px 18px; border-radius: 16px;
+  background: rgba(20, 17, 15, 0.97); border: 1px solid var(--accent); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+  animation: update-in 0.35s ease-out;
+}
+@keyframes update-in { from { opacity: 0; transform: translate(-50%, -12px); } to { opacity: 1; transform: translateX(-50%); } }
+.un-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.un-text strong { font-size: 14px; color: var(--text); }
+.un-text span { font-size: 12px; color: var(--muted); }
+.un-actions { display: flex; gap: 8px; flex: 0 0 auto; }

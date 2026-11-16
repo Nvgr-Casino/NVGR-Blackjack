@@ -23,6 +23,7 @@ import { renderCharacter, attachCharacter } from './app/screens/character.js';
 import { brandMark } from './app/uiHelpers.js';
 import { createIntro } from './app/intro.js';
 import * as Curtain from './app/curtain.js';
+import { checkForAppUpdate } from './app/updateCheck.js';
 
 const canvas = document.getElementById('scene');
 const root = document.getElementById('root');
@@ -269,6 +270,8 @@ async function boot() {
   setOnChange(render);
   initAuth();
   checkInviteParam();
+  // A few seconds in, once the casino is open: is there a newer app?
+  setTimeout(checkForAppUpdate, 6000);
 }
 
 boot().catch((e) => { if (intro) intro.fail('Something went wrong while opening.', String((e && e.message) || e)); });

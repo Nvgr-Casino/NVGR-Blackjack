@@ -1,11 +1,12 @@
 // The Android app's launcher icons and splash screens. The icon
-// (assets-src/app-icon.png) is an ivory ace of spades with a great gold
-// spade, fanned over a royal-purple card, red, gold and black chips in
-// front, on a ruby sunburst with gold light: the classic square and round
-// icons from it, and the adaptive icon's layer from a version with the
-// cards drawn smaller (app-icon-adaptive.png) so the launcher's mask never
-// clips them. The splash, shown while the game loads, is NVGR Casino's
-// logo on black, before the game's own "NVGR Casino presents" opening.
+// (assets-src/app-icon.png) is NVGR CASINO in gold, set in Unbounded, on
+// black, with the four suits faint in gold fading in from the edges: the
+// classic square and round icons from it, and the adaptive icon's layer
+// from a version with the name set smaller (app-icon-adaptive.png) so the
+// launcher's mask never clips it. The website's download picture and
+// home-screen icons use the same art. The splash, shown while the game
+// loads, is NVGR Casino's logo on black, before the game's own "NVGR
+// Casino presents" opening.
 //
 //   node scripts/android-assets.mjs
 import sharp from 'sharp';
@@ -30,7 +31,7 @@ for (const [name, k] of Object.entries(DENSITY)) {
   await sharp(ADAPTIVE).resize(fg).png().toFile(join(dir, 'ic_launcher_foreground.png'));
 }
 // The adaptive icon's background, and no stock vector foreground to shadow ours.
-writeFileSync(join(RES, 'values/ic_launcher_background.xml'), '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#0C0205</color>\n</resources>\n');
+writeFileSync(join(RES, 'values/ic_launcher_background.xml'), '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#050504</color>\n</resources>\n');
 const stock = join(RES, 'drawable-v24/ic_launcher_foreground.xml');
 if (existsSync(stock)) rmSync(stock);
 
@@ -42,5 +43,10 @@ for (const dir of readdirSync(RES).filter((d) => d.startsWith('drawable'))) {
   const logo = await sharp(LOGO).resize(Math.round(Math.min(width, height) * 0.6)).png().toBuffer();
   const out = await sharp({ create: { width, height, channels: 4, background: BLACK } }).composite([{ input: logo, gravity: 'centre' }]).png().toBuffer();
   writeFileSync(file, out);
+}
+// The website: the download section's picture and the home-screen icons.
+writeFileSync('public/site/app-icon.webp', await sharp(ICON).resize(512).webp({ quality: 90 }).toBuffer());
+for (const [file, size, src] of [['icon-192.png', 192, ICON], ['icon-512.png', 512, ICON], ['apple-touch-icon.png', 180, ICON], ['icon-maskable-512.png', 512, ADAPTIVE]]) {
+  writeFileSync(join('public/icons', file), await sharp(src).resize(size).png().toBuffer());
 }
 console.log('icons and splashes written');

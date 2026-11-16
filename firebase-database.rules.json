@@ -12,6 +12,11 @@
         "updatedAt": { ".validate": "newData.isNumber()" },
         "currentRoom": { ".validate": "newData.isString() && newData.val().length <= 8" },
         "character": { ".validate": "newData.isString() && newData.val().length <= 32" },
+        "xp": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "giftsClaimed": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "bonusAt": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "bonusStreak": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "joinedAt": { ".validate": "newData.isNumber() && newData.val() >= 0" },
         "$other": { ".validate": false }
       }
     },
@@ -23,6 +28,22 @@
         "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
         "online": { ".validate": "newData.isBoolean()" },
         "lastSeen": { ".validate": "newData.isNumber()" },
+        "$other": { ".validate": false }
+      }
+    },
+
+    "profiles": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid",
+        "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "photo": { ".validate": "newData.isString() && newData.val().length <= 30000" },
+        "joinedAt": { ".validate": "newData.isNumber()" },
+        "level": { ".validate": "newData.isNumber() && newData.val() >= 1" },
+        "biggestWin": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "gamesPlayed": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "favGame": { ".validate": "newData.isString() && newData.val().length <= 16" },
+        "updatedAt": { ".validate": "newData.isNumber()" },
         "$other": { ".validate": false }
       }
     },

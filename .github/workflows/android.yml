@@ -32,6 +32,9 @@ jobs:
           java-version: 21
       - run: npm ci
       - run: npm run build:app
+        env:
+          # The app compares this with the published version to offer updates.
+          VITE_APP_BUILD: ${{ github.run_number }}
       - run: npx cap sync android
 
       # The release key, from the repository's secrets. Without it the app is
