@@ -26,6 +26,7 @@ import * as Slots from '../slotsSession.js';
 import { GAME_LIST } from '../../slots/games.js';
 import { prog as P, levelFor, giftsWaiting, bonusState } from '../progress.js';
 import { openProfile, maybeShowBonus } from './profile.js';
+import { openTablePicker, PICKER_GAMES } from './tablePicker.js';
 import * as Craps from '../crapsSession.js';
 import { CRAPS_SEATS } from '../../craps/rules.js';
 import * as Offline from '../offlinePoker.js';
@@ -337,7 +338,12 @@ function attachStage() {
     } catch (e) { /* the page says what went wrong */ }
     if (S.session.screen !== 'table') Curtain.lift(0);
   });
-  on('stageTables', () => go(FLOOR[carouselIndex()].id));
+  // Tables: the table picker for a table game; the game's own page for the
+  // slot salon.
+  on('stageTables', () => {
+    const id = FLOOR[carouselIndex()].id;
+    if (PICKER_GAMES.includes(id)) openTablePicker(id); else go(id);
+  });
   // A drag anywhere on the floor turns the arc with the finger; let go and
   // it comes to rest on the nearest table, carried on a little by a flick.
   let startX = 0, startPos = 0, lastX = 0, lastT = 0, vel = 0, pid = null, moved = false;
@@ -417,7 +423,7 @@ function blackjackPage() {
       kicker: 'Table game · five seats',
       title: 'Blackjack',
       line: 'Blackjack pays 3 to 2 · dealer stands on all 17s',
-      actions: '<button class="btn btn-primary btn-lg" id="playNowBtn">Play now</button><button class="btn btn-ghost" data-sheet="join" data-key="bj">Join or host</button>',
+      actions: '<button class="btn btn-primary btn-lg" id="playNowBtn">Play now</button><button class="btn btn-ghost" data-picker="blackjack">Choose a table</button><button class="btn btn-ghost" data-sheet="join" data-key="bj">Join or host</button>',
     })}
     <section class="list-section">${listHead('Tables')}${list}</section>`;
 }
@@ -451,7 +457,7 @@ function roulettePage() {
       kicker: 'Table game · six seats',
       title: 'Roulette',
       line: 'European wheel, one zero · straight up pays 35 to 1',
-      actions: '<button class="btn btn-primary btn-lg" id="rouletteNowBtn">Play now</button><button class="btn btn-ghost" data-sheet="join" data-key="roulette">Join or host</button>',
+      actions: '<button class="btn btn-primary btn-lg" id="rouletteNowBtn">Play now</button><button class="btn btn-ghost" data-picker="roulette">Choose a table</button><button class="btn btn-ghost" data-sheet="join" data-key="roulette">Join or host</button>',
     })}
     <section class="list-section">${listHead('Tables')}${list}</section>
     <section class="feature-card theme-roulette">
@@ -516,7 +522,7 @@ function crapsPage() {
       kicker: 'Dice · six seats',
       title: 'Craps',
       line: 'Pass Line pays even money · odds at true odds · the field, the hard ways and the propositions',
-      actions: '<button class="btn btn-primary btn-lg" id="crapsNowBtn">Play now</button><button class="btn btn-ghost" data-sheet="join" data-key="craps">Join or host</button>',
+      actions: '<button class="btn btn-primary btn-lg" id="crapsNowBtn">Play now</button><button class="btn btn-ghost" data-picker="craps">Choose a table</button><button class="btn btn-ghost" data-sheet="join" data-key="craps">Join or host</button>',
     })}
     <section class="list-section">${listHead('Tables')}${list}</section>
     <section class="feature-card theme-craps">
@@ -582,7 +588,7 @@ function baccaratPage() {
       kicker: 'Table game · seven seats',
       title: 'Baccarat',
       line: 'Punto Banco, eight decks · Banker pays 19 to 20, Tie 8 to 1',
-      actions: '<button class="btn btn-primary btn-lg" id="baccaratNowBtn">Play now</button><button class="btn btn-ghost" data-sheet="join" data-key="baccarat">Join or host</button>',
+      actions: '<button class="btn btn-primary btn-lg" id="baccaratNowBtn">Play now</button><button class="btn btn-ghost" data-picker="baccarat">Choose a table</button><button class="btn btn-ghost" data-sheet="join" data-key="baccarat">Join or host</button>',
     })}
     <section class="list-section">${listHead('Tables')}${list}</section>
     <section class="feature-card theme-baccarat">
@@ -683,7 +689,7 @@ function holdemPage() {
       kicker: 'Poker · no limit · six seats',
       title: "Texas Hold'em",
       line: `Blinds from ${short(POKER_STAKES[0].sb)} / ${short(POKER_STAKES[0].bb)} to ${short(POKER_STAKES[POKER_STAKES.length - 1].sb)} / ${short(POKER_STAKES[POKER_STAKES.length - 1].bb)}`,
-      actions: '<button class="btn btn-primary btn-lg" id="pokerNowBtn">Play now</button><button class="btn btn-ghost" data-sheet="join" data-key="holdem">Join or host</button>',
+      actions: '<button class="btn btn-primary btn-lg" id="pokerNowBtn">Play now</button><button class="btn btn-ghost" data-picker="holdem">Choose a table</button><button class="btn btn-ghost" data-sheet="join" data-key="holdem">Join or host</button>',
       tabs: tabs([['cash', 'Cash tables'], ['practice', 'Practice']], holdemTab, 'data-holdem-tab'),
     })}
     ${body}`;
@@ -1137,6 +1143,7 @@ export function attachHome() {
     };
   });
   all('[data-open-poker]', (el) => { el.onclick = () => { sheet = null; Poker.openPokerTable(el.dataset.openPoker); }; });
+  all('[data-picker]', (el) => { el.onclick = () => openTablePicker(el.dataset.picker); });
   all('[data-join-table]', (el) => { el.onclick = () => { sheet = null; S.joinSpecificPublicTable(el.dataset.joinTable); }; });
   all('[data-join-roulette]', (el) => { el.onclick = () => { sheet = null; Roulette.joinRouletteTable(el.dataset.joinRoulette); }; });
   all('[data-play-slot]', (el) => { el.onclick = async () => { Curtain.drop('Taking your seat…'); try { await Slots.startSlots(el.dataset.playSlot); } catch (e) { /* said on the page */ } if (S.session.screen !== 'table') Curtain.lift(0); }; });

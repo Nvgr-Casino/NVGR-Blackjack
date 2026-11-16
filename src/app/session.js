@@ -606,6 +606,15 @@ async function createPublicTable(chips, key) {
   enterTable(code);
 }
 
+// A new public blackjack table at the given stakes (an index into
+// TABLE_STAKES), and a seat at it: the table picker's empty tables.
+export async function newPublicBlackjackTable(tierIndex) {
+  const stakes = TABLE_STAKES[Math.max(0, Math.min(TABLE_STAKES.length - 1, tierIndex))];
+  const room = emptyPublicRoom(stakes, FELT_THEME_KEYS[Math.floor(Math.random() * FELT_THEME_KEYS.length)]);
+  await set(ref(db, 'rooms/' + room.code), room);
+  await set(ref(db, 'publicIndex/tables/' + room.code), true);
+  await joinSpecificPublicTable(room.code);
+}
 export async function joinSpecificPublicTable(code) {
   formError = '';
   const chips = (await ensureAccount(session.uid, session.name)).chips;
@@ -797,6 +806,13 @@ export async function loadLobby() {
     render();
     return;
   }
+  await loadBlackjackTables();
+  lobbyLoading = false;
+  render();
+}
+
+// The public blackjack tables, with at least one open at every stakes.
+export async function loadBlackjackTables() {
   try {
     const idxSnap = await get(ref(db, 'publicIndex/tables'));
     const codes = idxSnap.exists() ? Object.keys(idxSnap.val()) : [];
@@ -828,9 +844,8 @@ export async function loadLobby() {
     }
     tables.sort((a, b) => b.count - a.count);
     lobbyTables = await ensureOpenTables(tables);
-  } catch (e) { lobbyTables = []; }
-  lobbyLoading = false;
-  render();
+    return lobbyTables;
+  } catch (e) { lobbyTables = []; return lobbyTables; }
 }
 
 // ---------- Round flow ----------

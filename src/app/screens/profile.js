@@ -42,6 +42,7 @@ export async function openProfile(key = null, nameHint = '') {
   if (!open || open.key !== key) return;
   open.data = data || { name: (user && user.name) || nameHint || 'Player' };
   open.online = user ? !!user.online : null;
+  open.lastSeen = user && user.lastSeen ? user.lastSeen : null;
   draw();
 }
 export function closeProfile() {
@@ -66,10 +67,11 @@ function view() {
 }
 
 function friendAction(key, name) {
-  if (Social.isFriend(key)) return `<button class="pf-btn" data-pf="dm">Message</button>`;
-  if (Social.requestPending(key)) return `<button class="pf-btn" data-pf="accept">Accept friend request</button>`;
-  if (Social.requestSent(key)) return `<button class="pf-btn ghost" disabled>Friend request sent</button>`;
-  return `<button class="pf-btn" data-pf="add">Add friend</button>`;
+  const msg = `<button class="pf-btn" data-pf="dm">Message</button>`;
+  if (Social.isFriend(key)) return `<span class="pf-friends-tag">Friends</span>${msg}`;
+  if (Social.requestPending(key)) return `<button class="pf-btn" data-pf="accept">Accept friend request</button>${msg}`;
+  if (Social.requestSent(key)) return `<button class="pf-btn ghost" disabled>Friend request sent</button>${msg}`;
+  return `<button class="pf-btn" data-pf="add">Add friend</button>${msg}`;
 }
 
 // Fine gold line icons for the stats.
@@ -141,7 +143,7 @@ function cardHtml() {
             <span class="pf-name">${esc(v.name)}</span>
             <span class="pf-badge">${LI.crown}Level ${v.level}</span>
             ${open.own ? `<span class="pf-balance"><span class="chip-dot"></span>${fmt(v.chips)}</span>`
-              : open.online !== null ? `<span class="pf-status ${open.online ? 'on' : ''}"><i></i>${open.online ? 'Online now' : 'Offline'}</span>` : ''}
+              : open.online !== null ? `<span class="pf-status ${open.online ? 'on' : ''}"><i></i>${esc(seenText(open.online, open.lastSeen))}</span>` : ''}
           </div>
         </div>
         <div class="pf-hero">
@@ -160,6 +162,13 @@ function cardHtml() {
       ${open.own ? '' : `<div class="pf-actions">${friendAction(open.key, v.name)}</div>`}
       ${open.note ? `<p class="pf-note">${esc(open.note)}</p>` : ''}
     </div>`;
+}
+
+// "Online now", or when they were last here: "Last seen 3h ago".
+function seenText(online, lastSeen) {
+  const label = Social.lastSeenLabel({ online, lastSeen });
+  if (online) return 'Online now';
+  return /ago$/.test(label) ? 'Last seen ' + label : label === 'Just now' ? 'Last seen just now' : label;
 }
 
 function until(t) {

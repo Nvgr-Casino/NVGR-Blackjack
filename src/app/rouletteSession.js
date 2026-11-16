@@ -87,6 +87,16 @@ export async function playRouletteNow() {
   await sitAt(room.code);
 }
 
+// A new public table at the given stakes (an index into TABLE_STAKES),
+// with you in its first seat: the table picker's empty tables.
+export async function newPublicTable(tierIndex) {
+  S.setFormError('');
+  const room = newTable(Math.max(0, Math.min(TABLE_STAKES.length - 1, tierIndex)));
+  await set(ref(db, 'rooms/' + room.code), room);
+  await set(ref(db, 'publicIndex/tables/' + room.code), true);
+  if (!(await sitAt(room.code))) S.setFormError('That table could not be opened. Please try again.');
+}
+
 // A private table, for friends with the code.
 export async function hostRouletteTable(tierIndex) {
   const room = newTable(Math.max(0, Math.min(TABLE_STAKES.length - 1, tierIndex)), { isPublic: false, adminId: safeKey(S.session.uid) });
