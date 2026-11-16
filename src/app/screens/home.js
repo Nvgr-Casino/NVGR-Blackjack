@@ -28,6 +28,7 @@ import { prog as P, levelFor, giftsWaiting, bonusState } from '../progress.js';
 import { openProfile, maybeShowBonus } from './profile.js';
 import { openTablePicker, PICKER_GAMES } from './tablePicker.js';
 import { openSettings } from './settings.js';
+import { openLeaderboard } from './leaderboardScreen.js';
 import * as Craps from '../crapsSession.js';
 import { CRAPS_SEATS } from '../../craps/rules.js';
 import * as Offline from '../offlinePoker.js';
@@ -233,7 +234,7 @@ function homePage() {
         </button>
         <nav class="stage-icons">
           <button class="stage-icon" data-go="tournaments">${ICON.trophy}<span>Tournaments</span></button>
-          <button class="stage-icon" data-go="leaderboard">${ICON.crown}<span>Leaderboard</span></button>
+          <button class="stage-icon" data-open-lb>${ICON.crown}<span>Leaderboard</span></button>
           <button class="stage-icon" id="friendsBtn">${ICON.friends}<span>Friends</span>${friendCount ? `<i class="stage-badge">${friendCount}</i>` : ''}</button>
           <button class="stage-icon" id="characterBtn">${ICON.person}<span>Character</span></button>
         </nav>
@@ -1058,6 +1059,7 @@ export function attachHome() {
   on('signOutBtn', S.doSignOut);
   on('myProfileBtn', () => openProfile());
   on('settingsBtn', openSettings);
+  all('[data-open-lb]', (el) => { el.onclick = openLeaderboard; });
   if (S.lobbyGame === 'home') maybeShowBonus();
   on('friendsBtn', () => S.goToScreen('friends'));
   on('characterBtn', () => S.goToScreen('character'));

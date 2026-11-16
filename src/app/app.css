@@ -8,29 +8,29 @@
    dresses up a little (see its section). */
 
 :root {
-  /* Royal navy and gold: deep navy surfaces, cool ivory text, gold kept
-     for what matters and what you press. */
-  --bg: #08101f;
-  --surface: #0e1a33;
-  --surface-2: #142445;
-  --surface-3: #1b2f58;
-  --line: rgba(196, 214, 255, 0.10);
-  --line-strong: rgba(196, 214, 255, 0.18);
-  --text: #eef2fa;
-  --muted: #9aa9c6;
-  --faint: #66769c;
-  --accent: #d8b46a;
-  --accent-hover: #e6c47e;
-  --accent-ink: #1a1206;
-  --good: #79c79a;
-  --danger: #ec8a78;
+  /* One palette for the whole app: royal blue panels on a blue that is
+     easy on the eyes, ivory text, and a warm gold for what matters. */
+  --bg: #0e2a5e;
+  --surface: #133673;
+  --surface-2: #17407f;
+  --surface-3: #1d4a8f;
+  --line: rgba(205, 222, 255, 0.14);
+  --line-strong: rgba(205, 222, 255, 0.24);
+  --text: #f3f6fc;
+  --muted: #a9bbdc;
+  --faint: #7489b4;
+  --accent: #e6b552;
+  --accent-hover: #f0c66b;
+  --accent-ink: #1b2a4a;
+  --good: #7fd69a;
+  --danger: #f08a7a;
   --radius: 12px;
   --radius-sm: 8px;
-  --hud: rgba(8, 15, 32, 0.80);
-  --gold-1: #f6dc94;
-  --gold-2: #d8b46a;
-  --gold-3: #a8792c;
-  --navy-glow: #1e3a78;
+  --hud: rgba(12, 32, 72, 0.82);
+  --gold-1: #f6d58a;
+  --gold-2: #e6b552;
+  --gold-3: #b9862e;
+  --navy-glow: #2a5fb0;
   --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --brand: 'Cinzel', Georgia, serif;
 }
@@ -2688,3 +2688,56 @@ main.auth.si > * { grid-row: 1 !important; }
 .un-bar { display: block; width: 100%; height: 6px; margin: 6px 0 2px; border-radius: 3px; overflow: hidden; background: rgba(255, 255, 255, 0.12); }
 .un-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #d8a648, #f2c86a); transition: width 0.2s; }
 .un-pct { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+
+/* ---------- the leaderboard ---------- */
+.lb-overlay { position: fixed; inset: 0; z-index: 8000; }
+.lb-panel { display: flex; flex-direction: column; }
+.lb-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+.lb-podium { display: flex; justify-content: center; align-items: flex-end; gap: clamp(14px, 4vw, 48px); padding: 18px 16px 14px; background: linear-gradient(180deg, #1d4a8f, #143a78); border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.lb-spot { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; width: 130px; padding: 0; cursor: pointer; font: inherit; color: #fff; background: none; border: 0; }
+.lb-spot.p1 { transform: translateY(-10px); }
+.lb-crown svg { width: 30px; height: 30px; fill: #f6c64e; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.35)); }
+.lb-portrait { position: relative; width: 78px; height: 78px; border-radius: 50%; padding: 3px; background: #c9ced8; }
+.lb-spot.p1 .lb-portrait { width: 96px; height: 96px; background: linear-gradient(180deg, #ffe08a, #e0a62c); }
+.lb-spot.p2 .lb-portrait { background: linear-gradient(180deg, #f1f4f8, #aab3c2); }
+.lb-spot.p3 .lb-portrait { background: linear-gradient(180deg, #f0b98a, #b8733a); }
+.lb-portrait img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; background: #0e2a5e; }
+.lb-portrait i { position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%); width: 26px; height: 26px; border-radius: 50%; font-style: normal; font-weight: 800; font-size: 13px; line-height: 26px; text-align: center; color: #1b2a4a; background: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); }
+.lb-spot b { max-width: 100%; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-amt { padding: 3px 12px; border-radius: 6px; font-weight: 800; font-size: 14px; color: #1b2a4a; background: linear-gradient(180deg, #ffd66a, #e0a83a); }
+.lb-list { display: flex; flex-direction: column; }
+.lb-row { display: grid; grid-template-columns: 44px 44px 1fr auto; align-items: center; gap: 12px; width: 100%; padding: 8px 18px; cursor: pointer; text-align: left; font: inherit; color: #fff; background: transparent; border: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+.lb-row:nth-child(odd) { background: rgba(255, 255, 255, 0.025); }
+.lb-row:hover { background: rgba(255, 255, 255, 0.06); }
+.lb-row.me { background: rgba(230, 181, 82, 0.16); }
+.lb-rank { font-weight: 800; font-size: 15px; text-align: center; color: #cfdaf0; font-variant-numeric: tabular-nums; }
+.lb-face { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #0e2a5e; border: 2px solid rgba(255, 255, 255, 0.5); }
+.lb-name { display: flex; flex-direction: column; font-size: 15px; font-weight: 600; min-width: 0; }
+.lb-name small { font-size: 12px; font-weight: 500; color: var(--muted); }
+.lb-val { font-weight: 800; font-size: 15px; color: #f6d58a; font-variant-numeric: tabular-nums; }
+.lb-mine { cursor: default; background: #1d4a8f !important; border-top: 1px solid rgba(230, 181, 82, 0.5); border-bottom: 0; }
+@media (orientation: landscape) and (max-height: 520px) {
+  .lb-podium { padding: 8px 12px 8px; gap: 26px; }
+  .lb-spot { width: 110px; gap: 3px; }
+  .lb-spot.p1 { transform: translateY(-4px); }
+  .lb-crown svg { width: 20px; height: 20px; }
+  .lb-portrait { width: 54px; height: 54px; }
+  .lb-spot.p1 .lb-portrait { width: 64px; height: 64px; }
+  .lb-portrait i { width: 20px; height: 20px; line-height: 20px; font-size: 11px; }
+  .lb-spot b { font-size: 12.5px; }
+  .lb-amt { font-size: 12px; padding: 2px 8px; }
+  .lb-row { padding: 5px 14px; grid-template-columns: 36px 34px 1fr auto; }
+  .lb-face { width: 32px; height: 32px; }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .lb-scroll { display: grid; grid-template-columns: minmax(200px, 34%) minmax(0, 1fr); overflow: hidden; }
+  .lb-podium { flex-direction: column; justify-content: center; align-items: stretch; gap: 6px; padding: 8px; border-bottom: 0; border-right: 1px solid rgba(255, 255, 255, 0.08); overflow-y: auto; }
+  .lb-spot { width: auto; flex-direction: row; gap: 10px; padding: 6px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); transform: none !important; }
+  .lb-spot.p1 { order: 1; background: rgba(230, 181, 82, 0.16); } .lb-spot.p2 { order: 2; } .lb-spot.p3 { order: 3; }
+  .lb-crown { display: none; }
+  .lb-portrait, .lb-spot.p1 .lb-portrait { width: 42px; height: 42px; flex: none; padding: 2px; }
+  .lb-portrait i { width: 18px; height: 18px; line-height: 18px; font-size: 10px; bottom: -3px; }
+  .lb-spot b { flex: 1; text-align: left; }
+  .lb-list { overflow-y: auto; }
+}
