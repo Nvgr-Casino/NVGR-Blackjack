@@ -43,7 +43,7 @@ const publish = () => { S.session.room = { ...state }; S.refresh(); };
 
 function save(chips) {
   S.session.chips = chips;
-  S.saveAccountChips(S.session.uid, S.session.name, chips).catch(() => {});
+  S.saveAccountChips(S.session.uid, S.session.name, chips, { game: 'slots' }).catch(() => {});
 }
 // A comfortable first bet: about a hundredth of the balance.
 function defaultBet(chips) {

@@ -47,7 +47,7 @@ export function startBjTournament(defId) {
   }
   stop();
   S.session.chips -= def.buyIn;
-  S.saveAccountChips(S.session.uid, S.session.name, S.session.chips).catch(() => {});
+  S.saveAccountChips(S.session.uid, S.session.name, S.session.chips, { game: 'blackjack' }).catch(() => {});
   room = {
     code: 'PRACTICE', offline: true,
     felt: FELT_THEME_KEYS[def.tier % FELT_THEME_KEYS.length],
@@ -129,7 +129,7 @@ function payOut() {
   if (room.prizes) delete room.prizes[me()];
   if (prize) {
     S.session.chips += prize;
-    S.saveAccountChips(S.session.uid, S.session.name, S.session.chips).catch(() => {});
+    S.saveAccountChips(S.session.uid, S.session.name, S.session.chips, { game: 'blackjack' }).catch(() => {});
   }
   Leaderboard.recordTournament(S.session.uid, { name: S.session.name, character: S.session.character, place: place.place, prize });
 }

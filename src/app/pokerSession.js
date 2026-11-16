@@ -140,12 +140,12 @@ export async function registerTournament(code) {
 
 async function takeFromAccount(n) {
   S.session.chips -= n;
-  await S.saveAccountChips(S.session.uid, S.session.name, S.session.chips);
+  await S.saveAccountChips(S.session.uid, S.session.name, S.session.chips, { game: 'holdem' });
 }
 async function giveToAccount(n) {
   if (!n) return;
   S.session.chips += n;
-  await S.saveAccountChips(S.session.uid, S.session.name, S.session.chips);
+  await S.saveAccountChips(S.session.uid, S.session.name, S.session.chips, { game: 'holdem' });
 }
 
 // Who is at the table right now: rooms/<code>_presence/<key>, set while a

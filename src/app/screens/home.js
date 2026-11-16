@@ -24,6 +24,8 @@ import * as Baccarat from '../baccaratSession.js';
 import { BACCARAT_SEATS } from '../../baccarat/rules.js';
 import * as Slots from '../slotsSession.js';
 import { GAME_LIST } from '../../slots/games.js';
+import { prog as P, levelFor, giftsWaiting, bonusState } from '../progress.js';
+import { openProfile, maybeShowBonus } from './profile.js';
 import * as Craps from '../crapsSession.js';
 import { CRAPS_SEATS } from '../../craps/rules.js';
 import * as Offline from '../offlinePoker.js';
@@ -216,14 +218,16 @@ function homePage() {
       <div class="stage-dots" id="stageDots">${FLOOR.map((x, i) => `<button class="stage-dot ${i === carouselIndex() ? 'on' : ''}" data-dot="${i}" aria-label="${esc(x.name)}"></button>`).join('')}</div>
 
       <footer class="stage-bar">
-        <div class="stage-me">
+        <button class="stage-me" id="myProfileBtn" aria-label="Your profile">
           <img class="stage-avatar" src="${portrait(S.session.character, '', 96)}" alt="">
           <div class="stage-me-text">
             <span class="stage-name">${esc((S.session.name || '').split(' ')[0])}</span>
             <span class="stage-balance"><span class="chip-dot"></span>${(S.session.chips || 0).toLocaleString()}</span>
           </div>
           ${rank ? `<span class="stage-rank">#${rank}</span>` : ''}
-        </div>
+          ${P.loaded ? `<span class="stage-level">Lv ${levelFor(P.xp)}</span>` : ''}
+          ${P.loaded && (giftsWaiting() || bonusState().ready) ? '<i class="stage-badge">!</i>' : ''}
+        </button>
         <nav class="stage-icons">
           <button class="stage-icon" data-go="tournaments">${ICON.trophy}<span>Tournaments</span></button>
           <button class="stage-icon" data-go="leaderboard">${ICON.crown}<span>Leaderboard</span></button>
@@ -1044,6 +1048,8 @@ export function attachHome() {
     };
   });
   on('signOutBtn', S.doSignOut);
+  on('myProfileBtn', () => openProfile());
+  if (S.lobbyGame === 'home') maybeShowBonus();
   on('friendsBtn', () => S.goToScreen('friends'));
   on('characterBtn', () => S.goToScreen('character'));
   on('refreshLobbyBtn', () => { lastReload = Date.now(); S.loadLobby(); });

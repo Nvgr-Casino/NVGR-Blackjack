@@ -3,6 +3,7 @@ import { avatarColor, initials, safeKey } from '../roomLogic.js';
 import { backBar, esc } from '../uiHelpers.js';
 import * as S from '../session.js';
 import * as Social from '../social.js';
+import { openProfile } from './profile.js';
 
 function initialsDisc(name) {
   return `<div class="initials" style="background:${avatarColor(name)};">${esc(initials(name))}</div>`;
@@ -12,9 +13,9 @@ function personRow(f) {
   const unread = Social.inbox[f.key];
   return `
     <div class="person">
-      ${initialsDisc(f.name)}
+      <button class="person-open" data-profile="${esc(f.key)}" data-profile-name="${esc(f.name)}" aria-label="${esc(f.name)}'s profile">${initialsDisc(f.name)}</button>
       <div class="person-info">
-        <span class="person-name">${esc(f.name)}</span>
+        <button class="person-name person-link" data-profile="${esc(f.key)}" data-profile-name="${esc(f.name)}">${esc(f.name)}</button>
         <span class="person-status ${f.online ? 'on' : ''}"><i class="dot ${f.online ? 'on' : ''}"></i>${esc(Social.lastSeenLabel(f))}</span>
         ${unread ? `<span class="person-preview">${esc(unread.preview)}</span>` : ''}
       </div>
@@ -37,9 +38,9 @@ function findRow(p) {
   else action = `<button class="btn btn-sm btn-primary" data-add="${esc(p.key)}" data-add-name="${esc(p.name)}">Add friend</button>`;
   return `
     <div class="person">
-      ${initialsDisc(p.name)}
+      <button class="person-open" data-profile="${esc(p.key)}" data-profile-name="${esc(p.name)}" aria-label="${esc(p.name)}'s profile">${initialsDisc(p.name)}</button>
       <div class="person-info">
-        <span class="person-name">${esc(p.name)}</span>
+        <button class="person-name person-link" data-profile="${esc(p.key)}" data-profile-name="${esc(p.name)}">${esc(p.name)}</button>
         ${p.online !== undefined ? `<span class="person-status ${p.online ? 'on' : ''}"><i class="dot ${p.online ? 'on' : ''}"></i>${p.online ? 'Online' : 'Offline'}</span>` : ''}
       </div>
       ${action}
@@ -102,6 +103,9 @@ export function renderFriends() {
 }
 
 export function attachFriends() {
+  document.querySelectorAll('[data-profile]').forEach((b) => {
+    b.onclick = () => openProfile(b.getAttribute('data-profile'), b.getAttribute('data-profile-name'));
+  });
   const input = document.getElementById('findPlayerInput');
   if (input) {
     let timer = null;

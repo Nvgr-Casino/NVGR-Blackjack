@@ -19,6 +19,7 @@ import { defaultCharacterFor } from '../scene/character.js';
 // Both sides only touch each other inside functions, never at module load,
 // so the cycle resolves fine.
 import { initSocial, stopSocial, goOffline } from './social.js';
+import * as Progress from './progress.js';
 // Circular too, and the same way: pokerSession.js runs Hold'em tables and
 // reads the session; this module hands it poker rooms.
 import * as Poker from './pokerSession.js';
@@ -147,7 +148,10 @@ export async function chooseCharacter(id) {
 // update(), not set(): a full write here would drop the sibling fields on
 // the account — the chosen character and currentRoom — every time a hand
 // settled.
-export async function saveAccountChips(uid, name, chips) {
+// `play`: the change came from play (a bet or a payout), for the player's
+// experience and stats (progress.js); bonuses, gifts and re-stakes are not.
+export async function saveAccountChips(uid, name, chips, play = null) {
+  Progress.noteBalance(chips, play ? { play: true, ...play } : {});
   await update(ref(db, 'accounts/' + safeKey(uid)), { name, chips, updatedAt: Date.now() });
   Leaderboard.noteBalance(uid, name, chips, session.character);
 }
@@ -191,6 +195,7 @@ export function initAuth() {
       session.character = account.character;
       Leaderboard.noteBalance(user.uid, session.name, session.chips, session.character);
       initSocial();
+      Progress.loadProgress(user.uid, session.name).then(() => { Progress.noteBalance(session.chips); render(); }).catch(() => {});
       const acctSnap = await get(ref(db, 'accounts/' + safeKey(user.uid) + '/currentRoom'));
       const lastRoom = acctSnap.exists() ? acctSnap.val() : null;
       if (lastRoom) {
@@ -216,6 +221,7 @@ export function initAuth() {
       loadLobby();
     } else {
       stopSocial();
+      Progress.resetProgress();
       session = { screen: 'auth', uid: null, name: null, photo: null, chips: 0, character: null, code: null, isAdmin: false, room: null };
       render();
     }
@@ -440,7 +446,7 @@ function persistMyChips(room) {
   if (me.chips === lastSavedChips) return;
   lastSavedChips = me.chips;
   session.chips = me.chips;
-  saveAccountChips(session.uid, me.name || session.name, me.chips).catch(() => {});
+  saveAccountChips(session.uid, me.name || session.name, me.chips, { game: room.game || 'blackjack', round: room.round ?? null }).catch(() => {});
 }
 
 export async function mutateRoom(code, fn) {
