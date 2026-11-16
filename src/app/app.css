@@ -2188,3 +2188,43 @@ main.auth.sx-auth {
 .intro.load-on .intro-crest::after { opacity: 1; animation: crest-sheen 3.6s ease-in-out 0.6s infinite; }
 @keyframes crest-sheen { 0% { background-position: 130% 0; } 55%, 100% { background-position: -30% 0; } }
 @media (prefers-reduced-motion: reduce) { .intro.load-on .intro-crest::after { animation: none; opacity: 0; } }
+
+/* ---------- the lobby in royal navy and gold ---------- */
+.stage-tables { background: linear-gradient(180deg, rgba(20, 38, 80, 0.72), rgba(8, 17, 39, 0.8)); border: 1px solid rgba(216, 180, 106, 0.55); color: var(--gold-1); }
+.stage-tables:hover { background: linear-gradient(180deg, rgba(28, 50, 100, 0.8), rgba(10, 22, 48, 0.85)); }
+.stage-promo { background: linear-gradient(180deg, rgba(20, 38, 80, 0.85), rgba(8, 17, 39, 0.92)) !important; border: 1px solid rgba(216, 180, 106, 0.5) !important; box-shadow: 0 16px 40px -18px rgba(0, 0, 0, 0.8); }
+.stage-promo-kicker { color: var(--gold-2); }
+.stage-promo-prize { color: var(--gold-1); }
+.stage-bar { background: linear-gradient(0deg, rgba(4, 9, 22, 0.92), rgba(4, 9, 22, 0.55) 70%, transparent); }
+.stage-icon { color: rgba(226, 232, 246, 0.82); }
+.stage-icon:hover { color: var(--gold-1); }
+.stage-icon svg { color: var(--gold-2); }
+.stage-dot.on { background: var(--gold-1); }
+
+/* The lobby on a landscape phone: one slim row along the top (the house,
+   the game, the corner buttons), the table clear in the middle, and along
+   the bottom one row: you, the ways round the casino, the featured
+   tournament; Play now and Tables just above it. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .stage-top { grid-template-columns: auto 1fr auto; grid-template-areas: "brand head corner"; align-items: center; padding: max(6px, env(safe-area-inset-top)) 14px 0; row-gap: 0; }
+  .stage-brand { grid-area: brand; font-size: 13px; }
+  .stage-logo { width: 32px; height: 32px; }
+  .stage-corner { grid-area: corner; }
+  .stage-heading { grid-area: head; gap: 0; }
+  .stage-kicker { font-size: 9px; letter-spacing: 0.22em; }
+  .stage-title { font-size: 25px !important; line-height: 1.1 !important; }
+  .stage-line { display: none; }
+  .stage-side { top: 47%; }
+  .stage-bar { grid-template-columns: auto 1fr auto; gap: 10px; padding: 4px 14px max(6px, env(safe-area-inset-bottom)); }
+  .stage-icons { grid-column: auto; grid-row: auto; justify-content: center; gap: 0; }
+  .stage-icon { flex: 0 0 auto; min-width: 74px; font-size: 9px; padding: 4px 6px; }
+  .stage-icon svg { width: 19px; height: 19px; }
+  .stage-me .stage-avatar { width: 38px; height: 38px; }
+  .stage-promo { padding: 5px 10px; border-radius: 12px; }
+  .stage-promo-kicker { font-size: 8px; }
+  .stage-promo-prize { font-size: 14px; }
+  .stage-actions { bottom: 78px; gap: 10px; }
+  .stage-play { min-width: 150px; height: 40px; padding: 0 18px; }
+  .stage-tables { min-width: 100px; height: 40px; }
+  .stage-dots { bottom: 64px; }
+}

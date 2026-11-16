@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { FLOOR_Y, m } from './scale.js';
 import { LOGO_URL } from '../app/uiHelpers.js';
+import { place } from './furniture.js';
 
 // The lobby's own room: not a casino room but a stage for the games. A
 // dark, polished floor with fine gold rings inlaid along the arc the
@@ -22,10 +23,10 @@ export const LOBBY_THEME = {
   name: 'Lobby',
   tableGlow: 0xffd896,
   light: {
-    sky: 0xd8dcf4, ground: 0x3a2c1e, fill: 1.0,
+    sky: 0xd8e0f8, ground: 0x182848, fill: 1.0,
     key: 0xffe4c0, keyPower: 120,
     wash: 0xffcf9a, washPower: 18,
-    fog: 0x070506, fogNear: 30, fogFar: 85,
+    fog: 0x040917, fogNear: 30, fogFar: 85,
   },
 };
 
@@ -40,9 +41,9 @@ function floorTexture() {
   // Dark stone, a little lighter where the tables stand.
   const [gx, gy] = at(0, -ARC_R * 0.25);
   const g = ctx.createRadialGradient(gx, gy, 0, gx, gy, S * 0.42);
-  g.addColorStop(0, '#3a2f25');
-  g.addColorStop(0.5, '#1f1914');
-  g.addColorStop(1, '#080606');
+  g.addColorStop(0, '#22356a');
+  g.addColorStop(0.5, '#111e40');
+  g.addColorStop(1, '#040917');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, S, S);
   // The gold rings, round the arc's own centre.
@@ -69,12 +70,12 @@ function backdropTexture() {
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const ctx = c.getContext('2d');
-  // Warm darkness, lightest just above the floor behind the tables.
+  // Deep navy, lightest just above the floor behind the tables.
   const v = ctx.createLinearGradient(0, 0, 0, H);
-  v.addColorStop(0, '#050405');
-  v.addColorStop(0.5, '#1a130e');
-  v.addColorStop(0.8, '#3a2a1c');
-  v.addColorStop(1, '#140f0b');
+  v.addColorStop(0, '#02050d');
+  v.addColorStop(0.5, '#0a1530');
+  v.addColorStop(0.8, '#1a2e60');
+  v.addColorStop(1, '#0a1431');
   ctx.fillStyle = v;
   ctx.fillRect(0, 0, W, H);
   // Gold pillars round the room: each shaded as a rounded column — dark at
@@ -113,9 +114,9 @@ function paintDecoWall(ctx, crest) {
   const W = WALL_W, H = WALL_H;
   ctx.clearRect(0, 0, W, H);
   const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, '#060505');
-  bg.addColorStop(0.6, '#130e0a');
-  bg.addColorStop(1, '#1d150e');
+  bg.addColorStop(0, '#03060e');
+  bg.addColorStop(0.6, '#0b1632');
+  bg.addColorStop(1, '#14254e');
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
   const gold = (a) => `rgba(222, 186, 112, ${a})`;
@@ -237,6 +238,53 @@ export function createLobbyRoom() {
   room.add(wall);
 
   decoWall(room);
+  gallery(room);
 
   return room;
+}
+
+// Between the tables and the wall, either side of the crest, a gallery as
+// the grand rooms have: a marble bust on a lacquered plinth between two
+// palms with a Chesterfield before it facing the tables, and further out a
+// bronze horse on a taller plinth between palms. The pieces are Poly
+// Haven's photographed models (CC0). They stand on the far side of the
+// arc's centre, clear of the crest.
+const PLINTH = new THREE.MeshStandardMaterial({ color: 0x07090f, roughness: 0.18, metalness: 0.35 });
+const PLINTH_GOLD = new THREE.MeshStandardMaterial({ color: 0xd8b46a, roughness: 0.25, metalness: 1, envMapIntensity: 1.4 });
+function plinth(group, height, radius) {
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * 1.06, height, 40), PLINTH);
+  body.position.y = height / 2;
+  group.add(body);
+  [[0, radius * 1.1, m(0.06)], [height - m(0.05), radius * 1.08, m(0.05)], [height * 0.18, radius * 1.075, m(0.015)]].forEach(([y, r, h]) => {
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 40), PLINTH_GOLD);
+    band.position.y = y + h / 2;
+    group.add(band);
+  });
+  return height;
+}
+function gallery(room) {
+  // A point on the circle round the arc's centre: radius r, turned t from
+  // straight behind it.
+  const at = (r, t) => ({ x: Math.sin(Math.PI + t) * r, z: -ARC_R + Math.cos(Math.PI + t) * r, face: t });
+  const vignette = (r, t, kind) => {
+    const p = at(r, t);
+    const g = new THREE.Group();
+    g.position.set(p.x, FLOOR_Y, p.z);
+    // Facing the arc's centre, and so the tables beyond it.
+    g.rotation.y = -t;
+    room.add(g);
+    if (kind === 'bust') {
+      const top = plinth(g, m(1.05), m(0.42));
+      place(g, 'marble_bust_01', { y: top, yaw: 0, size: 2.7 });
+      place(g, 'sofa_03', { z: m(1.9), yaw: 0, size: 0.9 });
+    } else {
+      const top = plinth(g, m(1.3), m(0.5));
+      place(g, 'horse_statue_01', { y: top, yaw: Math.PI / 2, size: 7.5 });
+    }
+    [-1, 1].forEach((side) => place(g, 'potted_plant_02', { x: side * m(kind === 'bust' ? 1.15 : 1.1), z: m(-0.1), size: 2.6 }));
+  };
+  [-1, 1].forEach((side) => {
+    vignette(m(7.4), side * 0.6, 'bust');
+    vignette(m(6.6), side * 1.05, 'horse');
+  });
 }
