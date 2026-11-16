@@ -99,12 +99,15 @@ function normalizeShapeUVs(geometry) {
 // never a bright one — the old reds and blues were closer to a poster than
 // a fabric, and under the light pool they glowed. These sit lower and
 // greyer, and the one cream ink used for the markings reads on all of them.
+// Bright enough to read as cloth under a table light, as the felt does in
+// a card room: the cards and their totals stand out on it. (They were near
+// black at the rail, and the table looked dim and murky.)
 export const FELT_THEMES = {
-  red: { hi: '#7c2633', lo: '#3d1219' },
-  green: { hi: '#24624a', lo: '#0f3022' },
-  blue: { hi: '#24496e', lo: '#10233a' },
-  purple: { hi: '#4d3a66', lo: '#231a33' },
-  black: { hi: '#2e2d2f', lo: '#131314' },
+  red: { hi: '#9a3242', lo: '#561a25' },
+  green: { hi: '#2f8462', lo: '#164a35' },
+  blue: { hi: '#2f78b4', lo: '#174575' },
+  purple: { hi: '#634c88', lo: '#33264c' },
+  black: { hi: '#403f43', lo: '#1c1c1f' },
 };
 export const FELT_THEME_KEYS = Object.keys(FELT_THEMES);
 export function feltTheme(key) { return FELT_THEMES[key] || FELT_THEMES.red; }
@@ -128,9 +131,9 @@ const FORESHORTEN = 1.5;
 
 // Where each seat's bet is placed: seats.js's betSpot, restated (seats.js
 // imports this module, so it can't be imported back).
-const BET_SPOTS = [95, 45, 0, -45, -95].map((deg) => {
+const BET_SPOTS = [74, 37, 0, -37, -74].map((deg) => {
   const a = THREE.MathUtils.degToRad(deg);
-  return [Math.sin(a) * TABLE_RADIUS * 0.81, Math.cos(a) * TABLE_RADIUS * 0.81];
+  return [Math.sin(a) * TABLE_RADIUS * 0.86, Math.cos(a) * TABLE_RADIUS * 0.86];
 });
 
 function createFeltTexture(themeKey) {
@@ -187,64 +190,30 @@ function createFeltTexture(themeKey) {
   const R = TABLE_RADIUS;
 
   // Lettering is read lower across the cloth than the crest is, so it is
-  // drawn taller still.
+  // drawn taller still. Sizes are in world units.
   const STRETCH = 2.0;
-  // Set straight and centred, in the manner of the house crest: a lockup
-  // of the game's promise, the dealer's rule under it, and the insurance
-  // line in a ribbon nearer the players. Sizes are in world units, the
-  // letters drawn taller by STRETCH as the felt is read at a shallow
-  // angle, each with a faint dark edge so the gold reads on any cloth.
-  const text = (str, z, size, { weight = 700, fill = INK, spacing = 0.12, shadow = true } = {}) => {
-    const [x, y] = toPx(0, z);
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(1, STRETCH);
-    ctx.font = font(size, weight);
-    ctx.letterSpacing = `${size * PX * spacing}px`;
-    if (shadow) { ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillText(str, size * PX * 0.035, size * PX * 0.035); }
-    ctx.fillStyle = fill;
-    ctx.fillText(str, 0, 0);
-    const w = ctx.measureText(str).width / PX;
-    ctx.letterSpacing = '0px';
-    ctx.restore();
-    return w;
-  };
-  // A fine gold rule from x0 to x1 at z, a small diamond at each end.
-  const rule = (x0, x1, z, width = 0.008) => {
-    const [a, y] = toPx(x0, z);
-    const [b] = toPx(x1, z);
-    ctx.strokeStyle = INK_SOFT;
-    ctx.lineWidth = width * PX;
-    ctx.beginPath(); ctx.moveTo(a, y); ctx.lineTo(b, y); ctx.stroke();
-    const d = 0.028 * PX;
-    [a, b].forEach((px) => {
-      ctx.fillStyle = INK;
-      ctx.beginPath();
-      ctx.moveTo(px, y - d * STRETCH); ctx.lineTo(px + d, y); ctx.lineTo(px, y + d * STRETCH); ctx.lineTo(px - d, y);
-      ctx.closePath(); ctx.fill();
-    });
-  };
-
-  // BLACKJACK, large and wide; PAYS 3 TO 2 under it between rules.
-  const wide = text('BLACKJACK', R * 0.24, 0.2, { spacing: 0.32 });
-  const pays = text('PAYS 3 TO 2', R * 0.335, 0.11, { spacing: 0.24 });
-  const gapX = pays / 2 + 0.1;
-  rule(-wide / 2, -gapX, R * 0.335);
-  rule(gapX, wide / 2, R * 0.335);
-  // Lettering set round a gentle arc, as the real layouts are printed:
-  // each letter on the curve, turned along it. The arcs curve about a
-  // point well behind the dealer, so they sweep wide and shallow; `z` is
-  // where an arc crosses the table's middle.
-  const ARC_BACK = R * 0.7;
+  // One band of lettering just in front of the dealer's rack, round a
+  // shallow arc, as card-room layouts print it: the payout in gold, the
+  // dealer's rule quietly under it, then INSURANCE large across the band
+  // with PAYS 2 TO 1 small at its ends, the band framed by two fine light
+  // lines. (A big BLACKJACK word, ruled lines, a separate curved rule and
+  // an insurance band with suit pips, stacked one under another, made the
+  // middle of the table look busy.)
+  //
+  // The arcs curve about a point well behind the dealer, so they sweep wide
+  // and shallow; `z` is where an arc crosses the table's middle.
+  const ARC_BACK = R * 0.95;
+  const LINE = 'rgba(255, 255, 255, 0.42)';
+  const QUIET = 'rgba(6, 14, 30, 0.5)';
   const onArc = (a, radius) => toPx(Math.sin(a) * radius, Math.cos(a) * radius - ARC_BACK);
-  const arcText = (str, z, size, { weight = 700, fill = INK, spacing = 0.18 } = {}) => {
+  const arcText = (str, z, size, { weight = 700, fill = INK, spacing = 0.18, at = 0 } = {}) => {
     const radius = z + ARC_BACK;
     ctx.save();
     ctx.font = font(size, weight);
     const gap = size * spacing;
     const widths = [...str].map((ch) => ctx.measureText(ch).width / PX + gap);
     const total = widths.reduce((a, b) => a + b, 0) - gap;
-    let a = -total / radius / 2;
+    let a = at - total / radius / 2;
     [...str].forEach((ch, i) => {
       const mid = a + (widths[i] - gap) / 2 / radius;
       const [x, y] = onArc(mid, radius);
@@ -260,43 +229,37 @@ function createFeltTexture(themeKey) {
     ctx.restore();
     return total / radius;
   };
-  const arcLine = (z, half, width = 0.009) => {
+  const arcLine = (z, half, width = 0.007) => {
     const radius = z + ARC_BACK;
     const [cx, cy] = toPx(0, -ARC_BACK);
-    ctx.strokeStyle = INK_SOFT;
+    ctx.strokeStyle = LINE;
     ctx.lineWidth = width * PX;
     ctx.beginPath();
     // Canvas angles run from +x clockwise; the table's front (+z) is down.
     ctx.arc(cx, cy, radius * PX, Math.PI / 2 - half, Math.PI / 2 + half);
     ctx.stroke();
   };
-  // The dealer's rule, round a gentle arc.
-  arcText('DEALER MUST DRAW TO 16 AND STAND ON ALL 17s', R * 0.405, 0.052, { weight: 600, fill: INK_SOFT, spacing: 0.1 });
-
-  // The insurance band: an arc between two gold lines, its words on it,
-  // a suit at each end.
   {
-    const r0 = R * 0.452, r1 = R * 0.53, rm = (r0 + r1) / 2;
-    const span = arcText('INSURANCE PAYS 2 TO 1', rm, 0.08, { spacing: 0.24 });
-    const half = span / 2 + 0.2 / (rm + ARC_BACK);
+    const r0 = R * 0.15, r1 = R * 0.45;
+    arcText('BLACKJACK PAYS 3 TO 2', R * 0.205, 0.088, { spacing: 0.16 });
+    arcText('DEALER MUST DRAW TO 16 AND STAND ON ALL 17s', R * 0.272, 0.05, { weight: 600, fill: QUIET, spacing: 0.08 });
+    const span = arcText('INSURANCE', R * 0.375, 0.13, { spacing: 0.55 });
+    // The band's length: the insurance word, room for PAYS 2 TO 1 at each
+    // end of it, and a margin.
+    const rm = R * 0.375 + ARC_BACK;
+    const half = span / 2 + 0.55 / rm;
     arcLine(r0, half);
     arcLine(r1, half);
-    // The band's ends, closed square.
     [-1, 1].forEach((side) => {
       const a = side * half;
       const [x0, y0] = onArc(a, r0 + ARC_BACK);
       const [x1, y1] = onArc(a, r1 + ARC_BACK);
+      ctx.strokeStyle = LINE;
+      ctx.lineWidth = 0.007 * PX;
       ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
-      const s = side * (half - 0.08 / (rm + ARC_BACK));
-      const [gx, gy] = onArc(s, rm + ARC_BACK);
-      ctx.save();
-      ctx.translate(gx, gy);
-      ctx.rotate(-s);
-      ctx.scale(1, STRETCH * 0.8);
-      ctx.font = `${0.075 * PX}px Georgia, 'Segoe UI Symbol', serif`;
-      ctx.fillStyle = INK;
-      ctx.fillText(side < 0 ? '♠' : '♦', 0, 0);
-      ctx.restore();
+      const mid = side * (span / 2 + 0.27 / rm);
+      arcText('PAYS', R * 0.35, 0.042, { weight: 600, fill: INK_SOFT, spacing: 0.12, at: mid });
+      arcText('2 TO 1', R * 0.405, 0.042, { weight: 600, fill: INK_SOFT, spacing: 0.12, at: mid });
     });
   }
 

@@ -18,7 +18,7 @@ const SEAT_RADIUS = TABLE_RADIUS + m(0.5);
 // the seats count round to the dealer's right. A dealer deals and plays the
 // table from their left to their right, so seat order is deal order. It ran
 // the other way, dealing from third base.
-const SEAT_ANGLES_DEG = [95, 45, 0, -45, -95];
+const SEAT_ANGLES_DEG = [74, 37, 0, -37, -74];
 
 // Seats arc across the near side (+Z, camera side) of the table. Any seat
 // can be "you" — which one is chosen at runtime (see src/ui/gameController.js's
@@ -33,8 +33,8 @@ export const SEATS = SEAT_ANGLES_DEG.map((deg, i) => {
     // to clear a dealt card's own footprint (CARD_HEIGHT, now real-card
     // sized) plus the chip stack's radius — retuned down from a much wider
     // gap that was sized for the old, oversized card/chip art.
-    betSpot: dir.clone().multiplyScalar(TABLE_RADIUS * 0.81).setY(0.02),
-    handSpot: dir.clone().multiplyScalar(TABLE_RADIUS * 0.585).setY(0.04),
+    betSpot: dir.clone().multiplyScalar(TABLE_RADIUS * 0.86).setY(0.02),
+    handSpot: dir.clone().multiplyScalar(TABLE_RADIUS * 0.66).setY(0.04),
     facingAngle: Math.atan2(-dir.x, -dir.z), // yaw so local +Z points at the table center
     // A dealt card's rank/suit reads upright to a viewer facing world -Z
     // (the camera's own default gaze) at rotation.y=0 — that's offset by PI

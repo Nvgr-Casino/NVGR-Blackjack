@@ -13,7 +13,7 @@ import { m } from './scale.js';
 // The faces are Byron Knoll's Vector Playing Cards (public domain): the
 // traditional English-pattern deck, court figures and all, rendered to
 // WebP by scripts/build-cards.mjs. The back is the house's own.
-const CARD_SCALE = 1.65;
+const CARD_SCALE = 2.2;
 export const CARD_WIDTH = m(0.0635) * CARD_SCALE;
 export const CARD_HEIGHT = m(0.0889) * CARD_SCALE;
 export const CARD_THICKNESS = 0.006;

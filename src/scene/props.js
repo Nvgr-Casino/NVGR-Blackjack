@@ -3,7 +3,6 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { BRASS } from './table.js';
 import { CHIP_RADIUS, CHIP_HEIGHT, createChipColumn } from './chip.js';
 import { CARD_WIDTH, CARD_HEIGHT, cardBackMaterial, cardEdgeMaterial } from './card.js';
-import { crestPlateCanvas } from './crest.js';
 
 // How thick a card is in a stack. A dealt card is drawn thicker so it
 // catches the light on the felt; stacked, that would make six decks a
@@ -11,18 +10,6 @@ import { crestPlateCanvas } from './crest.js';
 // to the height of one card's long side, near enough as they do in life.
 export const STACKED_CARD = 0.00125;
 
-// Smoked acrylic. Plain opacity, not transmission — any transmissive
-// material makes three.js render the whole scene a second time to refract
-// it.
-const SMOKED = new THREE.MeshStandardMaterial({
-  color: 0x2a2f33, roughness: 0.15, metalness: 0, transparent: true, opacity: 0.5, depthWrite: false,
-});
-// The shoe's own body: deep smoked acrylic, nearly opaque, so the shoe
-// reads as a shoe and not a glass box; the cards show through its clear
-// faceplate.
-const SHOE_BODY = new THREE.MeshStandardMaterial({
-  color: 0x151b1a, roughness: 0.2, metalness: 0, transparent: true, opacity: 0.86,
-});
 const CLEAR = new THREE.MeshStandardMaterial({
   color: 0xdfe6ea, roughness: 0.12, metalness: 0, transparent: true, opacity: 0.28, depthWrite: false,
 });
@@ -70,72 +57,100 @@ export function createCardStack(count = 0) {
 //
 // Built along local x with the mouth at -x; scene.js turns it so the mouth
 // faces the middle of the table.
-const SHOE_LENGTH = 0.7;
-const SHOE_INNER = CARD_HEIGHT + 0.02;
-const FLOOR_SLOPE = 0.18;                 // rising toward the back
-const FLOOR_FRONT = 0.035;
-const SHOE_HEIGHT = CARD_WIDTH + 0.13;
+//
+// Its look is the modern clear shoe of a card room: a low wedge of clear
+// acrylic, tall at the back and sloping down to the mouth, on a thin white
+// base, its edges picked out in white, so the cards and the yellow cut card
+// show through and it sits on the felt lightly. (It was a dark box with
+// brass trim and a crest plate: the heaviest thing on the table.)
+const SHOE_LENGTH = 0.62;
+const SHOE_INNER = CARD_HEIGHT + 0.012;
+// The cards lean back, their tops away from the mouth, as in a card-room
+// shoe: so the floor they stand on falls toward the back, from a little
+// above the base at the front.
+const FLOOR_SLOPE = -0.35;
+const FLOOR_LEN = 0.34;
+const FLOOR_FRONT = 0.014 + FLOOR_LEN * Math.sin(-FLOOR_SLOPE);
+const BACK_H = FLOOR_FRONT + CARD_WIDTH * 0.97;  // the wedge, tall at the back...
+const FRONT_H = CARD_WIDTH * 0.42;        // ...and low at the mouth
 const MOUTH_X = -SHOE_LENGTH / 2;
+const WHITE_ACRYLIC = new THREE.MeshStandardMaterial({ color: 0xf2f4f3, roughness: 0.28, metalness: 0 });
+// Clear acrylic. Plain opacity, not transmission: any transmissive material
+// makes three.js render the whole scene a second time to refract it.
+const GLASS = new THREE.MeshStandardMaterial({
+  color: 0xe8f0f4, roughness: 0.06, metalness: 0, transparent: true, opacity: 0.22, depthWrite: false,
+});
 export function createCardShoe() {
   const group = new THREE.Group();
-  const wall = 0.014;
+  const wall = 0.008;
   const w = SHOE_INNER + wall * 2;
-  // Down the stack (toward the back, and up the floor), and up each card.
+  // Down the stack (toward the back, and down the floor), and up each card.
   const along = new THREE.Vector3(Math.cos(FLOOR_SLOPE), Math.sin(FLOOR_SLOPE), 0);
   const up = new THREE.Vector3(-Math.sin(FLOOR_SLOPE), Math.cos(FLOOR_SLOPE), 0);
   // Turns a box built with its thin side on y so that side runs `along`.
   const STAND = FLOOR_SLOPE - Math.PI / 2;
-  const front = new THREE.Vector3(MOUTH_X + 0.075, FLOOR_FRONT, 0);
+  const front = new THREE.Vector3(MOUTH_X + 0.06, FLOOR_FRONT, 0);
   const at = (depth, rise) => front.clone().addScaledVector(along, depth).addScaledVector(up, rise);
 
-  const base = new THREE.Mesh(new THREE.BoxGeometry(SHOE_LENGTH, 0.022, w), BLACK);
-  base.position.y = 0.011;
+  const base = new THREE.Mesh(new THREE.BoxGeometry(SHOE_LENGTH, 0.012, w + 0.01), WHITE_ACRYLIC);
+  base.position.y = 0.006;
   base.castShadow = true;
   base.receiveShadow = true;
   group.add(base);
-  const floorLen = SHOE_LENGTH - 0.07;
-  const floor = new THREE.Mesh(new THREE.BoxGeometry(floorLen, 0.012, SHOE_INNER), BLACK);
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(FLOOR_LEN, 0.008, SHOE_INNER), WHITE_ACRYLIC);
   floor.rotation.z = FLOOR_SLOPE;
-  floor.position.copy(front.clone().addScaledVector(along, floorLen / 2 - 0.02)).add(new THREE.Vector3(0, -0.008, 0));
+  floor.position.copy(front.clone().addScaledVector(along, FLOOR_LEN / 2 - 0.02)).add(new THREE.Vector3(0, -0.006, 0));
   group.add(floor);
+  // A riser under the floor's front edge, so it does not float.
+  const riser = new THREE.Mesh(new THREE.BoxGeometry(0.01, FLOOR_FRONT, SHOE_INNER), WHITE_ACRYLIC);
+  riser.position.set(front.x - 0.02, FLOOR_FRONT / 2, 0);
+  group.add(riser);
+  // The two sides: clear wedges, their sloping top edge and back edge in
+  // white.
+  const backX = SHOE_LENGTH / 2;
+  const profile = new THREE.Shape();
+  profile.moveTo(MOUTH_X, 0.012);
+  profile.lineTo(backX, 0.012);
+  profile.lineTo(backX, BACK_H);
+  profile.lineTo(MOUTH_X + 0.05, FRONT_H);
+  profile.lineTo(MOUTH_X, FRONT_H * 0.72);
+  profile.closePath();
+  const sideGeo = new THREE.ExtrudeGeometry(profile, { depth: wall, bevelEnabled: false });
+  const topLen = Math.hypot(backX - (MOUTH_X + 0.05), BACK_H - FRONT_H);
+  const topAngle = Math.atan2(BACK_H - FRONT_H, backX - (MOUTH_X + 0.05));
   [-1, 1].forEach((side) => {
-    const g = new THREE.Mesh(new THREE.BoxGeometry(SHOE_LENGTH, SHOE_HEIGHT, wall), SHOE_BODY);
-    g.position.set(0, 0.022 + SHOE_HEIGHT / 2, side * (SHOE_INNER / 2 + wall / 2));
+    const g = new THREE.Mesh(sideGeo, GLASS);
+    g.position.z = side > 0 ? SHOE_INNER / 2 : -SHOE_INNER / 2 - wall;
     group.add(g);
-    // Brass trim along the top of each side.
-    const trim = new THREE.Mesh(new THREE.BoxGeometry(SHOE_LENGTH, 0.014, wall + 0.006), BRASS);
-    trim.position.set(0, 0.022 + SHOE_HEIGHT, side * (SHOE_INNER / 2 + wall / 2));
-    group.add(trim);
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(topLen, 0.007, wall + 0.003), WHITE_ACRYLIC);
+    edge.rotation.z = topAngle;
+    edge.position.set((backX + MOUTH_X + 0.05) / 2, (BACK_H + FRONT_H) / 2, side * (SHOE_INNER / 2 + wall / 2));
+    group.add(edge);
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.007, BACK_H - 0.012, wall + 0.003), WHITE_ACRYLIC);
+    post.position.set(backX - 0.0035, 0.012 + (BACK_H - 0.012) / 2, side * (SHOE_INNER / 2 + wall / 2));
+    group.add(post);
   });
-  const backWall = new THREE.Mesh(new THREE.BoxGeometry(wall, SHOE_HEIGHT, w), SHOE_BODY);
-  backWall.position.set(SHOE_LENGTH / 2 - wall / 2, 0.022 + SHOE_HEIGHT / 2, 0);
+  const backWall = new THREE.Mesh(new THREE.BoxGeometry(wall, BACK_H - 0.012, w), GLASS);
+  backWall.position.set(backX - wall / 2, 0.012 + (BACK_H - 0.012) / 2, 0);
   group.add(backWall);
   // The faceplate, parallel to the cards, stopping a slot's height above
   // the floor; and the ramp the card comes out down.
-  const SLOT = 0.022;
-  const plateH = SHOE_HEIGHT - SLOT;
-  const plate = new THREE.Mesh(new THREE.BoxGeometry(plateH, wall, w), SMOKED);
+  const SLOT = 0.018;
+  const plateH = FRONT_H * 1.25;
+  const plate = new THREE.Mesh(new THREE.BoxGeometry(plateH, wall, w), GLASS);
   plate.rotation.z = STAND;
   plate.position.copy(at(-wall, SLOT + plateH / 2));
   group.add(plate);
-  const ramp = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.012, SHOE_INNER), BRASS);
+  const ramp = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.008, SHOE_INNER), WHITE_ACRYLIC);
   ramp.rotation.z = 0.22;
-  ramp.position.set(MOUTH_X + 0.02, 0.02, 0);
+  ramp.position.set(MOUTH_X + 0.018, 0.014, 0);
   group.add(ramp);
-
-  // The house crest on a brass-edged plate on the side the players see.
-  const crestW = SHOE_LENGTH * 0.42, crestH = SHOE_HEIGHT * 0.42;
-  const crestTex = new THREE.CanvasTexture(crestPlateCanvas(crestW, crestH, { px: 512 }));
-  crestTex.colorSpace = THREE.SRGBColorSpace;
-  const crest = new THREE.Mesh(new THREE.PlaneGeometry(crestW, crestH), new THREE.MeshLambertMaterial({ map: crestTex }));
-  crest.position.set(0.04, 0.022 + SHOE_HEIGHT * 0.5, w / 2 + 0.002);
-  group.add(crest);
 
   // The cards: one stack standing on the sloping floor.
   const cards = stackMesh();
   cards.rotation.z = STAND;
   group.add(cards);
-  const block = new THREE.Mesh(new THREE.BoxGeometry(CARD_WIDTH * 0.75, 0.06, SHOE_INNER * 0.92), BRASS);
+  const block = new THREE.Mesh(new THREE.BoxGeometry(CARD_WIDTH * 0.75, 0.05, SHOE_INNER * 0.92), WHITE_ACRYLIC);
   block.rotation.z = STAND;
   block.castShadow = true;
   group.add(block);
@@ -146,7 +161,9 @@ export function createCardShoe() {
   /** Cards left in the shoe, how many it holds full, and where the cut card is. */
   group.userData.setLevel = (left, total = 312, cutAt = 0) => {
     const n = Math.max(0, Math.min(left, total));
-    const depth = n * STACKED_CARD;
+    // Drawn at about half the real depth: six decks of cards at the size
+    // the table draws them stood as a block taller than the shoe.
+    const depth = n * STACKED_CARD * 0.5;
     cards.visible = n > 0;
     cards.scale.set(CARD_WIDTH, Math.max(depth, 0.0005), CARD_HEIGHT);
     cards.position.copy(at(depth / 2, CARD_WIDTH / 2));
@@ -157,13 +174,16 @@ export function createCardShoe() {
     cut.visible = n > 0 && cutAt > 0;
     if (n > cutAt) {
       cut.rotation.set(0, 0, STAND);
-      cut.position.copy(at((n - cutAt) * STACKED_CARD, CARD_WIDTH * 0.54));
+      cut.position.copy(at((n - cutAt) * STACKED_CARD * 0.5, CARD_WIDTH * 0.54));
     } else {
       cut.rotation.set(0, 0.5, 0);
       cut.position.set(MOUTH_X - 0.02, 0.014, SHOE_INNER / 2 + 0.16);
     }
   };
   group.userData.setLevel(0);
+  // A little under the cards' own scale, so it sits on the felt as neatly
+  // as a real shoe beside cards drawn larger than life.
+  group.scale.setScalar(0.8);
 
   // Wood grain doesn't reach the shoe; it should not cast its own odd
   // shadows through transparent walls either.

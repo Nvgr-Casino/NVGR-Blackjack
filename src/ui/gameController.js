@@ -9,7 +9,7 @@ import { CHANNEL_RADIUS, CHANNEL_Y } from '../scene/table.js';
 import { createCharacter, playerReach, playerHandPosition } from '../scene/character.js';
 import { dealerReach, playFlipGesture } from '../scene/dealer.js';
 import { cameraOverride } from '../scene/cameraFocus.js';
-import { createHandBadge } from '../scene/handBadge.js';
+import { createHandBadge, createResultTag } from '../scene/handBadge.js';
 import { SEATS, DEALER, cameraPositionForSeat, cameraLookAtForSeat, isTallScreen } from '../scene/seats.js';
 import { animate, easeOutCubic, easeInOutCubic } from '../scene/animator.js';
 import { m, SEAT_TOP_Y } from '../scene/scale.js';
@@ -22,20 +22,36 @@ import { m, SEAT_TOP_Y } from '../scene/scale.js';
 // own the local single-player Round.js state and all the HTML controls —
 // both moved out once the game went from local-only to a real shared table.
 
-const CARD_GAP = CARD_WIDTH * 1.3;
-const MIN_CARD_GAP = CARD_WIDTH * 0.35;
-const SPLIT_HAND_GAP = CARD_GAP * 1.7;
+// A player's cards overlap as they are dealt in a card room: each one set
+// a little to the right of the last and a little toward the dealer, over
+// it, so the index corner of every card still shows and the hand reads as
+// one tidy group in front of its player. The dealer's own cards lie side by
+// side, apart, where everyone can read them.
+const CARD_GAP = CARD_WIDTH * 0.6;
+const MIN_CARD_GAP = CARD_WIDTH * 0.42;
+const CARD_RISE = CARD_HEIGHT * 0.12;
+const DEALER_GAP = CARD_WIDTH * 1.12;
+const SPLIT_HAND_GAP = CARD_WIDTH * 2.4;
 
 function gapForHand(count, fanMaxWidth) {
   if (count <= 1) return CARD_GAP;
   return Math.max(MIN_CARD_GAP, Math.min(CARD_GAP, fanMaxWidth / count));
 }
 
-function cardSlot(anchor, facingAngle, index, gap = CARD_GAP) {
-  const localX = (index - 0.5) * gap;
+// `side` 1 lays cards out along the seat's own right; a player's seat faces
+// the dealer, so its right is the left of the screen, and a player's hand
+// passes -1 to run to the right as the player sees it.
+function cardSlot(anchor, facingAngle, index, gap = CARD_GAP, rise = 0, side = 1) {
+  const localX = (index - 0.5) * gap * side;
   const cos = Math.cos(facingAngle);
   const sin = Math.sin(facingAngle);
-  return new THREE.Vector3(anchor.x + localX * cos, anchor.y, anchor.z - localX * sin);
+  // "Toward the dealer" for a seat is toward the table's middle: the way
+  // its facingAngle turns a chair's front.
+  return new THREE.Vector3(
+    anchor.x + localX * cos + Math.sin(facingAngle) * rise * index,
+    anchor.y + index * 0.004,
+    anchor.z - localX * sin + Math.cos(facingAngle) * rise * index
+  );
 }
 
 // Split hands sit side by side in lanes too narrow to fan across — fanned,
@@ -95,14 +111,31 @@ export function createTableDriver({ scene, camera, controls, dealer, shoe, disca
   // once; see followSeat.
   let seatFollowed = false;
 
-  // Hand totals sit on the felt just beyond the cards, on the dealer's side
-  // of them — directly above the hand as you look at it. Hovering high over
-  // the hand, perspective pulled them up the screen and onto other hands.
+  // A hand's total sits just to the right of its cards, low on the felt,
+  // as card games show it; its result tag (WON, BUST...) just above that,
+  // on the dealer's side.
   const BADGE_Y = 0.1;
-  const BADGE_BEYOND = CARD_HEIGHT * 0.95;
-  const dealerBadge = createHandBadge();
-  dealerBadge.sprite.position.set(DEALER.handSpot.x, BADGE_Y, DEALER.handSpot.z - BADGE_BEYOND);
-  scene.add(dealerBadge.sprite);
+  const BADGE_SIZE = 0.4;
+  const dealerBadge = createHandBadge(BADGE_SIZE);
+  const dealerTag = createResultTag(0.27);
+  scene.add(dealerBadge.sprite, dealerTag.sprite);
+  const seatTags = [];
+  // Just right of the last of `count` cards of a hand at `anchor`.
+  function besideHand(anchor, facingAngle, count, gap, rise) {
+    const last = cardSlot(anchor, facingAngle, Math.max(0, count - 1), gap, rise, -1);
+    const right = -(CARD_WIDTH * 0.5 + BADGE_SIZE * 0.55);
+    return new THREE.Vector3(
+      last.x + right * Math.cos(facingAngle) - Math.sin(facingAngle) * CARD_HEIGHT * 0.22,
+      BADGE_Y,
+      last.z - right * Math.sin(facingAngle) - Math.cos(facingAngle) * CARD_HEIGHT * 0.22
+    );
+  }
+  // Over the hand's own top card, toward the dealer, on open felt: clear
+  // of its cards and never out over a neighbour's.
+  function tagAbove(card, facingAngle) {
+    const up = CARD_HEIGHT * 0.5 + 0.13;
+    return new THREE.Vector3(card.x + Math.sin(facingAngle) * up, BADGE_Y + 0.01, card.z + Math.cos(facingAngle) * up);
+  }
 
   function ensureSeat(seatIndex) {
     if (!seatMeshes[seatIndex]) seatMeshes[seatIndex] = [[]];
@@ -319,9 +352,9 @@ export function createTableDriver({ scene, camera, controls, dealer, shoe, disca
       refanExisting(existing, anchor, seat.facingAngle, 0, (i) => splitSlot(seat, handIndex, handCount, i));
       to = splitSlot(seat, handIndex, handCount, cardIndex);
     } else {
-      const gap = gapForHand(cardIndex + 1, 1.58);
-      refanExisting(existing, anchor, seat.facingAngle, gap);
-      to = cardSlot(anchor, seat.facingAngle, cardIndex, gap);
+      const gap = gapForHand(cardIndex + 1, 1.9);
+      refanExisting(existing, anchor, seat.facingAngle, gap, (i) => cardSlot(anchor, seat.facingAngle, i, gap, CARD_RISE, -1));
+      to = cardSlot(anchor, seat.facingAngle, cardIndex, gap, CARD_RISE, -1);
     }
     const mesh = dealCard({ scene, dealer, rank: card.rank, suit: card.suit, to, faceAngle: seat.cardAngle, ...opts });
     existing.push(mesh);
@@ -329,7 +362,7 @@ export function createTableDriver({ scene, camera, controls, dealer, shoe, disca
   }
 
   function dealDealerCard(index, card, opts = {}) {
-    const gap = gapForHand(index + 1, 1.58);
+    const gap = Math.min(DEALER_GAP, 2.6 / (index + 1));
     refanExisting(dealerMeshes, DEALER.handSpot, DEALER.facingAngle, gap);
     const to = cardSlot(DEALER.handSpot, DEALER.facingAngle, index, gap);
     const mesh = dealCard({ scene, dealer, rank: card.rank, suit: card.suit, to, faceAngle: DEALER.facingAngle, ...opts });
@@ -447,6 +480,7 @@ export function createTableDriver({ scene, camera, controls, dealer, shoe, disca
     if (!meshes.length) return;
     dealerTask(PICK_REACH_MS + PICK_SWEEP_MS + 120, () => {
       dealerBadge.hide();
+      dealerTag.hide();
       dealerReach(dealer, [
         { at: PICK_REACH_MS, pos: DEALER.handSpot },
         { at: PICK_REACH_MS + PICK_SWEEP_MS, pos: DEALER.discardPosition },
@@ -464,7 +498,9 @@ export function createTableDriver({ scene, camera, controls, dealer, shoe, disca
     dealerMeshes.length = 0;
     cardsToDiscard(left, 0, 300);
     seatBadges.forEach((hands) => hands && hands.forEach((b) => b && b.hide()));
+    seatTags.forEach((hands) => hands && hands.forEach((t) => t && t.hide()));
     dealerBadge.hide();
+    dealerTag.hide();
   }
 
   // The shoe shows how many cards are left in it, and where the cut card
@@ -485,25 +521,47 @@ export function createTableDriver({ scene, camera, controls, dealer, shoe, disca
   }
 
   // ---------- hand-value badges ----------
-  function setSeatBadge(seatIndex, handIndex, handCount, valueText) {
+  function setSeatBadge(seatIndex, handIndex, handCount, valueText, tone = 'player', outcome = null) {
     ensureSeat(seatIndex);
     const seat = SEATS[seatIndex];
     if (!seatBadges[seatIndex][handIndex]) {
-      const badge = createHandBadge(0.2);
+      const badge = createHandBadge(BADGE_SIZE);
       scene.add(badge.sprite);
       seatBadges[seatIndex][handIndex] = badge;
     }
+    if (!seatTags[seatIndex]) seatTags[seatIndex] = [];
+    if (!seatTags[seatIndex][handIndex]) {
+      const tag = createResultTag(0.27);
+      scene.add(tag.sprite);
+      seatTags[seatIndex][handIndex] = tag;
+    }
     const badge = seatBadges[seatIndex][handIndex];
+    const tag = seatTags[seatIndex][handIndex];
     const anchor = handAnchor(seat, handIndex, handCount);
-    const inward = seatOutwardDir(seat).multiplyScalar(-BADGE_BEYOND);
-    badge.sprite.position.set(anchor.x + inward.x, BADGE_Y, anchor.z + inward.z);
-    badge.setValue(valueText);
+    const count = ((seatMeshes[seatIndex] || [])[handIndex] || []).length || 2;
+    const pos = handCount > 1
+      ? splitSlot(seat, handIndex, handCount, count - 1).add(seatOutwardDir(seat).multiplyScalar(CARD_HEIGHT * 0.75)).setY(BADGE_Y)
+      : besideHand(anchor, seat.facingAngle, count, gapForHand(count, 1.9), CARD_RISE);
+    badge.sprite.position.copy(pos);
+    badge.setValue(valueText, tone);
+    const top = handCount > 1 ? splitSlot(seat, handIndex, handCount, 0)
+      : cardSlot(anchor, seat.facingAngle, count - 1, gapForHand(count, 1.9), CARD_RISE, -1);
+    if (outcome) { tag.sprite.position.copy(tagAbove(top, seat.facingAngle)); tag.show(outcome); } else tag.hide();
   }
   function hideSeatBadges(seatIndex) {
     (seatBadges[seatIndex] || []).forEach((b) => b && b.hide());
+    (seatTags[seatIndex] || []).forEach((t) => t && t.hide());
   }
-  function setDealerBadge(valueText) { dealerBadge.setValue(valueText); }
-  function hideDealerBadge() { dealerBadge.hide(); }
+  function setDealerBadge(valueText, tone = 'dealer', outcome = null) {
+    const count = Math.max(1, dealerMeshes.length);
+    const gap = Math.min(DEALER_GAP, 2.6 / count);
+    const last = cardSlot(DEALER.handSpot, DEALER.facingAngle, count - 1, gap);
+    const pos = new THREE.Vector3(last.x + CARD_WIDTH * 0.5 + BADGE_SIZE * 0.6, BADGE_Y, last.z);
+    dealerBadge.sprite.position.copy(pos);
+    dealerBadge.setValue(valueText, tone);
+    if (outcome) { dealerTag.sprite.position.set(pos.x, BADGE_Y + 0.01, pos.z - 0.36); dealerTag.show(outcome); } else dealerTag.hide();
+  }
+  function hideDealerBadge() { dealerBadge.hide(); dealerTag.hide(); }
 
   // ---------- chips, moved by hand ----------
   // Every chip on the table is put there by somebody's hand. A player

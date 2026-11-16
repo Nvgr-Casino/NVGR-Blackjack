@@ -6,7 +6,7 @@
 import { openInvite } from './invite.js';
 import { createTableDriver } from '../ui/gameController.js';
 import {
-  MAX_PUBLIC_SEATS, MAX_TIMEOUTS, rankOf, suitOf, handValueLabel,
+  MAX_PUBLIC_SEATS, MAX_TIMEOUTS, rankOf, suitOf, handValueLabel, handValue, isBlackjack,
   chipLadderForTable, stakesFor, stakesLabel, safeKey, seatOf, countdownLabel, canSplitCards, stakesTier, roomName,
 } from './roomLogic.js';
 import { dealerKeyFor } from '../scene/dealer.js';
@@ -560,6 +560,26 @@ function handStripHtml(r, myKey) {
     </div>`;
 }
 
+// How a hand's badge looks: its colour, and the tag over it, if any. Its
+// result once the round is settled; before that, a bust or a blackjack as
+// soon as its last card is down; otherwise the plain colour of a hand in
+// play.
+// A blackjack reads BJ: yellow while it stands, green once it is paid.
+function handLook(room, hand, down) {
+  const allDown = down.length === hand.cards.length;
+  const busted = hand.status === 'busted' || handValue(down) > 21;
+  const bj = allDown && (hand.status === 'blackjack' || isBlackjack(down));
+  if (room.phase === 'results' && resultsShown && hand.outcome) {
+    if (hand.outcome === 'blackjack') return ['win', 'bjwin', 'BJ'];
+    if (hand.outcome === 'win') return ['win', 'win'];
+    if (hand.outcome === 'push') return ['push', 'push', bj ? 'BJ' : null];
+    return busted ? ['bust', 'bust'] : ['lose', 'lose', bj ? 'BJ' : null];
+  }
+  if (allDown && busted) return ['bust', 'bust'];
+  if (bj) return ['player', 'blackjack', 'BJ'];
+  return ['player', null];
+}
+
 // Redraws just the readout, between room updates, as each card lands.
 // Hand totals on the felt count only the cards that are down — the whole
 // hand arrives at once, and a total for the dealer's next three cards
@@ -574,13 +594,19 @@ function refreshBadges(room) {
     if (!dealt || !p.hands || !p.hands.length) { driver.hideSeatBadges(seatIndex); return; }
     p.hands.forEach((hand, handIndex) => {
       const down = hand.cards.slice(0, landed[seatIndex + ':' + handIndex] || 0);
-      if (down.length) driver.setSeatBadge(seatIndex, handIndex, p.hands.length, handValueLabel(down));
+      if (!down.length) return;
+      const [tone, tag, text] = handLook(room, hand, down);
+      driver.setSeatBadge(seatIndex, handIndex, p.hands.length, text || handValueLabel(down), tone, tag);
     });
   });
   const dHand = (room.dealer && room.dealer.hand) || [];
   const shown = dHand.slice(0, landedDealer).filter((_, i) => i !== 1 || holeShown);
-  if (dealt && shown.length) driver.setDealerBadge(handValueLabel(shown));
-  else driver.hideDealerBadge();
+  if (dealt && shown.length) {
+    const allDown = shown.length === dHand.length;
+    const bust = handValue(shown) > 21;
+    const bj = allDown && isBlackjack(shown);
+    driver.setDealerBadge(bj ? 'BJ' : handValueLabel(shown), bust ? 'bust' : bj ? 'player' : 'dealer', bust ? 'bust' : bj ? 'blackjack' : null);
+  } else driver.hideDealerBadge();
 }
 
 function refreshHandStrip() {
