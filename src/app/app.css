@@ -2264,3 +2264,28 @@ main.auth.sx-auth {
   .il-games { font-size: 9px; }
 }
 @media (prefers-reduced-motion: reduce) { .il-wheel, .il-beams i, .il-disc::after { animation: none; } }
+
+/* Sign in: what the house offers, and the gold dust. */
+main.auth.sx-auth { position: relative; isolation: isolate; }
+.auth-dust { position: fixed; z-index: -1; }
+.sx-features { list-style: none; margin: 6px 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 22px; text-align: left; max-width: 480px; }
+.sx-features li { display: flex; align-items: center; gap: 12px; }
+.sx-ficon { width: 40px; height: 40px; flex: none; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--gold-1);
+  background: linear-gradient(180deg, rgba(216, 180, 106, 0.16), rgba(216, 180, 106, 0.04)); border: 1px solid rgba(216, 180, 106, 0.4); }
+.sx-ficon svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.sx-features b { display: block; font-size: 14px; color: var(--text); }
+.sx-features small { display: block; font-size: 12px; color: var(--muted); line-height: 1.35; }
+@media (orientation: landscape) and (max-height: 520px) {
+  .sx-features { gap: 8px 14px; margin-top: 2px; }
+  .sx-ficon { width: 30px; height: 30px; border-radius: 9px; }
+  .sx-ficon svg { width: 16px; height: 16px; }
+  .sx-features b { font-size: 12px; }
+  .sx-features small { font-size: 10.5px; }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .sx-brand .auth-logo { width: min(132px, 20vw); }
+  .sx-brand { gap: 6px; }
+  .sx-games { font-size: 9px; letter-spacing: 0.2em; }
+  .sx-features li { gap: 8px; }
+  main.auth.sx-auth { overflow: hidden; height: 100svh; }
+}
