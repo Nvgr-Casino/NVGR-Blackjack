@@ -9,13 +9,19 @@ const GOOGLE_ICON = '<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden
 export function renderAuth() {
   const isSignup = S.authMode === 'signup';
   return `
-    <main class="auth">
-      ${brandMark('auth-logo')}
-      <p class="auth-tag">Blackjack, Hold'em, roulette, baccarat, craps and slots: play with friends, live in 3D</p>
-      <section class="panel auth-panel">
+    <main class="auth sx-auth">
+      <section class="sx-brand">
+        ${brandMark('auth-logo')}
+        <span class="sx-rule" aria-hidden="true"></span>
+        <p class="sx-games">Blackjack · Hold'em · Roulette · Baccarat · Craps · Slots</p>
+        <p class="auth-tag">Live 3D tables, private games with friends, and voice chat at every seat.</p>
+      </section>
+      <section class="panel auth-panel sx-card">
+        <h1 class="sx-title">${isSignup ? 'Create your account' : 'Welcome to NVGR Casino'}</h1>
+        <p class="sx-sub">Everyone starts with ${STARTING_CHIPS.toLocaleString()} chips.</p>
         <button class="btn btn-google" id="googleBtn" ${S.authBusy ? 'disabled' : ''}>${GOOGLE_ICON} Continue with Google</button>
-        <button class="btn btn-ghost btn-block auth-guest" id="guestBtn" ${S.authBusy ? 'disabled' : ''}>Play as guest</button>
-        <div class="or">or</div>
+        <button class="btn sx-guest" id="guestBtn" ${S.authBusy ? 'disabled' : ''}>Play as guest</button>
+        <div class="or">or with email</div>
         <div class="segmented" role="tablist">
           <button class="seg ${!isSignup ? 'active' : ''}" id="tabSignin" role="tab" aria-selected="${!isSignup}">Sign in</button>
           <button class="seg ${isSignup ? 'active' : ''}" id="tabSignup" role="tab" aria-selected="${isSignup}">Create account</button>
@@ -35,8 +41,8 @@ export function renderAuth() {
         </div>
         ${S.formError ? '<p class="error-text">' + esc(S.formError) + '</p>' : ''}
         <button class="btn btn-primary btn-block" id="emailSubmitBtn" ${S.authBusy ? 'disabled' : ''}>${S.authBusy ? 'Please wait…' : (isSignup ? 'Create account' : 'Sign in')}</button>
+        <p class="sx-fine">A guest's chips stay on this device. Sign in to keep them on every device.</p>
       </section>
-      <p class="fine">Everyone starts with ${STARTING_CHIPS.toLocaleString()} chips. A guest's chips stay on this device; sign in to keep them everywhere.</p>
     </main>
   `;
 }
