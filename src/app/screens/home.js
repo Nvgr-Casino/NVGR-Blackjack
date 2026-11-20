@@ -675,7 +675,7 @@ function crashPage() {
     <section class="list-section rules-mini">
       <h2>How it works</h2>
       <p>Each round opens with a few seconds to bet. The shuttle lifts off and the multiplier climbs from 1.00x; cash out at any moment to take your bet times the multiplier. If the shuttle is lost before you cash out, the bet is lost. Two bets a round, each with its own auto cash-out. Every player sees the same launch and the same result.</p>
-      <p class="muted">The Space Shuttle Discovery is the Smithsonian's 3D scan (CC0); the Earth is NASA's Blue Marble and Black Marble (public domain); the Moon, Mars, Jupiter and Saturn are Solar System Scope's maps from NASA imagery (CC BY 4.0).</p>
+      <p class="muted">The Space Shuttle Discovery is the Smithsonian's 3D scan (CC0); the Earth is NASA's Blue Marble and Black Marble (public domain); the Moon (Lunar Reconnaissance Orbiter), Mars and Saturn are NASA's (public domain); Jupiter and Saturn's rings are Solar System Scope's maps from NASA imagery (CC BY 4.0).</p>
     </section>`;
 }
 

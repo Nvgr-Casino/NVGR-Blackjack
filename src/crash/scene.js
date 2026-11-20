@@ -243,8 +243,10 @@ export function createCrashScene(renderer) {
   // ---------- the planets on the way ----------
   // Fixed in space beside the flight path, each at the height the craft
   // reaches at its multiplier, a little to one side and behind: the craft
-  // flies past each and on toward the next. Textures: the Solar System
-  // Scope maps from NASA imagery (CC BY 4.0).
+  // flies past each and on toward the next. Surfaces: the Moon from NASA's
+  // Lunar Reconnaissance Orbiter (SVS), Mars and Saturn from NASA 3D
+  // Resources (public domain; Saturn toned to its true pale colour), Jupiter
+  // and Saturn's rings from Solar System Scope (CC BY 4.0).
   const journey = new THREE.Group(); scene.add(journey);
   const planetTex = (f, onLoad) => { const t = texLoader.load(ASSET(f), onLoad, undefined, () => {}); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
   const PLANETS = [
