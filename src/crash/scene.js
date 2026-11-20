@@ -37,9 +37,12 @@ const ASSET = (p) => `${import.meta.env.BASE_URL}models/crash/${p}`;
 // Moon is reached at 2.2x, Mars at 4.6x, Jupiter at 12x, Saturn at 28x),
 // up first and then leaning downrange as a launch does — near vertical off
 // the line, some 20° by 2x, 36° by 10x and holding there.
-const pathY = (m) => 160 * Math.log(Math.max(1, m));
+// Fast: about 65 units a second, so what it passes goes by in a few seconds.
+const CLIMB = 720;
+const pathY = (m) => CLIMB * Math.log(Math.max(1, m));
+const G = CLIMB / 160;
 const YC = 368, XC = 0.0133 * Math.pow(YC, 1.6), SC = 1.6 * 0.0133 * Math.pow(YC, 0.6);
-const xOf = (y) => (y <= YC ? 0.0133 * Math.pow(Math.max(0, y), 1.6) : XC + SC * (y - YC));
+const xOf = (y) => { const u = y / G; return G * (u <= YC ? 0.0133 * Math.pow(Math.max(0, u), 1.6) : XC + SC * (u - YC)); };
 const pathAt = (t, out = new THREE.Vector3()) => { const y = pathY(Math.exp(K * t)); return out.set(xOf(y), y, 0); };
 
 function glowTexture(stops, size = 256) {
@@ -108,14 +111,17 @@ export function createCrashScene(renderer) {
     saved = null;
   }
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x010206);
+  // The sky is a layer of its own, drawn first: whatever its distance, the
+  // Earth and the planets always stand in front of it.
+  const skyScene = new THREE.Scene();
+  skyScene.background = new THREE.Color(0x010206);
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environmentIntensity = 0.9;
-  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 6000);
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 12000);
 
   // ---------- the sky ----------
-  const sky = new THREE.Group(); scene.add(sky);
+  const sky = new THREE.Group(); skyScene.add(sky);
   const milky = new THREE.Mesh(new THREE.PlaneGeometry(5200, 2600), new THREE.MeshBasicMaterial({ map: milkyWayTexture(), transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
   milky.position.set(300, 500, -2400); sky.add(milky);
   // The sun, just off the top left: a blinding point and its glare.
@@ -146,7 +152,7 @@ export function createCrashScene(renderer) {
           a = 0.35 + 0.65 * mag; c = tint; gl_PointSize = size * (0.55 + 1.3 * mag) * (300.0 / -mv.z); }`,
       fragmentShader: 'varying float a; varying vec3 c; void main(){ float d = length(gl_PointCoord - 0.5); float s = smoothstep(0.5, 0.0, d); gl_FragColor = vec4(c, s * s * a); }',
     });
-    const p = new THREE.Points(g, mat); p.frustumCulled = false; scene.add(p);
+    const p = new THREE.Points(g, mat); p.frustumCulled = false; skyScene.add(p);
     p.userData.rate = rate;
     return p;
   }
@@ -191,7 +197,8 @@ export function createCrashScene(renderer) {
   const SUN = new THREE.Vector3(-0.78, 0.32, 0.36).normalize();
   const SHIP_SUN = new THREE.Vector3(-0.55, 0.55, 0.62).normalize();
   const planet = new THREE.Group(); scene.add(planet);
-  const EARTH_R = 900;
+  const EARTH_FAR = 2.8;
+  const EARTH_R = 900 * EARTH_FAR;
   const earthMat = new THREE.ShaderMaterial({
     uniforms: { day: { value: dayTex }, night: { value: nightTex }, sun: { value: SUN.clone() } },
     vertexShader: 'varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ vUv = uv; vN = normalize(mat3(modelMatrix)*normal); vec4 wp = modelMatrix*vec4(position,1.0); vV = normalize(cameraPosition - wp.xyz); gl_Position = projectionMatrix*viewMatrix*wp; }',
@@ -209,7 +216,8 @@ export function createCrashScene(renderer) {
       }`,
   });
   const earth = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R, 128, 64), earthMat);
-  earth.position.set(0, -1050, -1250); planet.add(earth);
+  // Far below and far off, so it falls away slowly as the craft climbs fast.
+  earth.position.set(0, -1050, -1250).multiplyScalar(EARTH_FAR); planet.add(earth);
   {
     // India (22N, 78E) a little below the horizon in view, north toward it.
     const phi = ((78 + 180) / 360) * Math.PI * 2, theta = ((90 - 22) / 180) * Math.PI;
@@ -240,10 +248,10 @@ export function createCrashScene(renderer) {
   const journey = new THREE.Group(); scene.add(journey);
   const planetTex = (f, onLoad) => { const t = texLoader.load(ASSET(f), onLoad, undefined, () => {}); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
   const PLANETS = [
-    { file: 'moon.jpg', m: 2.2, side: -58, z: -70, r: 20, spin: 0.02 },
-    { file: 'mars.jpg', m: 4.6, side: 72, z: -95, r: 24, spin: 0.03 },
-    { file: 'jupiter.jpg', m: 12, side: -235, z: -300, r: 130, spin: 0.05 },
-    { file: 'saturn.jpg', m: 28, side: 235, z: -280, r: 90, spin: 0.045, rings: 'saturn_ring.png' },
+    { file: 'moon.jpg', m: 2.2, side: -95, z: -300, r: 9, spin: 0.02 },
+    { file: 'mars.jpg', m: 4.6, side: 110, z: -340, r: 10, spin: 0.03 },
+    { file: 'jupiter.jpg', m: 12, side: -150, z: -460, r: 38, spin: 0.05 },
+    { file: 'saturn.jpg', m: 28, side: 150, z: -420, r: 30, spin: 0.045, rings: 'saturn_ring.png' },
   ].map((pl) => {
     const g = new THREE.Group();
     // Shown once its surface has loaded — never a blank ball.
@@ -269,7 +277,7 @@ export function createCrashScene(renderer) {
   function placePlanets(dt) {
     PLANETS.forEach((pl) => {
       // Drawn only near the camera; turning slowly.
-      pl.g.visible = pl.loaded && Math.abs(pl.g.position.y - camera.position.y) < 700;
+      pl.g.visible = pl.loaded && Math.abs(pl.g.position.y - camera.position.y) < 900;
       if (pl.g.visible) pl.mesh.rotation.y += pl.spin * dt;
     });
   }
@@ -488,7 +496,10 @@ export function createCrashScene(renderer) {
   const composer = glow ? new EffectComposer(renderer) : null;
   const bloom = glow ? new UnrealBloomPass(new THREE.Vector2(1, 1), 0.38, 0.4, 1.0) : null;
   if (glow) {
-    composer.addPass(new RenderPass(scene, camera));
+    composer.addPass(new RenderPass(skyScene, camera));
+    const front = new RenderPass(scene, camera);
+    front.clear = false; front.clearDepth = true;
+    composer.addPass(front);
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
   }
@@ -604,7 +615,8 @@ export function createCrashScene(renderer) {
     planet.position.set(0, tall ? 210 : 0, 0);
     earth.rotateOnWorldAxis(earthAxis, dt * (0.012 + 0.02 * Math.min(1, alt)));
     placePlanets(dt);
-    if (glow) composer.render(); else renderer.render(scene, camera);
+    if (glow) composer.render();
+    else { renderer.autoClear = false; renderer.clear(); renderer.render(skyScene, camera); renderer.clearDepth(); renderer.render(scene, camera); renderer.autoClear = true; }
   }
 
   if (import.meta.env.DEV) window.__lift = { scene, camera, rocket, renderer, bloom };
@@ -628,14 +640,14 @@ export function createCrashScene(renderer) {
       clearBreakup();
       // Its textures, meshes and buffers off the graphics card: they come
       // back by themselves the next time Liftoff is drawn.
-      scene.traverse((o) => {
+      [scene, skyScene].forEach((sc) => sc.traverse((o) => {
         if (o.geometry) o.geometry.dispose();
         const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
         mats.forEach((mat) => {
           Object.values(mat).forEach((v) => { if (v && v.isTexture) v.dispose(); });
           if (mat.uniforms) Object.values(mat.uniforms).forEach((u) => { if (u && u.value && u.value.isTexture) u.value.dispose(); });
         });
-      });
+      }));
       if (glow) { composer.renderTarget1.dispose(); composer.renderTarget2.dispose(); bloom.dispose(); }
       giveBack();
     },
