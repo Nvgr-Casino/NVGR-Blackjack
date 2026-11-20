@@ -2801,7 +2801,6 @@ main.auth.si > * { grid-row: 1 !important; }
    hairline of gold, the main button metal-gold to bet and emerald to cash
    out, numbers in tabular figures so they never jitter as they climb.
    ========================================================================== */
-.lift-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: none; z-index: 0; background: #010206; }
 .lift {
   --l-panel: linear-gradient(180deg, rgba(22, 28, 46, 0.80), rgba(7, 10, 20, 0.88));
   --l-line: rgba(220, 230, 255, 0.09);

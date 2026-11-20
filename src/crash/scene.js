@@ -79,13 +79,30 @@ function milkyWayTexture() {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
-export function createCrashScene(canvas) {
+// Drawn with the casino's own renderer (scene.js), borrowed while Liftoff
+// is up: a second WebGL context beside the rooms' was more graphics memory
+// than iPhone Safari allows, and it closed the page.
+export function createCrashScene(renderer) {
   const phone = Math.min(innerWidth, innerHeight) < 600;
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: !phone, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, phone ? 1.6 : 2));
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.95;
+  // The renderer's settings for the rooms, put back when Liftoff closes.
+  let saved = null;
+  function borrow() {
+    saved = { tone: renderer.toneMapping, exposure: renderer.toneMappingExposure, shadows: renderer.shadowMap.enabled, space: renderer.outputColorSpace, ratio: renderer.getPixelRatio() };
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.95;
+    renderer.shadowMap.enabled = false;
+    renderer.setPixelRatio(Math.min(devicePixelRatio, phone ? 1.5 : 2, saved.ratio));
+  }
+  function giveBack() {
+    if (!saved) return;
+    renderer.toneMapping = saved.tone;
+    renderer.toneMappingExposure = saved.exposure;
+    renderer.shadowMap.enabled = saved.shadows;
+    renderer.outputColorSpace = saved.space;
+    renderer.setPixelRatio(saved.ratio);
+    saved = null;
+  }
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x010206);
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -390,13 +407,12 @@ export function createCrashScene(canvas) {
   let snapCam = true;
   function resize() {
     const w = innerWidth, h = innerHeight;
-    renderer.setSize(w, h, false); composer.setSize(w, h); bloom.setSize(w, h);
+    renderer.setSize(w, h, false); composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h); bloom.setSize(w, h);
     camera.aspect = w / h; camera.updateProjectionMatrix();
     lineMat.resolution.set(w, h); glowMat.resolution.set(w, h);
     snapCam = true;
   }
-  addEventListener('resize', resize);
-  resize();
+  addEventListener('resize', () => { if (running) resize(); });
 
   // ---------- each frame ----------
   const clock = new THREE.Clock();
@@ -478,13 +494,31 @@ export function createCrashScene(canvas) {
       getState = state;
       if (running) return;
       running = true;
+      borrow();
       snapCam = true;
       shownPhase = null;
       clock.getDelta();
       resize();
       frame();
     },
-    stop() { running = false; cancelAnimationFrame(raf); clearBreakup(); },
+    stop() {
+      running = false;
+      cancelAnimationFrame(raf);
+      clearBreakup();
+      // Its textures, meshes and buffers off the graphics card: they come
+      // back by themselves the next time Liftoff is drawn.
+      scene.traverse((o) => {
+        if (o.geometry) o.geometry.dispose();
+        const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+        mats.forEach((mat) => {
+          Object.values(mat).forEach((v) => { if (v && v.isTexture) v.dispose(); });
+          if (mat.uniforms) Object.values(mat.uniforms).forEach((u) => { if (u && u.value && u.value.isTexture) u.value.dispose(); });
+        });
+      });
+      composer.renderTarget1.dispose(); composer.renderTarget2.dispose();
+      bloom.dispose();
+      giveBack();
+    },
     get ready() { return ready; },
   };
 }

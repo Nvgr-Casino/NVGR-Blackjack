@@ -10,7 +10,7 @@ import * as Crash from './crashSession.js';
 import * as S from './session.js';
 import { esc } from './uiHelpers.js';
 
-let canvas = null;
+let handles = null;
 let pic = null;
 let loop = 0;
 let round = null;
@@ -20,14 +20,8 @@ const fmt = (n) => Math.round(n).toLocaleString('en-US');
 const short = (n) => (n >= 1e6 ? +(n / 1e6).toFixed(2) + 'M' : n >= 1000 ? +(n / 1000).toFixed(n % 1000 ? 1 : 0) + 'K' : String(n));
 
 // ---------- the picture ----------
-function ensureCanvas() {
-  if (canvas) return canvas;
-  canvas = document.createElement('canvas');
-  canvas.className = 'lift-canvas';
-  const root = document.getElementById('root');
-  root.parentNode.insertBefore(canvas, root);
-  return canvas;
-}
+// Drawn on the casino's own canvas and renderer, the rooms paused.
+export function mountCrash(h) { handles = h; }
 /** The scene's view of the round, each frame. */
 function picState() {
   const r = round || Rounds.roundAt(Crash.serverNow());
@@ -40,9 +34,10 @@ function picState() {
 }
 
 export function showCrashView() {
-  ensureCanvas().style.display = 'block';
+  if (!handles) return;
+  handles.setPaused(true);
   if (!pic) {
-    try { pic = createCrashScene(canvas); } catch (e) { S.setFormError("This device couldn't start Liftoff's picture."); return; }
+    try { pic = createCrashScene(handles.renderer); } catch (e) { S.setFormError("This device couldn't start Liftoff's picture."); return; }
   }
   pic.start(picState);
   if (!offChange) offChange = Crash.onChange(() => { drawPanels(); drawPlayers(true); });
@@ -50,7 +45,7 @@ export function showCrashView() {
 }
 export function leaveCrashView() {
   if (pic) pic.stop();
-  if (canvas) canvas.style.display = 'none';
+  if (handles) handles.setPaused(false);
   cancelAnimationFrame(loop);
   loop = 0;
   if (offChange) { offChange(); offChange = null; }

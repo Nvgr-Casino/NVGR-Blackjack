@@ -15,7 +15,7 @@ import { mountRoulette3D, syncRouletteToScene, renderRouletteScreen, attachRoule
 import { mountSlots3D, syncSlotsToScene, renderSlotsScreen, attachSlotsScreen, leaveSlotsView } from './app/slotsBridge.js';
 import { mountCraps3D, syncCrapsToScene, renderCrapsScreen, attachCrapsScreen, leaveCrapsView } from './app/crapsBridge.js';
 import { mountBaccarat3D, syncBaccaratToScene, renderBaccaratScreen, attachBaccaratScreen, leaveBaccaratView } from './app/baccaratBridge.js';
-import { renderCrashScreen, attachCrashScreen, showCrashView, leaveCrashView } from './app/crashBridge.js';
+import { renderCrashScreen, attachCrashScreen, showCrashView, leaveCrashView, mountCrash } from './app/crashBridge.js';
 import { mountTeenPatti3D, syncTeenPattiToScene, renderTeenPattiScreen, attachTeenPattiScreen, leaveTeenPattiView } from './app/teenPattiBridge.js';
 import { mountRummy3D, syncRummyToScene, renderRummyScreen, attachRummyScreen, leaveRummyView } from './app/rummyBridge.js';
 import { renderAuth, attachAuth } from './app/screens/auth.js';
@@ -70,14 +70,11 @@ function render() {
     intro = null;
   }
   const showTable = session.screen === 'table';
-  // Liftoff draws on a canvas of its own (crash/scene.js); the casino's
-  // rooms rest while it is up.
-  const ownCanvas = showTable && !!session.room && session.room.game === 'crash';
   const backdrop = BACKDROP_SCREENS.has(session.screen);
   // The scene is hidden until there is something to show behind or under
   // the page — never the table and its dealer on their own while the page
   // is still loading — and fades in when it first appears.
-  const showScene = ((showTable && !ownCanvas) || backdrop) && !!sceneHandles;
+  const showScene = (showTable || backdrop) && !!sceneHandles;
   if (showScene && canvas.style.display === 'none') {
     canvas.style.opacity = '0';
     canvas.style.display = 'block';
@@ -323,6 +320,7 @@ async function boot() {
   mountSlots3D(sceneHandles);
   mountCraps3D(sceneHandles);
   mountTeenPatti3D(sceneHandles);
+  mountCrash(sceneHandles);
   mountRummy3D(sceneHandles);
   setLobbyScene(sceneHandles);
   mountService(sceneHandles);

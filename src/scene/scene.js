@@ -671,9 +671,18 @@ export function initScene(canvas) {
   let roomFrame = 0;
   let roomDelta = 0;
   let lastFrame = performance.now();
+  // Liftoff borrows the renderer for a scene of its own (crash/scene.js):
+  // the rooms rest meanwhile.
+  let paused = false;
   function animate() {
     requestAnimationFrame(animate);
     const now = performance.now();
+    if (paused) {
+      lastFrame = now;
+      settleUntil = now + SETTLE_MS;
+      clock.getDelta();
+      return;
+    }
     // main.js hides the canvas outside a table (sign-in, lobby). It used to
     // go on drawing the whole room behind them at full cost regardless.
     if (canvas.style.display === 'none') {
@@ -751,6 +760,7 @@ export function initScene(canvas) {
     setRoomTheme,
     setGame,
     setBackdrop,
+    setPaused: (v) => { paused = !!v; if (!paused) { applyPixelRatio(); onResize(); } },
     service,
     pokerChairs,
     setPokerFelt: pokerTable.userData.setFeltTheme,
