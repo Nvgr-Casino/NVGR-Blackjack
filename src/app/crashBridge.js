@@ -25,6 +25,8 @@ const short = (n) => (n >= 1e6 ? +(n / 1e6).toFixed(2) + 'M' : n >= 1000 ? +(n /
 export function mountCrash(h) { handles = h; }
 /** The scene's view of the round, each frame. */
 function picState() {
+  // Local checks only: a flight held at a given moment (window.__liftAt, ms).
+  if (import.meta.env.DEV && window.__liftAt) return { id: 'demo', phase: 'fly', flyMs: window.__liftAt, betLeft: 0 };
   const r = round || Rounds.roundAt(Crash.serverNow());
   const now = Crash.serverNow();
   return {

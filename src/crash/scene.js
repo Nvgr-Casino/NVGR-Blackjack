@@ -32,15 +32,14 @@ import { PHONE_LITE } from '../platform.js';
 
 const ASSET = (p) => `${import.meta.env.BASE_URL}models/crash/${p}`;
 
-// The path: x by time, y by the multiplier — straight up to 10x, then on a
-// gentler curve (the same slope where they meet) so a long flight stays in
-// the frame.
-const pathY = (m) => (m <= 10 ? (m - 1) * 30 : 270 + 300 * Math.log(m / 10));
-// Up first, then over: the height is the multiplier's, and the craft leans
-// downrange as it climbs, as a launch does — near vertical off the line,
-// some 20° by 2x, 54° by 10x and holding there.
-const X0 = 0.03 * Math.pow(270, 1.6), S0 = 0.048 * Math.pow(270, 0.6);
-const xOf = (y) => (y <= 270 ? 0.03 * Math.pow(Math.max(0, y), 1.6) : X0 + S0 * (y - 270));
+// The path through a solar system that stays where it is: the craft climbs
+// at a steady rate (height in proportion to ln of the multiplier, so the
+// Moon is reached at 2.2x, Mars at 4.6x, Jupiter at 12x, Saturn at 28x),
+// up first and then leaning downrange as a launch does — near vertical off
+// the line, some 20° by 2x, 36° by 10x and holding there.
+const pathY = (m) => 160 * Math.log(Math.max(1, m));
+const YC = 368, XC = 0.0133 * Math.pow(YC, 1.6), SC = 1.6 * 0.0133 * Math.pow(YC, 0.6);
+const xOf = (y) => (y <= YC ? 0.0133 * Math.pow(Math.max(0, y), 1.6) : XC + SC * (y - YC));
 const pathAt = (t, out = new THREE.Vector3()) => { const y = pathY(Math.exp(K * t)); return out.set(xOf(y), y, 0); };
 
 function glowTexture(stops, size = 256) {
@@ -229,6 +228,51 @@ export function createCrashScene(renderer) {
     fragmentShader: 'uniform vec3 sun; varying vec3 vN; varying vec3 vV; void main(){ float c = abs(dot(normalize(vN), vV)); float r = smoothstep(0.0, 0.32, c) * pow(1.0 - c, 3.0); float lit = 0.25 + 0.75*smoothstep(-0.4, 0.5, dot(-normalize(vN), sun)); gl_FragColor = vec4(vec3(0.38,0.62,1.0) * r * 2.6 * lit, 1.0); }',
   }));
   atm.position.copy(earth.position); planet.add(atm);
+
+  // The Earth turns beneath, about its own pole.
+  const earthAxis = new THREE.Vector3(0, 1, 0).applyQuaternion(earth.quaternion).normalize();
+
+  // ---------- the planets on the way ----------
+  // Fixed in space beside the flight path, each at the height the craft
+  // reaches at its multiplier, a little to one side and behind: the craft
+  // flies past each and on toward the next. Textures: the Solar System
+  // Scope maps from NASA imagery (CC BY 4.0).
+  const journey = new THREE.Group(); scene.add(journey);
+  const planetTex = (f, onLoad) => { const t = texLoader.load(ASSET(f), onLoad, undefined, () => {}); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
+  const PLANETS = [
+    { file: 'moon.jpg', m: 2.2, side: -58, z: -70, r: 20, spin: 0.02 },
+    { file: 'mars.jpg', m: 4.6, side: 72, z: -95, r: 24, spin: 0.03 },
+    { file: 'jupiter.jpg', m: 12, side: -235, z: -300, r: 130, spin: 0.05 },
+    { file: 'saturn.jpg', m: 28, side: 235, z: -280, r: 90, spin: 0.045, rings: 'saturn_ring.png' },
+  ].map((pl) => {
+    const g = new THREE.Group();
+    // Shown once its surface has loaded — never a blank ball.
+    const entry = { loaded: false };
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(pl.r, 64, 32), new THREE.MeshStandardMaterial({ map: planetTex(pl.file, () => { entry.loaded = true; }), roughness: 0.95, metalness: 0 }));
+    mesh.rotation.z = 0.25;
+    g.add(mesh);
+    if (pl.rings) {
+      const inner = pl.r * 1.24, outer = pl.r * 2.3;
+      const geo = new THREE.RingGeometry(inner, outer, 128, 1);
+      const pos = geo.attributes.position, uv = geo.attributes.uv;
+      for (let i = 0; i < pos.count; i++) { const d = Math.hypot(pos.getX(i), pos.getY(i)); uv.setXY(i, (d - inner) / (outer - inner), 0.5); }
+      const ring = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: planetTex(pl.rings), transparent: true, side: THREE.DoubleSide, roughness: 1, depthWrite: false }));
+      ring.rotation.x = -Math.PI / 2 + 0.47;
+      ring.rotation.y = 0.18;
+      g.add(ring);
+    }
+    const y = pathY(pl.m);
+    g.position.set(xOf(y) + pl.side, y, pl.z);
+    journey.add(g);
+    return Object.assign(entry, pl, { g, mesh });
+  });
+  function placePlanets(dt) {
+    PLANETS.forEach((pl) => {
+      // Drawn only near the camera; turning slowly.
+      pl.g.visible = pl.loaded && Math.abs(pl.g.position.y - camera.position.y) < 700;
+      if (pl.g.visible) pl.mesh.rotation.y += pl.spin * dt;
+    });
+  }
 
   const key = new THREE.DirectionalLight(0xfff6ea, 2.3); key.position.copy(SHIP_SUN).multiplyScalar(100); scene.add(key);
   const earthshine = new THREE.DirectionalLight(0x6f9cff, 0.9); earthshine.position.set(0.2, -1, 0.3).multiplyScalar(100); scene.add(earthshine);
@@ -556,7 +600,10 @@ export function createCrashScene(renderer) {
     });
     // Height gained: the Earth sinks and draws away below as the climb goes on.
     const alt = Math.log(Math.exp(K * t));
-    planet.position.set(camera.position.x * 0.9, camera.position.y - 3 - 75 * alt + (tall ? 210 : 0), -90 * alt);
+    // The Earth stays where it is, below the launch: the climb leaves it behind.
+    planet.position.set(0, tall ? 210 : 0, 0);
+    earth.rotateOnWorldAxis(earthAxis, dt * (0.012 + 0.02 * Math.min(1, alt)));
+    placePlanets(dt);
     if (glow) composer.render(); else renderer.render(scene, camera);
   }
 
