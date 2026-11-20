@@ -35,9 +35,13 @@ const ASSET = (p) => `${import.meta.env.BASE_URL}models/crash/${p}`;
 // The path: x by time, y by the multiplier — straight up to 10x, then on a
 // gentler curve (the same slope where they meet) so a long flight stays in
 // the frame.
-const PX = 4.2;
 const pathY = (m) => (m <= 10 ? (m - 1) * 30 : 270 + 300 * Math.log(m / 10));
-const pathAt = (t, out = new THREE.Vector3()) => out.set(t * PX, pathY(Math.exp(K * t)), 0);
+// Up first, then over: the height is the multiplier's, and the craft leans
+// downrange as it climbs, as a launch does — near vertical off the line,
+// some 20° by 2x, 54° by 10x and holding there.
+const X0 = 0.03 * Math.pow(270, 1.6), S0 = 0.048 * Math.pow(270, 0.6);
+const xOf = (y) => (y <= 270 ? 0.03 * Math.pow(Math.max(0, y), 1.6) : X0 + S0 * (y - 270));
+const pathAt = (t, out = new THREE.Vector3()) => { const y = pathY(Math.exp(K * t)); return out.set(xOf(y), y, 0); };
 
 function glowTexture(stops, size = 256) {
   const c = document.createElement('canvas'); c.width = c.height = size;
@@ -429,13 +433,13 @@ export function createCrashScene(renderer) {
   const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), lookTarget = new THREE.Vector3();
   const p = new THREE.Vector3(), ahead = new THREE.Vector3(), back = new THREE.Vector3();
   let running = false, raf = 0, getState = null;
-  let shownRound = null, shownPhase = null;
+  let shownRound = null, shownPhase = null, ignite = 0;
 
   function frame() {
     if (!running) return;
     raf = requestAnimationFrame(frame);
     const dt = Math.min(0.1, clock.getDelta()), now = clock.elapsedTime;
-    const st = getState ? getState() : { phase: 'bet', flyMs: 0, id: null };
+    const st = getState ? getState() : { phase: 'bet', flyMs: 0, id: null, betLeft: 1e9 };
     flameMats.forEach((m) => (m.uniforms.time.value = now));
 
     // A new round: the sky cleared of the last one's pieces.
@@ -445,27 +449,40 @@ export function createCrashScene(renderer) {
     // The break-up, the moment the flight ends — seen only by those
     // watching it happen, not by someone arriving after.
     if (st.phase === 'crash' && shownPhase === 'fly') burst(p);
+    // Ignition: the engines light with a jolt as the round launches.
+    if (st.phase === 'fly' && shownPhase === 'bet') { shake = Math.max(shake, 0.55); ignite = 1; }
     shownPhase = st.phase;
+    // The last moments of the countdown: the engines spool up.
+    const spool = st.phase === 'bet' ? Math.max(0, Math.min(1, 1 - (st.betLeft || 1e9) / 1800)) : 0;
+    if (spool > 0) shake = Math.max(shake, spool * spool * 0.22);
 
     pathAt(t + 0.05, ahead);
     const dir = ahead.sub(p).normalize();
     rocket.visible = ready && st.phase !== 'crash';
     rocket.position.copy(p);
-    const tilt = st.phase === 'bet' ? 0 : Math.min(0.55, Math.atan2(dir.x, dir.y) * 0.7);
+    // Nose along the way it is going.
+    const tilt = st.phase === 'bet' ? 0 : Math.min(0.95, Math.atan2(dir.x, dir.y));
     rocket.rotation.set(0, 0, -tilt);
-    rocket.rotateY(Math.sin(now * 0.4) * 0.12);
-    const thrust = st.phase === 'fly' ? 1 : 0.35 + 0.05 * Math.sin(now * 20);
-    flame.scale.set(1, thrust * (0.9 + 0.12 * Math.sin(now * 33)), 1);
-    engineGlow.material.opacity = 0.5 + 0.5 * thrust;
+    rocket.rotateY(Math.sin(now * 0.4) * 0.06);
+    // Idling, spooling up, full power off the line, then cruise.
+    const thrust = st.phase === 'fly' ? 1 + 0.3 * Math.max(0, 1 - t / 2.5) : 0.25 + 0.6 * spool * spool + 0.04 * Math.sin(now * 20);
+    flame.scale.set(1 + 0.15 * ignite, thrust * (0.9 + 0.12 * Math.sin(now * 33)), 1 + 0.15 * ignite);
+    engineGlow.material.opacity = Math.min(1, 0.4 + 0.5 * thrust + ignite);
+    engineGlow.scale.setScalar(9 * (1 + 1.4 * ignite));
+    ignite = Math.max(0, ignite - dt * 1.6);
     drawTrail(st.phase === 'bet' ? 0.001 : t);
     line.visible = lineGlow.visible = st.phase !== 'bet';
 
-    if (rocket.visible && st.phase === 'fly') {
+    // Exhaust: heavy off the line, then a thin wake.
+    const puffN = rocket.visible ? (st.phase === 'fly' ? (t < 2.5 ? 3 : 1) : spool > 0.4 ? 1 : 0) : 0;
+    for (let k = 0; k < puffN; k++) {
       const s = puffs[puffIdx++ % puffs.length];
       back.set(0, -14, 0).applyEuler(rocket.rotation);
       s.position.copy(rocket.position).add(back);
-      s.position.x += (Math.random() - 0.5) * 0.8; s.position.y += (Math.random() - 0.5) * 0.8;
-      s.userData.life = 1; s.userData.drift.copy(back).normalize().multiplyScalar(3 + Math.random() * 3);
+      s.position.x += (Math.random() - 0.5) * 1.6; s.position.y += (Math.random() - 0.5) * 1.2;
+      s.userData.life = 1;
+      s.userData.drift.copy(back).normalize().multiplyScalar(3 + Math.random() * 4);
+      s.userData.drift.x += (Math.random() - 0.5) * 4;
     }
     puffs.forEach((s) => {
       if (s.userData.life <= 0) { s.material.opacity = 0; return; }
@@ -475,10 +492,11 @@ export function createCrashScene(renderer) {
     });
     updateBreakup(dt);
 
-    // The camera frames the craft right of centre and below the
-    // multiplier, easing back as the climb grows; the Earth falls away.
+    // A chase camera: it keeps the craft right of centre and below the
+    // multiplier, drawing back a little as the climb grows, while the Earth
+    // falls away beneath.
     const tall = innerHeight > innerWidth;
-    const span = 70 + Math.max(p.x * 1.6, p.y) * 0.75;
+    const span = 70 * (1 + 0.28 * Math.log(Math.exp(K * t)));
     const lookX = p.x - span * (tall ? 0.05 : 0.2), lookY = p.y + span * (tall ? 0.12 : 0.13);
     camPos.set(lookX, lookY - span * 0.08, span * (tall ? 1.7 : 1.05));
     const ease = snapCam ? 1 : 1 - Math.pow(st.phase === 'bet' ? 0.0018 : 0.013, dt);
@@ -492,7 +510,9 @@ export function createCrashScene(renderer) {
       s.position.set(camera.position.x, camera.position.y, camera.position.z - 73);
       s.material.uniforms.offset.value.set(camera.position.x * s.userData.rate, camera.position.y * s.userData.rate);
     });
-    planet.position.set(camera.position.x * 0.9, camera.position.y * 0.9 - p.y * 0.12 + (tall ? 210 : 0), 0);
+    // Height gained: the Earth sinks and draws away below as the climb goes on.
+    const alt = Math.log(Math.exp(K * t));
+    planet.position.set(camera.position.x * 0.9, camera.position.y - 3 - 75 * alt + (tall ? 210 : 0), -90 * alt);
     if (glow) composer.render(); else renderer.render(scene, camera);
   }
 

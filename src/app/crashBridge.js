@@ -30,6 +30,7 @@ function picState() {
     id: r.id,
     phase: r.phase,
     flyMs: r.phase === 'fly' ? now - r.flyAt : r.phase === 'crash' ? r.crashAt - r.flyAt : 0,
+    betLeft: r.phase === 'bet' ? r.flyAt - now : 0,
   };
 }
 
@@ -122,7 +123,7 @@ export function renderCrashScreen() {
       <aside class="lift-players" id="liftPlayers"></aside>
       <div class="lift-toast" id="liftToast"></div>
       ${S.formError ? `<p class="lift-error">${esc(S.formError)}</p>` : ''}
-      <div class="lift-bets">${st.slots.map(slotHtml).join('')}</div>
+      <div class="lift-bets">${slotHtml(st.slots[0], 0)}</div>
     </div>`;
 }
 
