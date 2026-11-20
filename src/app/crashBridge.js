@@ -5,6 +5,7 @@
 // their elements; the panels are redrawn only when a bet changes.
 
 import { createCrashScene } from '../crash/scene.js';
+import * as Sound from '../crash/sound.js';
 import * as Rounds from '../crash/rounds.js';
 import * as Crash from './crashSession.js';
 import * as S from './session.js';
@@ -46,6 +47,7 @@ export function showCrashView() {
 }
 export function leaveCrashView() {
   if (pic) pic.stop();
+  Sound.silence();
   if (handles) handles.setPaused(false);
   cancelAnimationFrame(loop);
   loop = 0;
@@ -115,6 +117,7 @@ export function renderCrashScreen() {
         <div class="lift-history" id="liftHistory"></div>
         <div class="lift-wallet"><span class="chip-dot"></span><b id="liftChips">${fmt(st.chips)}</b></div>
       </header>
+      <div class="lift-heat" id="liftHeat"></div>
       <div class="lift-mult wait" id="liftMult">
         <div class="lift-x" id="liftX">—</div>
         <div class="lift-sub" id="liftSub"></div>
@@ -226,6 +229,9 @@ function tickLoop() {
   const mult = document.getElementById('liftMult');
   if (!mult) return;
   if (shown.id !== r.id || shown.phase !== r.phase) {
+    // The moments that have a sound: ignition, and the end.
+    if (shown.phase === 'bet' && r.phase === 'fly') Sound.ignition();
+    if (shown.phase === 'fly' && r.phase === 'crash') Sound.explosion();
     shown.id = r.id; shown.phase = r.phase;
     mult.className = 'lift-mult ' + (r.phase === 'bet' ? 'wait' : r.phase === 'crash' ? 'crashed' : 'flying');
     document.getElementById('liftBar').style.display = r.phase === 'bet' ? 'block' : 'none';
@@ -239,7 +245,16 @@ function tickLoop() {
     document.getElementById('liftBarFill').style.transform = `scaleX(${Math.min(1, left / Rounds.BET_MS)})`;
   } else if (r.phase === 'fly') {
     x.textContent = r.m.toFixed(2) + 'x';
-    sub.textContent = r.m >= 2 ? 'Climbing' : 'Lift-off';
+    sub.textContent = r.m >= 10 ? 'Into deep space' : r.m >= 5 ? 'Breaking orbit' : r.m >= 2 ? 'Climbing' : 'Lift-off';
+    // The higher it goes, the hotter the number and the quicker its pulse,
+    // and a glow of danger gathers at the edges of the screen.
+    const lm = Math.log(r.m);
+    mult.classList.toggle('warm', r.m >= 2 && r.m < 5);
+    mult.classList.toggle('hot', r.m >= 5 && r.m < 10);
+    mult.classList.toggle('blaze', r.m >= 10);
+    mult.style.setProperty('--beat', Math.max(0.36, 0.95 - lm * 0.22).toFixed(2) + 's');
+    const heat = document.getElementById('liftHeat');
+    if (heat) heat.style.opacity = Math.min(0.85, Math.max(0, (lm - 0.5) * 0.4)).toFixed(3);
     document.querySelectorAll('[data-cash]').forEach((el) => {
       const s = st.slots[Number(el.dataset.cash)];
       el.textContent = fmt(s.amount * r.m);
@@ -248,10 +263,12 @@ function tickLoop() {
     x.textContent = r.crash.toFixed(2) + 'x';
     sub.textContent = 'Mission lost';
   }
+  if (r.phase !== 'fly') { const heat = document.getElementById('liftHeat'); if (heat) heat.style.opacity = r.phase === 'crash' ? '0.5' : '0'; }
+  Sound.update(r.phase, r.m, r.phase === 'bet' ? Math.max(0, Math.min(1, 1 - (r.flyAt - now) / 1800)) : 0, r.phase === 'bet' ? r.flyAt - now : 0);
   drawHistory(now);
   drawPlayers();
   const t = Crash.takeToast();
-  if (t) showToast(t);
+  if (t) { showToast(t); if (t.tone === 'win') Sound.cashOut(); }
 }
 
 // ---------- the controls ----------

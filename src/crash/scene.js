@@ -152,6 +152,38 @@ export function createCrashScene(renderer) {
     return p;
   }
   const stars = [starLayer(1400, 3400, -900, 2.6, 0.08), starLayer(700, 2000, -480, 3.0, 0.3), starLayer(260, 1100, -260, 3.4, 0.55)];
+  let starTravel = new THREE.Vector2();
+
+  // Speed: streaks of light rushing past, the way a camera sees stars and
+  // particles at speed — longer, brighter and faster as the climb goes on.
+  const STREAKS = phone ? 90 : 170;
+  const SW = 300, SH = 200;
+  const streakPos = new Float32Array(STREAKS * 6);
+  const streakBase = Array.from({ length: STREAKS }, () => new THREE.Vector3((Math.random() - 0.5) * 2 * SW, (Math.random() - 0.5) * 2 * SH, -40 - Math.random() * 300));
+  const streakGeo = new THREE.BufferGeometry();
+  streakGeo.setAttribute('position', new THREE.BufferAttribute(streakPos, 3));
+  const streakMat = new THREE.LineBasicMaterial({ color: 0xcfdcff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+  const streaks = new THREE.LineSegments(streakGeo, streakMat);
+  streaks.frustumCulled = false;
+  scene.add(streaks);
+  const wrap = (v, h) => ((((v + h) % (2 * h)) + 2 * h) % (2 * h)) - h;
+  function updateStreaks(dir, speed, dt, strength) {
+    streaks.visible = strength > 0.01;
+    if (!streaks.visible) return;
+    streakMat.opacity = Math.min(0.75, strength);
+    const len = 2 + speed * 0.07;
+    for (let i = 0; i < STREAKS; i++) {
+      const b = streakBase[i];
+      // Nearer streaks pass faster.
+      const k = 300 / -b.z;
+      b.x = wrap(b.x - dir.x * speed * dt * k, SW);
+      b.y = wrap(b.y - dir.y * speed * dt * k, SH);
+      const o = i * 6;
+      streakPos[o] = b.x; streakPos[o + 1] = b.y; streakPos[o + 2] = b.z;
+      streakPos[o + 3] = b.x + dir.x * len * k; streakPos[o + 4] = b.y + dir.y * len * k; streakPos[o + 5] = b.z;
+    }
+    streakGeo.attributes.position.needsUpdate = true;
+  }
 
   // ---------- the real Earth ----------
   const texLoader = new THREE.TextureLoader();
@@ -443,7 +475,7 @@ export function createCrashScene(renderer) {
     flameMats.forEach((m) => (m.uniforms.time.value = now));
 
     // A new round: the sky cleared of the last one's pieces.
-    if (st.id !== shownRound) { if (shownRound !== null && st.phase !== 'crash') clearBreakup(); shownRound = st.id; }
+    if (st.id !== shownRound) { if (shownRound !== null && st.phase !== 'crash') clearBreakup(); shownRound = st.id; starTravel.set(0, 0); }
     const t = st.phase === 'bet' ? 0 : st.flyMs / 1000;
     pathAt(t, p);
     // The break-up, the moment the flight ends — seen only by those
@@ -492,6 +524,15 @@ export function createCrashScene(renderer) {
     });
     updateBreakup(dt);
 
+    // How fast it feels: nothing on the pad, then faster and faster.
+    const lm = st.phase === 'fly' ? Math.log(Math.exp(K * t)) : 0;
+    const speed = st.phase === 'fly' ? 40 + 260 * Math.sqrt(lm) : 0;
+    updateStreaks(dir, speed, dt, st.phase === 'fly' ? Math.min(1, 0.15 + lm * 0.5) : 0);
+    starTravel.x += dir.x * speed * dt; starTravel.y += dir.y * speed * dt;
+    // The view widens a little with speed.
+    const fov = 42 + 10 * Math.min(1, lm / 2.4);
+    if (Math.abs(camera.fov - fov) > 0.01) { camera.fov += (fov - camera.fov) * Math.min(1, dt * 2); camera.updateProjectionMatrix(); }
+
     // A chase camera: it keeps the craft right of centre and below the
     // multiplier, drawing back a little as the climb grows, while the Earth
     // falls away beneath.
@@ -505,10 +546,13 @@ export function createCrashScene(renderer) {
     camLook.lerp(lookTarget.set(lookX, lookY, 0), ease);
     camera.lookAt(camLook);
     if (shake > 0) { const a = shake * shake * 1.6; camera.position.x += (Math.random() - 0.5) * a; camera.position.y += (Math.random() - 0.5) * a; }
+    // The engines' rumble through the airframe, harder as it climbs.
+    if (st.phase === 'fly') { const r = 0.05 + Math.min(0.14, lm * 0.06); camera.position.x += (Math.random() - 0.5) * r; camera.position.y += (Math.random() - 0.5) * r; }
+    streaks.position.copy(camera.position);
     sky.position.set(camera.position.x, camera.position.y, camera.position.z - 73);
     stars.forEach((s) => {
       s.position.set(camera.position.x, camera.position.y, camera.position.z - 73);
-      s.material.uniforms.offset.value.set(camera.position.x * s.userData.rate, camera.position.y * s.userData.rate);
+      s.material.uniforms.offset.value.set((camera.position.x + starTravel.x) * s.userData.rate, (camera.position.y + starTravel.y) * s.userData.rate);
     });
     // Height gained: the Earth sinks and draws away below as the climb goes on.
     const alt = Math.log(Math.exp(K * t));
