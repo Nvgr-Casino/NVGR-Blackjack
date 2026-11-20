@@ -12,7 +12,9 @@ export function createLiftoffDisplay() {
   const group = new THREE.Group();
   const lacquer = new THREE.MeshStandardMaterial({ color: 0x0c0c0e, roughness: 0.18, metalness: 0.2 });
   const gold = new THREE.MeshStandardMaterial({ color: 0xc9a25a, roughness: 0.28, metalness: 1 });
-  const glass = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.05, metalness: 0, transmission: 0.9, transparent: true, opacity: 0.18, thickness: 0.02 });
+  // Plain see-through glass: true transmission would add a whole extra
+  // render of the room each frame, and its buffer, for a faint sheen.
+  const glass = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.12, depthWrite: false });
 
   const PLINTH_H = m(0.82);
   const base = new THREE.Mesh(new THREE.CylinderGeometry(m(0.62), m(0.68), PLINTH_H, 64), lacquer);

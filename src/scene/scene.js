@@ -334,16 +334,21 @@ export function initScene(canvas) {
   // On the lobby's carousel only: a Teen Patti table and a Rummy table (in
   // play they are the Hold'em table, its felt reprinted), and Liftoff's
   // shuttle in its case.
+  // Built the first time the carousel brings it near, not at load: a
+  // phone's browser has little graphics memory to spare.
   function ovalSet(felt, layout) {
     const set = new THREE.Group();
     set.visible = false;
     scene.add(set);
+    set.userData.build = () => buildOval(set, felt, layout);
+    return set;
+  }
+  function buildOval(set, felt, layout) {
     const t = createPokerTable();
     t.userData.setFeltTheme(felt, layout);
     if (t.userData.setGlow) { glowing.push(t); t.userData.setGlow(tableGlow); }
     set.add(t);
     POKER_SEATS_3D.forEach((seat) => place(set, 'dining_chair_02', { x: seat.position.x, z: seat.position.z, yaw: seat.facingAngle, shadows: true }));
-    return set;
   }
   const teenPattiSet = ovalSet('red', 'teenpatti');
   const rummySet = ovalSet('blue', 'rummy');
@@ -412,6 +417,7 @@ export function initScene(canvas) {
       o -= Math.round(o / n) * n;
       const a = o * ARC_STEP;
       c.set.visible = Math.abs(o) < 1.7;
+      if (c.set.visible && c.set.userData.build) { c.set.userData.build(); c.set.userData.build = null; }
       if (c.set === liftoffSet && c.set.visible) liftoffDisplay.userData.load();
       c.set.position.set(Math.sin(a) * ARC_R, 0, -(1 - Math.cos(a)) * ARC_R);
       c.set.rotation.y = -a;

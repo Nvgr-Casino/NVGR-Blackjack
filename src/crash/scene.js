@@ -28,6 +28,7 @@ import { Line2 } from 'three/examples/jsm/lines/Line2.js';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { K } from './rounds.js';
+import { PHONE_LITE } from '../platform.js';
 
 const ASSET = (p) => `${import.meta.env.BASE_URL}models/crash/${p}`;
 
@@ -48,7 +49,7 @@ function glowTexture(stops, size = 256) {
 // The Milky Way: a soft band of light with dark dust lanes along it and a
 // dense speckle of faint stars, on a canvas laid far behind everything.
 function milkyWayTexture() {
-  const W = 2048, H = 1024;
+  const W = PHONE_LITE ? 1024 : 2048, H = W / 2;
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const ctx = c.getContext('2d');
   let s = 7; const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
@@ -213,9 +214,11 @@ export function createCrashScene(renderer) {
     // The top three-quarters toward the camera: the payload bay and wings.
     const side = new THREE.Group(); side.add(inner); side.rotation.y = Math.PI / 2 + 1.0;
     side.scale.setScalar(SHUTTLE_SCALE);
-    body.add(side);
+    // Centred on its own, before it joins the craft: measured in place it
+    // took in wherever the craft had flown to by the time it loaded.
     side.updateMatrixWorld(true);
     side.position.sub(new THREE.Box3().setFromObject(side).getCenter(new THREE.Vector3()));
+    body.add(side);
     // The nozzles end 17.1 m aft.
     inner.add(flame); flame.rotation.x = Math.PI / 2; flame.position.set(0, 0, -17.1);
     ready = true;
@@ -398,16 +401,23 @@ export function createCrashScene(renderer) {
   }
 
   // ---------- post ----------
-  const composer = new EffectComposer(renderer);
-  composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.38, 0.4, 1.0);
-  composer.addPass(bloom);
-  composer.addPass(new OutputPass());
+  // The glow on the flames and the flash. Not in a phone's browser: its
+  // buffers, several the size of the screen, are graphics memory iPhone
+  // Safari doesn't have to spare beside the casino's rooms.
+  const glow = !PHONE_LITE;
+  const composer = glow ? new EffectComposer(renderer) : null;
+  const bloom = glow ? new UnrealBloomPass(new THREE.Vector2(1, 1), 0.38, 0.4, 1.0) : null;
+  if (glow) {
+    composer.addPass(new RenderPass(scene, camera));
+    composer.addPass(bloom);
+    composer.addPass(new OutputPass());
+  }
 
   let snapCam = true;
   function resize() {
     const w = innerWidth, h = innerHeight;
-    renderer.setSize(w, h, false); composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h); bloom.setSize(w, h);
+    renderer.setSize(w, h, false);
+    if (glow) { composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h); bloom.setSize(w, h); }
     camera.aspect = w / h; camera.updateProjectionMatrix();
     lineMat.resolution.set(w, h); glowMat.resolution.set(w, h);
     snapCam = true;
@@ -483,7 +493,7 @@ export function createCrashScene(renderer) {
       s.material.uniforms.offset.value.set(camera.position.x * s.userData.rate, camera.position.y * s.userData.rate);
     });
     planet.position.set(camera.position.x * 0.9, camera.position.y * 0.9 - p.y * 0.12 + (tall ? 210 : 0), 0);
-    composer.render();
+    if (glow) composer.render(); else renderer.render(scene, camera);
   }
 
   if (import.meta.env.DEV) window.__lift = { scene, camera, rocket, renderer, bloom };
@@ -515,8 +525,7 @@ export function createCrashScene(renderer) {
           if (mat.uniforms) Object.values(mat.uniforms).forEach((u) => { if (u && u.value && u.value.isTexture) u.value.dispose(); });
         });
       });
-      composer.renderTarget1.dispose(); composer.renderTarget2.dispose();
-      bloom.dispose();
+      if (glow) { composer.renderTarget1.dispose(); composer.renderTarget2.dispose(); bloom.dispose(); }
       giveBack();
     },
     get ready() { return ready; },
