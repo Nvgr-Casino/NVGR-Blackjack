@@ -105,6 +105,13 @@ export const POKER_DEALER = {
 const CARD_PITCH = m(0.118);
 export const BOARD_SPOTS = [-2, -1, 0, 1, 2].map((i) => new THREE.Vector3(i * CARD_PITCH, 0.04, m(0.04)));
 export const POT_SPOT = new THREE.Vector3(0, 0.02, -m(0.13));
+// Rummy's middle: the closed deck with the wild joker turned under it, and
+// the open pile beside it.
+export const RUMMY_SPOTS = {
+  joker: new THREE.Vector3(-CARD_PITCH * 1.25, 0.03, m(0.04)),
+  deck: new THREE.Vector3(-CARD_PITCH * 0.75, 0.03, m(0.04)),
+  pile: new THREE.Vector3(CARD_PITCH * 0.75, 0.03, m(0.04)),
+};
 export const MUCK_SPOT = new THREE.Vector3(-m(0.32), 0.03, -END_R + m(0.22));
 
 // The shuffler, set flush into the felt at the dealer's left: no deck is
@@ -196,7 +203,9 @@ const FELT_H = Math.round((FELT_W * WIDTH) / LENGTH);
 const PX = FELT_W / LENGTH;
 const toPx = (x, z) => [(x + LENGTH / 2) * PX, (z + WIDTH / 2) * PX];
 
-function createPokerFelt(themeKey) {
+// The game printed on it: Hold'em's board, or Teen Patti's or Rummy's name
+// and marks.
+function createPokerFelt(themeKey, layout = 'holdem') {
   const theme = feltTheme(themeKey);
   const canvas = document.createElement('canvas');
   canvas.width = FELT_W;
@@ -246,7 +255,24 @@ function createPokerFelt(themeKey) {
   }
   // The board's five places, outlined in gold where the flop, turn and
   // river are laid.
-  BOARD_SPOTS.forEach((spot, i) => {
+  if (layout === 'rummy') {
+    // The places for the closed deck and the open pile.
+    [['deck', 'CLOSED'], ['pile', 'OPEN']].forEach(([k, label]) => {
+      const spot = RUMMY_SPOTS[k];
+      const [bx, by] = toPx(spot.x, spot.z);
+      const w = CARD_WIDTH * PX + 14, h = CARD_HEIGHT * PX + 14;
+      ctx.strokeStyle = GOLD_INK_SOFT;
+      ctx.lineWidth = PX * 0.004;
+      ctx.beginPath(); ctx.roundRect(bx - w / 2, by - h / 2, w, h, 10); ctx.stroke();
+      ctx.save();
+      ctx.fillStyle = 'rgba(230,198,126,0.5)';
+      ctx.font = `600 ${PX * 0.032}px 'Cinzel', Georgia, serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText(label, bx, by + h / 2 + PX * 0.045);
+      ctx.restore();
+    });
+  }
+  (layout === 'holdem' ? BOARD_SPOTS : []).forEach((spot, i) => {
     const [bx, by] = toPx(spot.x, spot.z);
     const w = CARD_WIDTH * PX + 10, h = CARD_HEIGHT * PX + 10;
     ctx.strokeStyle = i < 3 ? GOLD_INK_SOFT : 'rgba(230,198,126,0.4)';
@@ -281,8 +307,18 @@ function createPokerFelt(themeKey) {
     ctx.letterSpacing = '0px';
     ctx.restore();
   };
-  line("TEXAS HOLD'EM", m(0.23), 0.2, 700, GOLD_INK, 0.16);
-  line('NO LIMIT  ·  NVGR CASINO', m(0.335), 0.075, 600, GOLD_INK_SOFT, 0.22);
+  const TITLES = {
+    holdem: ["TEXAS HOLD'EM", 'NO LIMIT  ·  NVGR CASINO'],
+    teenpatti: ['TEEN PATTI', 'BOOT  ·  CHAAL  ·  SHOW  ·  NVGR CASINO'],
+    rummy: ['RUMMY', 'THIRTEEN CARDS  ·  NVGR CASINO'],
+  };
+  const [title, sub] = TITLES[layout] || TITLES.holdem;
+  line(title, m(0.23), 0.2, 700, GOLD_INK, 0.16);
+  line(sub, m(0.335), 0.075, 600, GOLD_INK_SOFT, 0.22);
+  if (layout === 'teenpatti') {
+    // The hands' order, small, across the top of the felt.
+    line('TRAIL  ·  PURE SEQUENCE  ·  SEQUENCE  ·  COLOUR  ·  PAIR  ·  HIGH CARD', -m(0.3), 0.04, 600, 'rgba(230,198,126,0.55)', 0.18);
+  }
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -301,12 +337,14 @@ export function createPokerTable() {
   for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) / LENGTH + 0.5, 1 - (pos.getY(i) / WIDTH + 0.5));
   const feltMat = new THREE.MeshLambertMaterial({ map: createPokerFelt('green'), side: THREE.DoubleSide });
   let feltKey = 'green';
-  group.userData.setFeltTheme = (key) => {
+  let feltLayout = 'holdem';
+  group.userData.setFeltTheme = (key, layout = 'holdem') => {
     const next = FELT_THEMES[key] ? key : 'green';
-    if (next === feltKey) return;
+    if (next === feltKey && layout === feltLayout) return;
     feltKey = next;
+    feltLayout = layout;
     feltMat.map.dispose();
-    feltMat.map = createPokerFelt(next);
+    feltMat.map = createPokerFelt(next, layout);
     feltMat.needsUpdate = true;
   };
   const felt = new THREE.Mesh(feltGeo, feltMat);

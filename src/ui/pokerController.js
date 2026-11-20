@@ -227,10 +227,12 @@ export function createPokerDriver({ scene, camera, controls, dealer }) {
   let board = [];
   const loose = [];           // burns and mucked cards on their way out
 
-  const holeSpot = (seat, i) => {
+  // A seat's cards side by side, overlapping: two for Hold'em, three for
+  // Teen Patti.
+  const holeSpot = (seat, i, n = 2) => {
     const s = SEATS[seat];
     const across = new THREE.Vector3(s.outward.z, 0, -s.outward.x);
-    return s.cardSpot.clone().addScaledVector(across, (i - 0.5) * CARD_WIDTH * 0.62).setY(CARD_Y + i * 0.004);
+    return s.cardSpot.clone().addScaledVector(across, (i - (n - 1) / 2) * CARD_WIDTH * 0.62).setY(CARD_Y + i * 0.004);
   };
 
   // A card slid from the dealer's hands to `to`, face down, turned to `yaw`.
@@ -283,15 +285,15 @@ export function createPokerDriver({ scene, camera, controls, dealer }) {
     return face;
   }
 
-  /** Deals two cards to each seat in `seats` (dealing order), one round at a time. */
-  function dealHoleCards(seats) {
+  /** Deals `count` cards to each seat in `seats` (dealing order), one round at a time. */
+  function dealHoleCards(seats, count = 2) {
     // The deck off the machine first.
     const lead = takeDeck();
     let k = 0;
-    for (let round = 0; round < 2; round++) {
+    for (let round = 0; round < count; round++) {
       seats.forEach((seat) => {
         const cards = hole.get(seat) || [];
-        cards[round] = pitch(holeSpot(seat, round), SEATS[seat].cardAngle, lead + (k++) * (PITCH_MS * 0.55));
+        cards[round] = pitch(holeSpot(seat, round, count), SEATS[seat].cardAngle, lead + (k++) * (PITCH_MS * 0.55));
         hole.set(seat, cards);
       });
     }

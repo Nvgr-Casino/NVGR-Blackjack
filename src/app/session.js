@@ -31,6 +31,9 @@ import * as BJT from './bjTournamentSession.js';
 import * as Roulette from './rouletteSession.js';
 import * as Baccarat from './baccaratSession.js';
 import * as Slots from './slotsSession.js';
+import * as Crash from './crashSession.js';
+import * as TeenPatti from './teenPattiSession.js';
+import * as Rummy from './rummySession.js';
 import * as Craps from './crapsSession.js';
 import { isBjTournament, registering as bjRegistering, registrationLabel } from '../blackjack/tournament.js';
 import {
@@ -681,8 +684,11 @@ export async function leaveTable() {
     else if (Craps.isPracticeCraps(session.room)) Craps.stopPractice();
     else if (Baccarat.isPracticeBaccarat(session.room)) Baccarat.stopPractice();
     else if (Slots.isSlots(session.room)) Slots.leave();
+    else if (Crash.isCrash(session.room)) Crash.leave();
+    else if (TeenPatti.isTeenPatti(session.room)) TeenPatti.leave();
+    else if (Rummy.isRummy(session.room)) Rummy.leave();
     else Offline.leavePractice();
-    const playedReal = Slots.isSlots(session.room);
+    const playedReal = Slots.isSlots(session.room) || Crash.isCrash(session.room) || TeenPatti.isTeenPatti(session.room) || Rummy.isRummy(session.room);
     session.code = null; session.room = null; session.screen = 'home';
     // The salon plays on your real chips: broke, and the house tops you up.
     if (playedReal && restakeIfBroke()) formNotice = RESTAKED;

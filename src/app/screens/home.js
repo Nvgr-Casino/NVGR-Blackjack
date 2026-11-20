@@ -23,6 +23,11 @@ import { ROULETTE_SEATS, colorOf } from '../../roulette/rules.js';
 import * as Baccarat from '../baccaratSession.js';
 import { BACCARAT_SEATS } from '../../baccarat/rules.js';
 import * as Slots from '../slotsSession.js';
+import * as Crash from '../crashSession.js';
+import * as TeenPatti from '../teenPattiSession.js';
+import * as Rummy from '../rummySession.js';
+import { TP_STAKES, limitsFor } from '../../teenpatti/rules.js';
+import { RUMMY_STAKES, MAX_POINTS } from '../../rummy/rules.js';
 import { GAME_LIST } from '../../slots/games.js';
 import { prog as P, levelFor, giftsWaiting, bonusState } from '../progress.js';
 import { openProfile, maybeShowBonus } from './profile.js';
@@ -162,9 +167,13 @@ function listHead(title) {
 // middle under its name, its neighbours named at either side. A swipe, an
 // arrow key or a neighbour's name glides the arc round; Play now seats you
 // at the game in the middle, Tables opens its page.
+// In the order of the carousel's tables (scene.js CAROUSEL_SETS).
 const FLOOR = [
   { id: 'blackjack', kicker: 'Table game · five seats', name: 'Blackjack', line: 'Beat the dealer to 21 · blackjack pays 3 to 2' },
+  { id: 'teenpatti', kicker: 'Cards · three each', name: 'Teen Patti', line: 'Boot, blind or seen, chaal, show and side show · trail beats all', more: 'Stakes' },
   { id: 'holdem', kicker: 'Poker · six seats', name: "Texas Hold'em", line: 'No-limit cash games, practice and tournaments' },
+  { id: 'rummy', kicker: 'Cards · thirteen each', name: 'Rummy', line: 'Points rummy · a pure sequence, a second sequence, and declare', more: 'Stakes' },
+  { id: 'crash', kicker: 'Live rounds · everyone together', name: 'Liftoff', line: 'Back the shuttle, cash out before it is lost · two bets a round', more: 'How it works' },
   { id: 'roulette', kicker: 'Table game · six seats', name: 'Roulette', line: 'European wheel, one zero · straight up pays 35 to 1' },
   { id: 'craps', kicker: 'Dice · six seats', name: 'Craps', line: 'Pass Line, odds at true odds, the field and the hard ways' },
   { id: 'baccarat', kicker: 'Table game · seven seats', name: 'Baccarat', line: 'Punto Banco · Banker pays 19 to 20, Tie 8 to 1' },
@@ -336,6 +345,9 @@ function attachStage() {
       else if (id === 'holdem') await Poker.playPokerNow();
       else if (id === 'roulette') await Roulette.playRouletteNow();
       else if (id === 'slots') await Slots.startSlots();
+      else if (id === 'crash') await Crash.startCrash();
+      else if (id === 'teenpatti') await TeenPatti.startTeenPatti(tpTierFor(S.session.chips));
+      else if (id === 'rummy') await Rummy.startRummy(rummyTierFor(S.session.chips));
       else if (id === 'craps') await Craps.playCrapsNow();
       else await Baccarat.playBaccaratNow();
     } catch (e) { /* the page says what went wrong */ }
@@ -604,6 +616,66 @@ function baccaratPage() {
         <label class="field-inline"><span>Stakes</span><select id="bcPracticeStakes">${TABLE_STAKES.map((st, i) => `<option value="${i}">${esc(ROOM_NAMES[i])} · ${short(st.min)} / ${short(st.max)}</option>`).join('')}</select></label>
         <button class="btn btn-primary btn-lg" id="bcPracticeBtn">Deal for practice</button>
       </div>
+    </section>`;
+}
+
+// ---------- the Indian tables and Liftoff ----------
+// The stakes a balance sits at comfortably: the highest whose buy-in it
+// covers several times over.
+const tpTierFor = (chips) => { let t = 0; TP_STAKES.forEach((st, i) => { if (chips >= limitsFor(st.boot).buyIn * 2) t = i; }); return t; };
+const rummyTierFor = (chips) => { let t = 0; RUMMY_STAKES.forEach((st, i) => { if (chips >= st.point * MAX_POINTS * 12) t = i; }); return t; };
+function stakeRows(list, attr, sub, short_) {
+  return list.map((st, i) => `
+    <li><button class="row" ${attr}="${i}">
+      <span class="felt-dot tp-dot tier-${i}"></span>
+      <span class="row-main">
+        <span class="row-title">${esc(st.name)}</span>
+        <span class="row-sub">${sub(st)}</span>
+      </span>
+      <span class="pill live">Play</span>
+      ${chevron}
+    </button></li>`).join('');
+}
+function teenpattiPage() {
+  return `
+    ${banner('teenpatti', {
+      kicker: 'Cards · three each · with house players',
+      title: 'Teen Patti',
+      line: 'Put in the boot, play blind or seen, and stay in to the show · on your real balance',
+      actions: '<button class="btn btn-primary btn-lg" id="tpNowBtn">Play now</button>',
+    })}
+    <section class="list-section">${listHead('Tables')}<ul class="rows">${stakeRows(TP_STAKES, 'data-tp', (st) => { const L = limitsFor(st.boot); return `Boot ${short(st.boot)} · chaal limit ${short(L.chaalLimit)} · pot limit ${short(L.potLimit)} · buy-in ${short(L.buyIn)}`; })}</ul></section>
+    <section class="list-section rules-mini">
+      <h2>The hands, best first</h2>
+      <p>Trail (three of a kind) · Pure sequence · Sequence · Colour · Pair · High card. In sequences A-K-Q is highest, then A-2-3. A blind player's chaal is the stake; a seen player's is twice it. Show is open when two are left; a side show asks the seen player before you to compare.</p>
+    </section>`;
+}
+function rummyPage() {
+  return `
+    ${banner('rummy', {
+      kicker: 'Cards · thirteen each · with house players',
+      title: 'Rummy',
+      line: 'Points rummy · declare with a pure sequence and a second sequence · on your real balance',
+      actions: '<button class="btn btn-primary btn-lg" id="rummyNowBtn">Play now</button>',
+    })}
+    <section class="list-section">${listHead('Tables')}<ul class="rows">${stakeRows(RUMMY_STAKES, 'data-rummy', (st) => `${short(st.point)} a point · at most ${MAX_POINTS} points (${short(st.point * MAX_POINTS)}) a deal`)}</ul></section>
+    <section class="list-section rules-mini">
+      <h2>How a deal is won</h2>
+      <p>Draw from the closed deck or the open pile, then discard. Lay all thirteen in sequences and sets — at least two sequences, one of them pure (no joker) — and declare. The card turned under the deck names the wild joker. The others pay their unmatched points, at most 80; drop before your first draw for 20, later for 40.</p>
+    </section>`;
+}
+function crashPage() {
+  return `
+    ${banner('crash', {
+      kicker: 'Live rounds · everyone together',
+      title: 'Liftoff',
+      line: 'One launch for everyone at once. Back it, and cash out before the shuttle is lost',
+      actions: '<button class="btn btn-primary btn-lg" id="crashNowBtn">Launch</button>',
+    })}
+    <section class="list-section rules-mini">
+      <h2>How it works</h2>
+      <p>Each round opens with a few seconds to bet. The shuttle lifts off and the multiplier climbs from 1.00x; cash out at any moment to take your bet times the multiplier. If the shuttle is lost before you cash out, the bet is lost. Two bets a round, each with its own auto cash-out. Every player sees the same launch and the same result.</p>
+      <p class="muted">The Space Shuttle Discovery is the Smithsonian's 3D scan (CC0); the Earth is NASA's Blue Marble and Black Marble (public domain).</p>
     </section>`;
 }
 
@@ -1001,7 +1073,7 @@ function sheetHtml() {
 
 // ---------- the page ----------
 
-const PAGES = { home: homePage, blackjack: blackjackPage, holdem: holdemPage, roulette: roulettePage, baccarat: baccaratPage, slots: slotsPage, craps: crapsPage, tournaments: tournamentsPage, leaderboard: leaderboardPage };
+const PAGES = { home: homePage, teenpatti: teenpattiPage, rummy: rummyPage, crash: crashPage, blackjack: blackjackPage, holdem: holdemPage, roulette: roulettePage, baccarat: baccaratPage, slots: slotsPage, craps: crapsPage, tournaments: tournamentsPage, leaderboard: leaderboardPage };
 
 export function renderHome() {
   if (S.lobbyGame === 'home' || !PAGES[S.lobbyGame]) return `${homePage()}${sheetHtml()}`;
@@ -1088,6 +1160,12 @@ export function attachHome() {
     Roulette.hostRouletteTable(sel ? Number(sel.value) : 0);
   });
   on('baccaratNowBtn', Baccarat.playBaccaratNow);
+  const seat = (fn) => async () => { Curtain.drop('Taking your seat…'); try { await fn(); } catch (e) { /* said on the page */ } if (S.session.screen !== 'table') Curtain.lift(0); };
+  on('crashNowBtn', seat(() => Crash.startCrash()));
+  on('tpNowBtn', seat(() => TeenPatti.startTeenPatti(tpTierFor(S.session.chips))));
+  on('rummyNowBtn', seat(() => Rummy.startRummy(rummyTierFor(S.session.chips))));
+  all('[data-tp]', (el) => { el.onclick = seat(() => TeenPatti.startTeenPatti(Number(el.dataset.tp))); });
+  all('[data-rummy]', (el) => { el.onclick = seat(() => Rummy.startRummy(Number(el.dataset.rummy))); });
   on('slotsNowBtn', async () => { Curtain.drop('Taking your seat…'); try { await Slots.startSlots(); } catch (e) { /* said on the page */ } if (S.session.screen !== 'table') Curtain.lift(0); });
   on('bcPracticeBtn', () => {
     const sel = document.getElementById('bcPracticeStakes');

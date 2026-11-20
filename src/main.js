@@ -15,6 +15,9 @@ import { mountRoulette3D, syncRouletteToScene, renderRouletteScreen, attachRoule
 import { mountSlots3D, syncSlotsToScene, renderSlotsScreen, attachSlotsScreen, leaveSlotsView } from './app/slotsBridge.js';
 import { mountCraps3D, syncCrapsToScene, renderCrapsScreen, attachCrapsScreen, leaveCrapsView } from './app/crapsBridge.js';
 import { mountBaccarat3D, syncBaccaratToScene, renderBaccaratScreen, attachBaccaratScreen, leaveBaccaratView } from './app/baccaratBridge.js';
+import { renderCrashScreen, attachCrashScreen, showCrashView, leaveCrashView } from './app/crashBridge.js';
+import { mountTeenPatti3D, syncTeenPattiToScene, renderTeenPattiScreen, attachTeenPattiScreen, leaveTeenPattiView } from './app/teenPattiBridge.js';
+import { mountRummy3D, syncRummyToScene, renderRummyScreen, attachRummyScreen, leaveRummyView } from './app/rummyBridge.js';
 import { renderAuth, attachAuth } from './app/screens/auth.js';
 import { renderHome, attachHome, setLobbyScene, carouselIndex } from './app/screens/home.js';
 import { renderJoin, attachJoin } from './app/screens/join.js';
@@ -67,11 +70,14 @@ function render() {
     intro = null;
   }
   const showTable = session.screen === 'table';
+  // Liftoff draws on a canvas of its own (crash/scene.js); the casino's
+  // rooms rest while it is up.
+  const ownCanvas = showTable && !!session.room && session.room.game === 'crash';
   const backdrop = BACKDROP_SCREENS.has(session.screen);
   // The scene is hidden until there is something to show behind or under
   // the page — never the table and its dealer on their own while the page
   // is still loading — and fades in when it first appears.
-  const showScene = (showTable || backdrop) && !!sceneHandles;
+  const showScene = ((showTable && !ownCanvas) || backdrop) && !!sceneHandles;
   if (showScene && canvas.style.display === 'none') {
     canvas.style.opacity = '0';
     canvas.style.display = 'block';
@@ -86,6 +92,9 @@ function render() {
   if (lastScreen === 'table' && session.screen !== 'table') {
     // Nothing of the table just left stays on it: the backdrop shows it.
     if (shownGame === 'holdem') leavePokerView();
+    else if (shownGame === 'crash') leaveCrashView();
+    else if (shownGame === 'teenpatti') leaveTeenPattiView();
+    else if (shownGame === 'rummy') leaveRummyView();
     else if (shownGame === 'roulette') leaveRouletteView();
     else if (shownGame === 'baccarat') leaveBaccaratView();
     else if (shownGame === 'slots') leaveSlotsView();
@@ -102,11 +111,12 @@ function render() {
     const roulette = session.screen === 'home' && lobbyGame === 'roulette';
     const baccarat = session.screen === 'home' && lobbyGame === 'baccarat';
     const craps = session.screen === 'home' && lobbyGame === 'craps';
+    const indian = session.screen === 'home' && (lobbyGame === 'teenpatti' || lobbyGame === 'rummy') ? lobbyGame : null;
     // The lobby's home page shows every game's table on the carousel.
     const carousel = session.screen === 'home' && lobbyGame === 'home';
     // Behind the sign-in page and the lobby, the lobby's own plain stage
     // (scene/lobbyRoom.js): the tables are the picture, not a room.
-    sceneHandles.setBackdrop(backdrop, { tier: 0, show: carousel ? 'carousel' : poker ? 'holdem' : roulette ? 'roulette' : baccarat ? 'baccarat' : craps ? 'craps' : 'blackjack', dealerKey: dealerKeyFor(6, 'male'), index: carouselIndex() });
+    sceneHandles.setBackdrop(backdrop, { tier: 0, show: carousel ? 'carousel' : indian || (poker ? 'holdem' : roulette ? 'roulette' : baccarat ? 'baccarat' : craps ? 'craps' : 'blackjack'), dealerKey: dealerKeyFor(6, 'male'), index: carouselIndex() });
   }
 
   if (session.screen === 'loading') {
@@ -145,6 +155,52 @@ function render() {
   }
   if (session.screen === 'table') {
     const myKey = session.uid ? safeKey(session.uid) : null;
+    // Off whatever table the scene was showing, for another.
+    const leaveShown = () => {
+      if (shownGame === 'holdem') leavePokerView();
+      else if (shownGame === 'roulette') leaveRouletteView();
+      else if (shownGame === 'baccarat') leaveBaccaratView();
+      else if (shownGame === 'slots') leaveSlotsView();
+      else if (shownGame === 'craps') leaveCrapsView();
+      else if (shownGame === 'crash') leaveCrashView();
+      else if (shownGame === 'teenpatti') leaveTeenPattiView();
+      else if (shownGame === 'rummy') leaveRummyView();
+      else hideBlackjackTable();
+      resetTableDiffState();
+    };
+    if (session.room && session.room.game === 'teenpatti') {
+      if (shownGame !== 'teenpatti') { leaveShown(); shownGame = 'teenpatti'; }
+      root.innerHTML = renderTeenPattiScreen();
+      attachTeenPattiScreen();
+      syncTeenPattiToScene(session.room, myKey);
+      return;
+    }
+    if (shownGame === 'teenpatti') { leaveTeenPattiView(); shownGame = null; }
+    if (session.room && session.room.game === 'rummy') {
+      if (shownGame !== 'rummy') { leaveShown(); shownGame = 'rummy'; }
+      root.innerHTML = renderRummyScreen();
+      attachRummyScreen();
+      syncRummyToScene(session.room);
+      return;
+    }
+    if (shownGame === 'rummy') { leaveRummyView(); shownGame = null; }
+    if (session.room && session.room.game === 'crash') {
+      if (shownGame !== 'crash') {
+        if (shownGame === 'holdem') leavePokerView();
+        else if (shownGame === 'roulette') leaveRouletteView();
+        else if (shownGame === 'baccarat') leaveBaccaratView();
+        else if (shownGame === 'slots') leaveSlotsView();
+        else if (shownGame === 'craps') leaveCrapsView();
+        else hideBlackjackTable();
+        resetTableDiffState();
+        shownGame = 'crash';
+      }
+      root.innerHTML = renderCrashScreen();
+      attachCrashScreen();
+      showCrashView();
+      return;
+    }
+    if (shownGame === 'crash') { leaveCrashView(); shownGame = null; }
     if (session.room && session.room.game === 'slots') {
       if (shownGame !== 'slots') {
         if (shownGame === 'holdem') leavePokerView();
@@ -266,6 +322,8 @@ async function boot() {
   mountBaccarat3D(sceneHandles);
   mountSlots3D(sceneHandles);
   mountCraps3D(sceneHandles);
+  mountTeenPatti3D(sceneHandles);
+  mountRummy3D(sceneHandles);
   setLobbyScene(sceneHandles);
   mountService(sceneHandles);
   mountChairInvites(sceneHandles);
@@ -274,6 +332,15 @@ async function boot() {
   checkInviteParam();
   // A few seconds in, once the casino is open: is there a newer app?
   setTimeout(checkForAppUpdate, 6000);
+}
+
+// Local checks only: straight to a game without an account (?play=crash).
+if (import.meta.env.DEV) {
+  window.__play = async (game) => {
+    if (game === 'crash') (await import('./app/crashSession.js')).devStart();
+    if (game === 'teenpatti') (await import('./app/teenPattiSession.js')).devStart();
+    if (game === 'rummy') (await import('./app/rummySession.js')).devStart();
+  };
 }
 
 boot().catch((e) => { if (intro) intro.fail('Something went wrong while opening.', String((e && e.message) || e)); });

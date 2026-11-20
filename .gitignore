@@ -7,3 +7,5 @@ __charlab.html
 public/models/characters/mh_*
 __pycache__/
 public/__ref*.mp4
+__crashlab.html
+__crash_shots/

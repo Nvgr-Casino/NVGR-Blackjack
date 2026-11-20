@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 893" width="640" height="893">
+  <!-- The printed joker for Rummy: drawn for this deck, in its manner — a
+       plain white card, the word stacked in the corners, and a crown and
+       star at the centre in black and gold. -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e9c977"/>
+      <stop offset="0.5" stop-color="#c39331"/>
+      <stop offset="1" stop-color="#8a6416"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="893" fill="#ffffff"/>
+  <g font-family="Georgia, 'Times New Roman', serif" font-weight="700" fill="#b3121f" text-anchor="middle">
+    <g font-size="50">
+      <text x="56" y="92">J</text><text x="56" y="146">O</text><text x="56" y="200">K</text><text x="56" y="254">E</text><text x="56" y="308">R</text>
+    </g>
+    <g font-size="50" transform="rotate(180 320 446.5)">
+      <text x="56" y="92">J</text><text x="56" y="146">O</text><text x="56" y="200">K</text><text x="56" y="254">E</text><text x="56" y="308">R</text>
+    </g>
+  </g>
+  <rect x="118" y="150" width="404" height="593" rx="18" fill="none" stroke="url(#g)" stroke-width="5"/>
+  <rect x="132" y="164" width="376" height="565" rx="12" fill="none" stroke="#1b1b1b" stroke-width="1.5"/>
+  <!-- The crown -->
+  <g transform="translate(320 400)">
+    <path d="M-120 60 L-138 -62 L-70 -6 L0 -96 L70 -6 L138 -62 L120 60 Z" fill="url(#g)" stroke="#1b1b1b" stroke-width="5" stroke-linejoin="round"/>
+    <rect x="-126" y="60" width="252" height="34" rx="6" fill="#1b1b1b"/>
+    <rect x="-118" y="68" width="236" height="18" rx="4" fill="url(#g)"/>
+    <circle cx="-138" cy="-70" r="14" fill="#1b1b1b"/><circle cx="138" cy="-70" r="14" fill="#1b1b1b"/><circle cx="0" cy="-106" r="16" fill="#1b1b1b"/>
+    <circle cx="-60" cy="30" r="12" fill="#b3121f"/><circle cx="0" cy="22" r="14" fill="#1b1b1b"/><circle cx="60" cy="30" r="12" fill="#b3121f"/>
+  </g>
+  <!-- The star above it -->
+  <path transform="translate(320 220) scale(1.4)" d="M0 -30 L8.8 -9.3 L28.5 -9.3 L12.8 3.6 L18.5 24.3 L0 12 L-18.5 24.3 L-12.8 3.6 L-28.5 -9.3 L-8.8 -9.3 Z" fill="#1b1b1b"/>
+  <text x="320" y="610" font-family="Georgia, 'Times New Roman', serif" font-size="74" font-weight="700" letter-spacing="10" fill="#1b1b1b" text-anchor="middle">JOKER</text>
+  <rect x="220" y="636" width="200" height="4" fill="url(#g)"/>
+</svg>

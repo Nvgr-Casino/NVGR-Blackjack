@@ -39,13 +39,17 @@ function cornerMask(w, h) {
   return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><path fill="${STOCK}" fill-rule="evenodd" d="${d}"/></svg>`);
 }
 
-const files = readdirSync(SRC).filter((f) => /^(10|[2-9AJQK])[CDHS]\.svg$/.test(f));
+// The 52, and the printed joker Rummy uses (JOKER.svg, drawn for this
+// deck, as JK-X). `node scripts/build-cards.mjs JOKER` renders just one.
+const only = process.argv[2];
+const files = readdirSync(SRC).filter((f) => /^(10|[2-9AJQK])[CDHS]\.svg$/.test(f) || f === 'JOKER.svg').filter((f) => !only || f.startsWith(only));
 for (const { out: OUT, width: WIDTH, quality } of SIZES) {
 mkdirSync(OUT, { recursive: true });
 const HEIGHT = Math.round(WIDTH * (88.9 / 63.5));
 for (const file of files) {
-  const rank = file.slice(0, -5);
-  const suit = file.slice(-5, -4);
+  const joker = file === 'JOKER.svg';
+  const rank = joker ? 'JK' : file.slice(0, -5);
+  const suit = joker ? 'X' : file.slice(-5, -4);
   const { data, info } = await sharp(join(SRC, file), { density: WIDTH > 640 ? 1200 : 600 })
     .flatten({ background: STOCK })
     .toBuffer({ resolveWithObject: true });

@@ -19,6 +19,7 @@ import { cameraOverride } from './cameraFocus.js';
 import { createService } from './service.js';
 import { createLobbyCrowd } from './lobbyCrowd.js';
 import { createSlotSalon } from './slotSalon.js';
+import { createLiftoffDisplay } from './liftoffDisplay.js';
 import { PHONE_LITE, PHONE_SCREEN } from '../platform.js';
 
 // Step 1-2: static table + deal animation. Step 3 (current): seats, a
@@ -330,6 +331,28 @@ export function initScene(canvas) {
   const slotsSalon = createSlotSalon();
   slotsSet.add(slotsSalon);
 
+  // On the lobby's carousel only: a Teen Patti table and a Rummy table (in
+  // play they are the Hold'em table, its felt reprinted), and Liftoff's
+  // shuttle in its case.
+  function ovalSet(felt, layout) {
+    const set = new THREE.Group();
+    set.visible = false;
+    scene.add(set);
+    const t = createPokerTable();
+    t.userData.setFeltTheme(felt, layout);
+    if (t.userData.setGlow) { glowing.push(t); t.userData.setGlow(tableGlow); }
+    set.add(t);
+    POKER_SEATS_3D.forEach((seat) => place(set, 'dining_chair_02', { x: seat.position.x, z: seat.position.z, yaw: seat.facingAngle, shadows: true }));
+    return set;
+  }
+  const teenPattiSet = ovalSet('red', 'teenpatti');
+  const rummySet = ovalSet('blue', 'rummy');
+  const liftoffSet = new THREE.Group();
+  liftoffSet.visible = false;
+  scene.add(liftoffSet);
+  const liftoffDisplay = createLiftoffDisplay();
+  liftoffSet.add(liftoffDisplay);
+
   // Drinks and the waiters who bring them (service.js).
   service = createService({ scene, blackjackSet, pokerSet, blackjackTable: table, pokerTable });
   service.prepare('blackjack');
@@ -342,14 +365,16 @@ export function initScene(canvas) {
     if (next === game) return;
     game = next;
     blackjackSet.visible = game === 'blackjack';
-    pokerSet.visible = game === 'holdem';
+    // Teen Patti and Rummy are played at the Hold'em table.
+    pokerSet.visible = game === 'holdem' || game === 'teenpatti' || game === 'rummy';
+    teenPattiSet.visible = rummySet.visible = liftoffSet.visible = false;
     rouletteSet.visible = game === 'roulette';
     baccaratSet.visible = game === 'baccarat';
     slotsSet.visible = game === 'slots';
     crapsSet.visible = game === 'craps';
     // The salon has no dealer.
     dealer.visible = game !== 'slots';
-    dealer.position.copy(game === 'holdem' ? POKER_DEALER.position : game === 'roulette' ? ROULETTE_DEALER.position : game === 'baccarat' ? BACCARAT_DEALER.position : game === 'craps' ? CRAPS_DEALER.position : DEALER.position);
+    dealer.position.copy(game === 'holdem' || game === 'teenpatti' || game === 'rummy' ? POKER_DEALER.position : game === 'roulette' ? ROULETTE_DEALER.position : game === 'baccarat' ? BACCARAT_DEALER.position : game === 'craps' ? CRAPS_DEALER.position : DEALER.position);
   }
 
   // ---------- the lobby's carousel ----------
@@ -358,9 +383,13 @@ export function initScene(canvas) {
   // neighbours either side, turned in toward it. Choosing another game
   // glides the whole arc round past a steady camera; the dealer stands at
   // whichever table it comes to rest on.
+  // In the order of the lobby's FLOOR (screens/home.js).
   const CAROUSEL_SETS = [
     { game: 'blackjack', set: blackjackSet, dealer: DEALER.position },
+    { game: 'teenpatti', set: teenPattiSet, dealer: POKER_DEALER.position },
     { game: 'holdem', set: pokerSet, dealer: POKER_DEALER.position },
+    { game: 'rummy', set: rummySet, dealer: POKER_DEALER.position },
+    { game: 'crash', set: liftoffSet, dealer: null },
     { game: 'roulette', set: rouletteSet, dealer: ROULETTE_DEALER.position },
     { game: 'craps', set: crapsSet, dealer: CRAPS_DEALER.position },
     { game: 'baccarat', set: baccaratSet, dealer: BACCARAT_DEALER.position },
@@ -383,6 +412,7 @@ export function initScene(canvas) {
       o -= Math.round(o / n) * n;
       const a = o * ARC_STEP;
       c.set.visible = Math.abs(o) < 1.7;
+      if (c.set === liftoffSet && c.set.visible) liftoffDisplay.userData.load();
       c.set.position.set(Math.sin(a) * ARC_R, 0, -(1 - Math.cos(a)) * ARC_R);
       c.set.rotation.y = -a;
       if (Math.abs(o) < 0.5) nearest = { c, o };
@@ -414,6 +444,7 @@ export function initScene(canvas) {
     dealer.rotation.y = 0;
     service.setWaitersVisible(true);
     crowd.show(false);
+    teenPattiSet.visible = rummySet.visible = liftoffSet.visible = false;
     // setGame decides again which one table shows.
     const was = game;
     game = null;
@@ -429,6 +460,7 @@ export function initScene(canvas) {
   /** Follow a finger: `pos` is where the arc should stand right now. */
   function carouselHold(pos) { carousel.held = true; carousel.pos = carousel.target = pos; carousel.vel = 0; }
   function stepCarousel(delta) {
+    if (liftoffSet.visible) liftoffDisplay.userData.update(delta);
     if (!carousel.held) {
       // In small steps, so a slow frame doesn't kick the spring.
       let left = Math.min(delta, 0.1);
